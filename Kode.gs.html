@@ -1472,9 +1472,11 @@ function getLKHUsersSheet_() {
   let sheet = ss.getSheetByName("LKHUsers");
   if (!sheet) {
     sheet = ss.insertSheet("LKHUsers");
-    sheet.appendRow(["Email", "kopUrl", "nip", "jabatan", "kementerian", "namaKepala", "nipKepala", "bulan", "tempat", "tanggal"]);
+    // Menghapus "kopUrl" dan "kementerian" dari header
+    sheet.appendRow(["Email", "nip", "jabatan", "namaKepala", "nipKepala", "bulan", "tempat", "tanggal"]);
     SpreadsheetApp.flush();
-    sheet.getRange("A:J").setNumberFormat("@");
+    // Mengubah jangkauan format dari A:J menjadi A:H
+    sheet.getRange("A:H").setNumberFormat("@");
   }
   return sheet;
 }
