@@ -1033,34 +1033,21 @@
   }
   /* --- AKHIR PERUBAHAN --- */
 
-  /* --- AWAL TAMBAHAN STYLE UNTUK FITUR PENGAJUAN --- */
-
   /* Warna baris untuk status pengajuan */
   tr.pending-row {
     background-color: #FEF3C7 !important; /* Kuning muda */
-    color: #92400E; /* Coklat tua */
+    color: #92400E;
   }
   tr.pending-row:hover {
-    background-color: #FDE68A !important; /* Kuning lebih terang saat hover */
+    background-color: #FDE68A !important;
   }
-  /* Mengubah warna background input di baris pending agar lebih kontras */
   tr.pending-row input,
   tr.pending-row select {
-    background-color: #FFFBEB; /* Kuning sangat muda */
-    border-color: #FCD34D; /* Border kuning */
+    background-color: #FFFBEB;
   }
-  /* Style khusus untuk input yang disabled di baris pending */
-  tr.pending-row input:disabled,
-  tr.pending-row select:disabled {
-     background-color: #FEF9C3; /* Sedikit lebih gelap dari background input biasa */
-     cursor: not-allowed;
-     opacity: 0.7;
-  }
-
-
+  
   /* Tombol 'Ubah' di mode pengajuan */
-  /* Menggunakan .action-button sebagai basis agar konsisten */
-  .action-button.warning.edit-btn {
+  .action-btn.warning.edit-btn {
     background-color: var(--warning-color);
     color: white;
     border: none;
@@ -1070,78 +1057,63 @@
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s;
-    width: auto; /* Override width: 100% dari .action-button */
-    display: inline-flex; /* Agar icon dan text sejajar */
-    justify-content: center;
-    align-items: center;
   }
-  .action-button.warning.edit-btn:hover:not(:disabled) {
-    background-color: #D97706; /* Warna kuning lebih gelap */
-    transform: none; /* Hilangkan efek naik */
-    box-shadow: none; /* Hilangkan shadow */
+  .action-btn.warning.edit-btn:hover:not(:disabled) {
+    background-color: #D97706;
   }
-  .action-button.warning.edit-btn:disabled {
-    background-color: #E5E7EB; /* Abu-abu */
+  .action-btn.warning.edit-btn:disabled {
+    background-color: #E5E7EB;
     color: #9CA3AF;
     cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
   }
-
-
+  
   /* Tombol 'Ajukan Perubahan' */
   #request-change-button {
-    background-color: var(--warning-color); /* Kuning */
+    background-color: var(--warning-color);
     color: white;
   }
   #request-change-button:hover:not(:disabled) {
-    background-color: #D97706; /* Kuning gelap */
+    background-color: #D97706;
     box-shadow: 0 4px 12px rgba(245, 158, 11, 0.25);
   }
-
-
+  
   /* Tombol 'Batalkan Ajuan' (merah) */
   #request-change-button.cancel-request {
-    background-color: var(--danger-color); /* Merah */
+    background-color: var(--danger-color);
   }
   #request-change-button.cancel-request:hover:not(:disabled) {
-    background-color: var(--danger-hover-color); /* Merah gelap */
+    background-color: var(--danger-hover-color);
     box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
   }
-
-
+  
   /* Style untuk daftar pengajuan di halaman Staff */
   .request-group {
     border: 1px solid var(--border-color);
     border-radius: 12px;
-    margin-bottom: 25px; /* Tambah jarak antar grup */
-    overflow: hidden; /* Pastikan border radius terlihat */
-    background-color: var(--card-bg-color); /* Warna dasar putih */
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.04); /* Shadow halus */
+    margin-bottom: 20px;
+    overflow: hidden;
   }
   .request-group-header {
-    background-color: #F9FAFB; /* Abu-abu sangat muda */
+    background-color: #F9FAFB;
     padding: 15px 20px;
     border-bottom: 1px solid var(--border-color);
   }
   .request-group-header h3 {
     margin: 0;
     font-size: 18px;
-    color: var(--text-primary-color);
   }
   .request-group-header p {
     margin: 5px 0 0 0;
     font-size: 14px;
-    color: var(--text-secondary-color);
   }
   .request-table-container {
-    padding: 0; /* Hapus padding agar tabel menempel */
-    overflow-x: auto; /* Scroll horizontal jika perlu */
+    padding: 0;
+    overflow-x: auto;
   }
   .request-table {
     width: 100%;
-    min-width: 700px; /* Lebar minimum tabel */
-    border-collapse: collapse; /* Hapus spasi antar border */
+    min-width: 700px;
+    border-collapse: collapse;
   }
   .request-table th,
   .request-table td {
@@ -1149,60 +1121,42 @@
     border-bottom: 1px solid var(--border-color);
     text-align: left;
     font-size: 14px;
-    vertical-align: top; /* Rata atas */
+    vertical-align: top;
   }
   .request-table th {
-    background-color: #F9FAFB; /* Abu-abu sangat muda */
-    font-weight: 600;
-    color: #4B5563; /* Abu-abu gelap */
+    background-color: #F9FAFB;
   }
-  /* Hilangkan border bawah pada baris terakhir */
   .request-table tr:last-child td {
     border-bottom: none;
   }
-  /* Label untuk data lama/baru */
   .request-table .data-label {
     font-weight: 600;
     color: var(--text-secondary-color);
     font-size: 12px;
-    display: block; /* Agar label di atas data */
-    margin-bottom: 2px;
   }
-  /* Data lama (dicoret merah) */
   .request-table .data-old {
     text-decoration: line-through;
     color: var(--danger-color);
   }
-  /* Data baru (hijau tebal) */
   .request-table .data-new {
     color: var(--success-color);
     font-weight: 600;
   }
-  /* Kolom data pengajuan (baru) */
-  .request-table td:nth-child(3) {
-     background-color: #F0FDF4; /* Hijau sangat muda */
-  }
-  /* Aksi di bagian bawah grup */
   .request-group-actions {
     padding: 15px 20px;
-    background-color: #F9FAFB; /* Abu-abu sangat muda */
+    background-color: #F9FAFB;
     border-top: 1px solid var(--border-color);
-    display: flex; /* Sejajarkan tombol */
-    justify-content: flex-end; /* Tombol ke kanan */
-    gap: 10px; /* Jarak antar tombol */
+    display: flex;
+    gap: 10px;
   }
   .request-group-actions button {
-    width: auto; /* Lebar otomatis */
-    padding: 10px 18px; /* Padding tombol */
+    width: auto;
+    padding: 10px 18px;
   }
-  /* Tombol tolak (merah) */
   .request-group-actions button.reject-btn {
     background-color: var(--danger-color);
   }
   .request-group-actions button.reject-btn:hover:not(:disabled) {
     background-color: var(--danger-hover-color);
-    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2); /* Shadow merah */
   }
-
-  /* --- AKHIR TAMBAHAN STYLE --- */
 </style>
