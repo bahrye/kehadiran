@@ -11,6 +11,10 @@ const holidaysSheet = ss.getSheetByName("Holidays");
 const announcementsSheet = ss.getSheetByName("Announcements");
 const teacherHolidaysSheet = ss.getSheetByName("TeacherHolidays");
 const lkhUsersSheet = ss.getSheetByName("LKHUsers"); 
+// --- AWAL TAMBAHAN: Sheet Baru untuk Pengajuan ---
+const changeRequestsSheet = getChangeRequestsSheet_();
+// --- AKHIR TAMBAHAN ---
+
 
 // FUNGSI BARU: Untuk membuat token unik
 function generateToken_() {
@@ -109,6 +113,42 @@ function getAttendanceSheet_(year, month, createIfNotExist = false) {
   
   return sheet; // Akan mengembalikan null jika sheet tidak ditemukan & createIfNotExist = false
 }
+
+// --- AWAL TAMBAHAN: Helper untuk Sheet Pengajuan ---
+/**
+ * Mendapatkan atau membuat sheet untuk ChangeRequests.
+ */
+function getChangeRequestsSheet_() {
+  let sheet = ss.getSheetByName("ChangeRequests");
+  if (!sheet) {
+    sheet = ss.insertSheet("ChangeRequests");
+    const headers = [
+      "RequestID",        // 0: ID unik untuk setiap baris perubahan
+      "Timestamp",        // 1: Kapan pengajuan dibuat
+      "Email",            // 2: Email Guru
+      "School",           // 3: Sekolah
+      "Year",             // 4: Tahun data
+      "Month",            // 5: Bulan data
+      "Date",             // 6: Tanggal data yang diubah (yyyy-mm-dd)
+      "OldCheckIn",       // 7: Data Lama
+      "OldCheckOut",      // 8: Data Lama
+      "OldReason",        // 9: Data Lama
+      "NewCheckIn",       // 10: Data Baru
+      "NewCheckOut",      // 11: Data Baru
+      "NewReason",        // 12: Data Baru
+      "Status",           // 13: 'pending', 'approved', 'rejected'
+      "HandledBy",        // 14: Email Staff/Admin yang memproses
+      "RejectionReason"   // 15: Alasan jika ditolak
+    ];
+    sheet.appendRow(headers);
+    sheet.setFrozenRows(1);
+    sheet.getRange("B:B").setNumberFormat("yyyy-mm-dd HH:mm:ss");
+    sheet.getRange("G:G").setNumberFormat("yyyy-mm-dd");
+  }
+  return sheet;
+}
+// --- AKHIR TAMBAHAN ---
+
 
 function doGet() {
   return HtmlService.createTemplateFromFile('index').evaluate()
@@ -322,6 +362,57 @@ function getAttendancePageData(email, school, year, month, token) {
     }
   }
   // --- AKHIR LOGIKA BARU ---
+  
+  // --- AWAL LOGIKA BARU UNTUK PENGAJUAN ---
+  const lastMonthDate = new Date();
+  lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
+  const lastMonthStr = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
+  const currentMonthStr = `${year}-${String(month).padStart(2, '0')}`;
+  // Bulan bisa diajukan jika: terkunci DAN merupakan 1 bulan lalu.
+  const isRequestableMonth = lockedMonths.includes(currentMonthStr) && currentMonthStr === lastMonthStr;
+
+  let pendingChanges = {};
+  let rejectionInfo = null;
+  // Hanya cari data pengajuan jika bulan ini adalah bulan yang bisa diajukan
+  if (isRequestableMonth) {
+    const reqSheet = getChangeRequestsSheet_();
+    const reqData = reqSheet.getLastRow() > 1 ? reqSheet.getDataRange().getValues().slice(1) : [];
+    
+    for (let i = reqData.length - 1; i >= 0; i--) { // Loop dari belakang ke depan
+      const row = reqData[i];
+      const reqEmail = row[2];
+      const reqSchool = row[3];
+      const reqYear = row[4];
+      const reqMonth = row[5];
+      const reqDate = row[6];
+      const reqStatus = row[13];
+      
+      // Cari data yang relevan untuk user, sekolah, dan bulan ini
+      if (reqEmail.toLowerCase() === email.toLowerCase() && 
+          reqSchool === school && 
+          parseInt(reqYear) === year && 
+          parseInt(reqMonth) === month) 
+      {
+        if (reqStatus === 'pending' && !pendingChanges[reqDate]) {
+           // Jika status 'pending' dan tanggal ini belum dicatat, catat
+           pendingChanges[reqDate] = {
+             newCheckIn: row[10].replace(/^'/, ""), 
+             newCheckOut: row[11].replace(/^'/, ""), 
+             newReason: row[12]
+           };
+        } else if (reqStatus === 'rejected' && !rejectionInfo) {
+            // Jika status 'rejected' dan kita belum mencatat info penolakan, catat
+            // Ini akan mengambil info penolakan TERBARU
+            rejectionInfo = {
+              date: reqDate,
+              reason: row[15] // Kolom Alasan Penolakan
+            };
+        }
+      }
+    }
+  }
+  // --- AKHIR LOGIKA PENGAJUAN ---
+
 
   // Kirim data yang sudah diperkaya ke klien
   return { 
@@ -329,7 +420,12 @@ function getAttendancePageData(email, school, year, month, token) {
     lockedMonths, 
     holidays, 
     teacherHolidays, 
-    token: token 
+    token: token,
+    // --- DATA BARU UNTUK CLIENT ---
+    isRequestableMonth: isRequestableMonth,
+    pendingChanges: pendingChanges, // Object berisi data pending, key-nya adalah tanggal
+    rejectionInfo: rejectionInfo // Object berisi info penolakan terakhir
+    // --- AKHIR DATA BARU ---
   };
 }
 
@@ -1899,3 +1995,396 @@ function saveLKHWeeklyData(email, school, lkhWeeklyData) {
     return { status: "error", message: "Gagal menyimpan LKH mingguan. Terjadi kesalahan server." };
   }
 }
+
+// ===================================================================
+// --- AWAL BLOK FITUR PENGAJUAN PERUBAHAN ---
+// ===================================================================
+
+/**
+ * Helper: Menghapus request 'pending' atau 'rejected' sebelumnya untuk user/bulan/sekolah.
+ * Ini dipanggil saat guru membuat pengajuan baru ATAU membatalkan.
+ */
+function clearPreviousRequests_(email, school, year, month) {
+  const reqSheet = getChangeRequestsSheet_();
+  if (reqSheet.getLastRow() < 2) return; // Sheet kosong
+
+  const data = reqSheet.getDataRange().getValues();
+  const rowsToDelete = [];
+  
+  // Loop dari baris ke-2 (index 1)
+  for(let i = 1; i < data.length; i++) {
+    const row = data[i];
+    // Cek email, school, year, month, dan status
+    if (row[2].toLowerCase() === email.toLowerCase() && 
+        row[3] === school && 
+        parseInt(row[4]) === year && 
+        parseInt(row[5]) === month &&
+        (row[13] === 'pending' || row[13] === 'rejected')) // Hapus pending/rejected lama
+    {
+      rowsToDelete.push(i + 1); // Catat nomor baris (1-based index)
+    }
+  }
+  
+  if (rowsToDelete.length > 0) {
+     // Hapus dari bawah ke atas agar index tidak bergeser
+     rowsToDelete.sort((a, b) => b - a).forEach(rowIndex => reqSheet.deleteRow(rowIndex));
+  }
+}
+
+/**
+ * Helper: Mengirim notifikasi email ke staff yang relevan.
+ */
+function notifyStaffOfNewRequest(guruEmail, guruName, school, changeCount) {
+  try {
+    const allUsers = usersSheet.getDataRange().getValues().slice(1);
+    const staffForSchool = allUsers.filter(user => 
+      user[4] === 'staff' && 
+      (user[3] || "").split(',').map(s => s.trim()).includes(school)
+    );
+
+    if (staffForSchool.length === 0) {
+      Logger.log(`Tidak ada staff ditemukan untuk ${school}, notifikasi tidak terkirim.`);
+      return; // Tidak ada staff untuk dinotifikasi
+    }
+
+    const subject = `[CEKLOK] Pengajuan Ubah Data Baru dari ${guruName}`;
+    const body = `
+      <p>Halo Staff ${school},</p>
+      <p>Ada pengajuan perubahan data Ceklok baru dari:</p>
+      <ul>
+        <li><strong>Nama Guru:</strong> ${guruName}</li>
+        <li><strong>Email:</strong> ${guruEmail}</li>
+        <li><strong>Sekolah:</strong> ${school}</li>
+        <li><strong>Jumlah Perubahan:</strong> ${changeCount} data</li>
+      </ul>
+      <p>Silakan login ke aplikasi Ceklok dan masuk ke menu "Pengajuan Ubah Data" untuk meninjau pengajuan ini.</p>
+      <br>
+      <a href="${DEPLOYMENT_URL}" style="background-color: #3B82F6; color: white; padding: 12px 20px; text-decoration: none; border-radius: 8px; font-weight: 600; font-family: 'Poppins', sans-serif; display: inline-block;">
+        Buka Aplikasi Ceklok
+      </a>
+      <p style="font-size: 12px; color: #6B7280;">Jika tombol tidak berfungsi, salin link: ${DEPLOYMENT_URL}</p>
+    `;
+
+    staffForSchool.forEach(staff => {
+      MailApp.sendEmail({ 
+        to: staff[0], 
+        subject: subject, 
+        htmlBody: body, 
+        name: "Sistem Ceklok Otomatis" 
+      });
+    });
+
+  } catch (e) {
+    Logger.log(`Gagal mengirim notifikasi staff untuk ${school}: ${e.message}`);
+  }
+}
+
+/**
+ * Helper: Mengirim notifikasi email ke guru tentang keputusan.
+ */
+function notifyGuruOfDecision(guruEmail, guruName, school, year, month, action, rejectionReason) {
+   try {
+      const monthName = new Date(year, month - 1, 1).toLocaleString('id-ID', { month: 'long', year: 'numeric', timeZone: 'GMT' });
+      const subject = `[CEKLOK] Pengajuan Ubah Data Anda di-${action}`;
+      let body;
+
+      if (action === 'approve') {
+        body = `
+          <p>Halo ${guruName},</p>
+          <p>Kabar baik! Pengajuan perubahan data Ceklok Anda untuk <strong>${school}</strong> bulan <strong>${monthName}</strong> telah <strong>DISETUJUI</strong>.</p>
+          <p>Data absensi Anda telah diperbarui di sistem.</p>
+          <p>Silakan periksa kembali di aplikasi.</p>
+        `;
+      } else { // 'reject'
+         body = `
+          <p>Halo ${guruName},</p>
+          <p>Mohon maaf, pengajuan perubahan data Ceklok Anda untuk <strong>${school}</strong> bulan <strong>${monthName}</strong> telah <strong>DITOLAK</strong>.</p>
+          <p><strong>Alasan Penolakan:</strong></p>
+          <p style="padding: 10px; background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px;">
+            <em>${rejectionReason || "Tidak ada alasan yang diberikan."}</em>
+          </p>
+          <p>Data Anda tidak diubah. Silakan hubungi staff administrasi sekolah Anda untuk informasi lebih lanjut.</p>
+        `;
+      }
+       body += `<br><p><em>(Ini adalah notifikasi otomatis.)</em></p>`;
+
+       MailApp.sendEmail({ to: guruEmail, subject: subject, htmlBody: body, name: "Sistem Ceklok Otomatis" });
+
+   } catch (e) {
+     Logger.log(`Gagal mengirim notifikasi keputusan ke guru ${guruEmail}: ${e.message}`);
+   }
+}
+
+/**
+ * Helper: Memperbarui sheet Attendance utama setelah disetujui.
+ */
+function updateMainAttendanceSheet_(requestRow) {
+  try {
+    const email = requestRow[2];
+    const school = requestRow[3];
+    const year = parseInt(requestRow[4]);
+    const month = parseInt(requestRow[5]);
+    const date = requestRow[6]; // yyyy-mm-dd
+    const newCheckIn = requestRow[10].replace(/^'/, "");
+    const newCheckOut = requestRow[11].replace(/^'/, "");
+    const newReason = requestRow[12];
+    
+    const sheet = getAttendanceSheet_(year, month, true);
+    const allData = sheet.getDataRange().getValues();
+    const TIMEZONE = "GMT+8";
+    
+    let rowIndex = -1;
+    // Cari data yang ada
+    for (let i = 1; i < allData.length; i++) {
+      const row = allData[i];
+      const dateStr = Utilities.formatDate(new Date(row[4]), TIMEZONE, "yyyy-MM-dd");
+      if (row[1] === email && row[3] === school && dateStr === date) {
+        rowIndex = i + 1; // 1-based index
+        break;
+      }
+    }
+
+    if (rowIndex > 0) {
+      // Data ditemukan, update baris itu
+      sheet.getRange(rowIndex, 6, 1, 3).setValues([[`'${newCheckIn || ""}`, `'${newCheckOut || ""}`, newReason || ""]]);
+    } else {
+      // Data tidak ditemukan (misal, guru tadinya alpa/kosong)
+      // Buat baris baru
+      const allUsers = usersSheet.getDataRange().getValues();
+      const userName = allUsers.find(u => u[0].toLowerCase() === email.toLowerCase())?.[2] || email;
+      
+      sheet.appendRow([
+        new Date(), email, userName, school, new Date(date),
+        `'${newCheckIn || ""}`, `'${newCheckOut || ""}`, newReason || ""
+      ]);
+    }
+  } catch(e) {
+    Logger.log(`Gagal updateMainAttendanceSheet_ untuk ${email} tanggal ${date}: ${e.message}`);
+  }
+}
+
+
+/**
+ * (GURU) Dipanggil saat guru menekan "Ajukan Perubahan".
+ */
+function submitChangeRequest(email, school, year, month, changes) {
+  try {
+    if (!email || !school) throw new Error("Sesi tidak valid.");
+    
+    // Validasi: Pastikan ini adalah bulan yang dapat diajukan
+    const lastMonthDate = new Date();
+    lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
+    if (parseInt(year) !== lastMonthDate.getFullYear() || parseInt(month) !== (lastMonthDate.getMonth() + 1)) {
+      return { status: "error", message: "Pengajuan hanya bisa untuk 1 bulan yang lalu." };
+    }
+    if (!changes || changes.length === 0) {
+      return { status: "error", message: "Tidak ada perubahan untuk diajukan." };
+    }
+
+    const reqSheet = getChangeRequestsSheet_();
+    const timestamp = new Date();
+    const rowsToInsert = [];
+
+    // Hapus dulu pengajuan 'pending' atau 'rejected' sebelumnya untuk user/bulan/sekolah ini
+    clearPreviousRequests_(email, school, year, month);
+
+    const allUsers = usersSheet.getDataRange().getValues();
+    const userName = allUsers.find(u => u[0].toLowerCase() === email.toLowerCase())?.[2] || email;
+
+    for (const change of changes) {
+      const requestId = Utilities.getUuid();
+      rowsToInsert.push([
+        requestId, timestamp, email, school, year, month, change.date,
+        `'${change.oldData.checkIn || ""}`, `'${change.oldData.checkOut || ""}`, change.oldData.reason || "",
+        `'${change.newData.checkIn || ""}`, `'${change.newData.checkOut || ""}`, change.newData.reason || "",
+        "pending", // Status
+        "", // HandledBy
+        ""  // RejectionReason
+      ]);
+    }
+
+    if (rowsToInsert.length > 0) {
+      reqSheet.getRange(reqSheet.getLastRow() + 1, 1, rowsToInsert.length, 16).setValues(rowsToInsert);
+    }
+
+    // Kirim notifikasi ke Staff
+    notifyStaffOfNewRequest(email, userName, school, changes.length);
+
+    return { status: "success", message: "Pengajuan berhasil dikirim." };
+  } catch (e) {
+    Logger.log(`Error di submitChangeRequest: ${e.message}`);
+    return { status: "error", message: "Gagal mengirim pengajuan." };
+  }
+}
+
+/**
+ * (GURU) Dipanggil saat guru menekan "Batalkan Ajuan".
+ */
+function cancelChangeRequest(email, school, year, month) {
+  try {
+    if (!email || !school) throw new Error("Sesi tidak valid.");
+    
+    // Cukup panggil helper clear
+    clearPreviousRequests_(email, school, year, month); 
+
+    return { status: "success", message: "Pengajuan berhasil dibatalkan." };
+  } catch (e) {
+    Logger.log(`Error di cancelChangeRequest: ${e.message}`);
+    return { status: "error", message: "Gagal membatalkan pengajuan." };
+  }
+}
+
+/**
+ * (STAFF) Dipanggil saat staff membuka halaman "Pengajuan Ubah Data".
+ */
+function getPendingRequests(staffEmail, school) {
+  if (!checkIfAdminOrStaff(staffEmail)) return { success: false, error: "Akses ditolak." };
+
+  try {
+    const reqSheet = getChangeRequestsSheet_();
+    if (reqSheet.getLastRow() < 2) return { success: true, requests: [] }; // Kosong
+
+    const data = reqSheet.getDataRange().getValues().slice(1);
+    
+    // Map untuk mengelompokkan berdasarkan guru
+    const requestsByEmail = new Map();
+    
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      const reqSchool = row[3];
+      const reqStatus = row[13];
+
+      // Hanya ambil data 'pending' untuk sekolah yang dikelola staff
+      if (reqSchool === school && reqStatus === 'pending') {
+        const reqEmail = row[2];
+        const changeDetail = {
+          requestId: row[0],
+          date: Utilities.formatDate(new Date(row[6]), "GMT", "dd-MM-yyyy"), // Format tanggal untuk tampilan
+          oldData: { checkIn: row[7].replace(/^'/, ""), checkOut: row[8].replace(/^'/, ""), reason: row[9] },
+          newData: { checkIn: row[10].replace(/^'/, ""), checkOut: row[11].replace(/^'/, ""), reason: row[12] }
+        };
+
+        // Jika guru ini belum ada di Map, tambahkan
+        if (!requestsByEmail.has(reqEmail)) {
+          const allUsers = usersSheet.getDataRange().getValues();
+          const userName = allUsers.find(u => u[0].toLowerCase() === reqEmail.toLowerCase())?.[2] || reqEmail;
+          const monthName = new Date(row[4], row[5] - 1, 1).toLocaleString('id-ID', { month: 'long', year: 'numeric' });
+
+          requestsByEmail.set(reqEmail, {
+            email: reqEmail,
+            name: userName,
+            school: reqSchool,
+            monthName: monthName,
+            year: row[4], // Simpan untuk internal
+            month: row[5], // Simpan untuk internal
+            changes: []
+          });
+        }
+        
+        // Tambahkan detail perubahan ke guru yang sesuai
+        requestsByEmail.get(reqEmail).changes.push(changeDetail);
+      }
+    }
+
+    return { success: true, requests: Array.from(requestsByEmail.values()) };
+  } catch (e) {
+    Logger.log(`Error di getPendingRequests: ${e.message}`);
+    return { success: false, error: "Gagal mengambil data pengajuan." };
+  }
+}
+
+/**
+ * (STAFF) Dipanggil saat staff menekan "Setujui" atau "Tolak".
+ * Memproses semua request ID yang dikirim dalam satu aksi.
+ */
+function processChangeRequest(staffEmail, requestIds, action, rejectionReason) {
+  if (!checkIfAdminOrStaff(staffEmail)) return { status: "error", message: "Akses ditolak." };
+  if (!requestIds || requestIds.length === 0) return { status: "error", message: "Tidak ada pengajuan yang dipilih."};
+  if (action === 'reject' && !rejectionReason) return { status: "error", message: "Alasan penolakan wajib diisi."};
+
+  try {
+    const reqSheet = getChangeRequestsSheet_();
+    const data = reqSheet.getDataRange().getValues();
+    const headers = data[0];
+    
+    // Cari index kolom berdasarkan nama header (lebih aman)
+    const idIndex = headers.indexOf("RequestID");
+    const statusIndex = headers.indexOf("Status");
+    const handledByIndex = headers.indexOf("HandledBy");
+    const reasonIndex = headers.indexOf("RejectionReason");
+    const yearIndex = headers.indexOf("Year");
+    const monthIndex = headers.indexOf("Month");
+    const emailIndex = headers.indexOf("Email");
+    const schoolIndex = headers.indexOf("School");
+
+    let firstRequestInfo = null;
+    let guruEmail = "";
+    let guruName = "";
+    let school = "";
+
+    for (const requestId of requestIds) {
+      let found = false;
+      for (let i = 1; i < data.length; i++) { // Loop data (mulai dari 1)
+        if (data[i][idIndex] === requestId) { // Cek ID
+          const row = data[i];
+          if (row[statusIndex] !== 'pending') {
+            throw new Error(`Pengajuan ${requestId} sudah diproses.`);
+          }
+
+          if (!firstRequestInfo) { // Ambil info dari request pertama
+            firstRequestInfo = {
+              year: row[yearIndex],
+              month: row[monthIndex],
+              email: row[emailIndex],
+              school: row[schoolIndex]
+            };
+            guruEmail = row[emailIndex];
+            school = row[schoolIndex];
+            const allUsers = usersSheet.getDataRange().getValues();
+            guruName = allUsers.find(u => u[0].toLowerCase() === guruEmail.toLowerCase())?.[2] || guruEmail;
+          }
+
+          // Dapatkan baris di sheet (1-based index)
+          const rowIndex = i + 1;
+          const rangeToUpdate = reqSheet.getRange(rowIndex, statusIndex + 1, 1, 3);
+          
+          if (action === 'approve') {
+            rangeToUpdate.setValues([[ "approved", staffEmail, "" ]]);
+            // JALANKAN LOGIKA UPDATE SHEET UTAMA
+            updateMainAttendanceSheet_(row); 
+          } else { // 'reject'
+            rangeToUpdate.setValues([[ "rejected", staffEmail, rejectionReason || "" ]]);
+          }
+          found = true;
+          break; // Lanjut ke request ID berikutnya
+        }
+      }
+      if (!found) Logger.log(`Request ID ${requestId} not found.`);
+    }
+
+    if (!firstRequestInfo) {
+      throw new Error("Tidak ada data pengajuan yang valid ditemukan.");
+    }
+
+    // Hapus cache untuk guru yang bersangkutan agar datanya refresh
+    const cache = CacheService.getScriptCache();
+    const rawCacheKey = `raw_display_attendance_${firstRequestInfo.year}_${firstRequestInfo.month}`;
+    cache.remove(rawCacheKey);
+    const userCacheKey = `data_${firstRequestInfo.email}_${firstRequestInfo.school}_${firstRequestInfo.year}_${firstRequestInfo.month}`;
+    cache.remove(userCacheKey);
+
+    // Kirim notifikasi ke Guru
+    notifyGuruOfDecision(guruEmail, guruName, school, firstRequestInfo.year, firstRequestInfo.month, action, rejectionReason);
+    
+    return { status: "success", message: `Pengajuan berhasil di-${action}.` };
+    
+  } catch (e) {
+    Logger.log(`Error di processChangeRequest: ${e.message}`);
+    return { status: "error", message: `Gagal memproses: ${e.message}` };
+  }
+}
+
+
+// ===================================================================
+// --- AKHIR BLOK FITUR PENGAJUAN PERUBAHAN ---
+// ===================================================================
