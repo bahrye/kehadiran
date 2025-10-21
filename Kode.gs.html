@@ -605,7 +605,11 @@ function saveMonthlyAttendance(payload) {
     const cache = CacheService.getScriptCache();
     
     // 1. Hapus cache data mentah (dipakai getSchoolAttendanceSummary)
-    const rawCacheKey = `raw_display_attendance_${year}_${month}`;
+    // --- INI ADALAH PERUBAIKANNYA ---
+    // Kunci cache sekarang harus menyertakan 'school' agar sesuai dengan kunci
+    // yang digunakan di getSchoolAttendanceSummary
+    const rawCacheKey = `raw_display_attendance_${school}_${year}_${month}`;
+    // --- AKHIR PERUBAIKAN ---
     cache.remove(rawCacheKey);
     Logger.log(`Menghapus cache mentah: ${rawCacheKey}`);
     
@@ -714,12 +718,14 @@ function getSchoolAttendanceSummary(userEmail, school, year, month) {
     const holidaysData = holidaysSheet.getDataRange().getValues().slice(1);
     const teacherHolidaysData = teacherHolidaysSheet.getDataRange().getValues().slice(1);
     
-    // --- CACHE LOGIC (Menggunakan DisplayValues agar kebal zona waktu) ---
+    // --- CACHE LOGIC ---
     const cache = CacheService.getScriptCache();
-    // Kunci cache ini untuk data MENTAH (raw) sheet
-    const rawCacheKey = `raw_display_attendance_${year}_${month}`; 
+    const rawCacheKey = `raw_display_attendance_${school}_${year}_${month}`; 
     let allAttendanceValues;
     const cachedData = cache.get(rawCacheKey);
+    
+    // --- TENTUKAN TIMEZONE (DIPERLUKAN UNTUK getValues()) ---
+    const TIMEZONE = "GMT+8";
     
     if (cachedData) {
       Logger.log(`Mengambil summary mentah dari cache: ${rawCacheKey}`);
@@ -727,10 +733,16 @@ function getSchoolAttendanceSummary(userEmail, school, year, month) {
     } else {
       Logger.log(`Membaca summary mentah dari sheet: ${rawCacheKey}`);
       const attendanceSheet = getAttendanceSheet_(year, month, false);
-      // KEMBALI MENGGUNAKAN getDisplayValues()
+
+      // --- AWAL PERBAIKAN UTAMA: Menggunakan getValues() ---
+      // Mengganti getDisplayValues() yang tidak stabil
       allAttendanceValues = attendanceSheet && attendanceSheet.getLastRow() > 1
-        ? attendanceSheet.getRange(2, 1, attendanceSheet.getLastRow() - 1, 8).getDisplayValues() 
+        ? attendanceSheet.getRange(2, 1, attendanceSheet.getLastRow() - 1, 8).getValues() 
         : [];
+      // --- AKHIR PERBAIKAN UTAMA ---
+      
+      // Simpan data mentah dari getValues() ke cache
+      // Kita perlu JSON.stringify khusus untuk Objek Tanggal
       cache.put(rawCacheKey, JSON.stringify(allAttendanceValues), 21600);
     }
     // --- AKHIR CACHE LOGIC ---
@@ -749,21 +761,28 @@ function getSchoolAttendanceSummary(userEmail, school, year, month) {
     allAttendanceValues.forEach(row => {
       const recordEmail = row[1].toLowerCase();
       const recordSchool = row[3];
+      
+      // Filter berdasarkan sekolah
       if (recordSchool === school) {
         if (!attendanceByEmail[recordEmail]) {
           attendanceByEmail[recordEmail] = {};
         }
         
-        // --- INI PERBAIKANNYA ---
-        // row[4] adalah string "yyyy-MM-dd" dari getDisplayValues()
-        // Kita tidak perlu new Date() atau Utilities.formatDate()
-        const formattedDate = row[4];
-        // --- AKHIR PERBAIKAN ---
+        // --- AWAL PERBAIKAN KEDUA: Membaca data dari getValues() ---
+        // row[4] sekarang adalah Objek Tanggal, bukan string
+        const recordDate = new Date(row[4]);
+        if (!recordDate || isNaN(recordDate)) return; // Lewati jika tanggal tidak valid
+        const formattedDate = Utilities.formatDate(recordDate, TIMEZONE, "yyyy-MM-dd");
+        // --- AKHIR PERBAIKAN KEDUA ---
 
         if (formattedDate) {
-          // row[5] dan row[6] adalah string "HH:mm"
-          let checkIn = row[5] || "";
-          let checkOut = row[6] || "";
+          // --- AWAL PERBAIKAN KETIGA: Membaca waktu dari getValues() ---
+          // row[5] (JamMasuk) dan row[6] (JamPulang) bisa jadi Objek Tanggal atau string
+          // Kita gunakan helper baru 'formatTimeFromValue_'
+          let checkIn = formatTimeFromValue_(row[5], TIMEZONE);
+          let checkOut = formatTimeFromValue_(row[6], TIMEZONE);
+          // --- AKHIR PERBAIKAN KETIGA ---
+          
           attendanceByEmail[recordEmail][formattedDate] = { checkIn, checkOut, reason: row[7] || "" };
         }
       }
@@ -782,7 +801,7 @@ function getSchoolAttendanceSummary(userEmail, school, year, month) {
     return summaries;
 
   } catch (e) {
-    Logger.log(`Error di getSchoolAttendanceSummary (optimized): ${e.toString()} | Stack: ${e.stack}`);
+    Logger.log(`Error di getSchoolAttendanceSummary (FIXED): ${e.toString()} | Stack: ${e.stack}`);
     return []; 
   }
 }
@@ -2368,10 +2387,18 @@ function processChangeRequest(staffEmail, requestIds, action, rejectionReason) {
 
     // Hapus cache untuk guru yang bersangkutan agar datanya refresh
     const cache = CacheService.getScriptCache();
-    const rawCacheKey = `raw_display_attendance_${firstRequestInfo.year}_${firstRequestInfo.month}`;
+    
+    // --- AWAL PERBAIKAN ---
+    // Kunci cache harus menyertakan 'school'
+    const rawCacheKey = `raw_display_attendance_${firstRequestInfo.school}_${firstRequestInfo.year}_${firstRequestInfo.month}`;
+    // --- AKHIR PERBAIKAN ---
+    
     cache.remove(rawCacheKey);
+    Logger.log(`Cache (raw) cleared: ${rawCacheKey}`); // Tambah log
+    
     const userCacheKey = `data_${firstRequestInfo.email}_${firstRequestInfo.school}_${firstRequestInfo.year}_${firstRequestInfo.month}`;
     cache.remove(userCacheKey);
+    Logger.log(`Cache (user) cleared: ${userCacheKey}`); // Tambah log
 
     // Kirim notifikasi ke Guru
     notifyGuruOfDecision(guruEmail, guruName, school, firstRequestInfo.year, firstRequestInfo.month, action, rejectionReason);
@@ -2384,7 +2411,40 @@ function processChangeRequest(staffEmail, requestIds, action, rejectionReason) {
   }
 }
 
+/**
+ * (CLIENT-CALLABLE) Menghapus cache ringkasan satu sekolah untuk bulan tertentu.
+ * Ini memaksa getSchoolAttendanceSummary untuk membaca ulang dari sheet.
+ */
+function clearSchoolSummaryCache(userEmail, school, year, month) {
+  try {
+    // Cek otentikasi dasar (pastikan user ada)
+    if (!userEmail || !school) throw new Error("Sesi tidak valid.");
+    
+    const cache = CacheService.getScriptCache();
+    const rawCacheKey = `raw_display_attendance_${school}_${year}_${month}`;
+    
+    cache.remove(rawCacheKey);
+    Logger.log(`Cache ringkasan dihapus secara manual oleh ${userEmail} untuk ${rawCacheKey}`);
+    
+    return { success: true, message: "Cache berhasil dihapus." };
+  
+  } catch(e) {
+    Logger.log(`Error di clearSchoolSummaryCache: ${e.message}`);
+    return { success: false, error: e.message };
+  }
+}
 
+/**
+ * HELPER BARU: Memformat waktu dari getValues()
+ * Mengubah Objek Tanggal atau String menjadi HH:mm
+ */
+function formatTimeFromValue_(timeValue, timezone) {
+  if (timeValue instanceof Date && !isNaN(timeValue)) {
+    return Utilities.formatDate(timeValue, timezone, "HH:mm");
+  }
+  // Jika sudah string (misal, di-entry manual dgn kutip), bersihkan
+  return (timeValue || "").toString().replace(/^'/, ""); 
+}
 // ===================================================================
 // --- AKHIR BLOK FITUR PENGAJUAN PERUBAHAN ---
 // ===================================================================
