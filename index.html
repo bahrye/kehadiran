@@ -1938,7 +1938,10 @@
 
           const summaryValues = document.querySelectorAll('.summary-value');
           // Tampilkan loading di ringkasan
-          summaryValues.forEach(el => el.innerHTML = '...');
+          summaryValues.forEach(el => {
+              el.innerHTML = '...';
+              el.classList.add('loading-dots'); // <-- TAMBAHKAN BARIS INI
+          });
 
           google.script.run
               .withSuccessHandler(response => {
@@ -1951,7 +1954,10 @@
               })
               .withFailureHandler(error => {
                   console.error("Error server saat memuat ringkasan:", error.message);
-                  summaryValues.forEach(el => el.innerText = '-');
+                  summaryValues.forEach(el => {
+                      el.classList.remove('loading-dots'); // <-- TAMBAHKAN INI
+                      el.innerText = '-';
+                  });
               })
               .getAttendanceSummary(currentUser.email, selectedSchool, targetYear, targetMonth);
       }
@@ -1961,6 +1967,12 @@
       }
       
       function renderSummary(summary) {
+          // --- AWAL PERUBAHAN ---
+          // Hentikan animasi loading
+          document.querySelectorAll('.summary-value').forEach(el => {
+              el.classList.remove('loading-dots');
+          });
+          // --- AKHIR PERUBAHAN ---
           const kehadiranEl = document.getElementById('summary-kehadiran');
           const alpaEl = document.getElementById('summary-alpa');
           const alpaBox = alpaEl.parentElement;
