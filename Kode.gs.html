@@ -270,7 +270,11 @@ function getAppSettingsForUser(email, school, year, month) {
   }
   
   const today = new Date();
-  if (today.getDate() > 7) {
+  
+  // --- AWAL PERUBAHAN ---
+  // Logika diubah dari > 7 (mulai tanggal 8) menjadi >= 6 (mulai tanggal 6)
+  if (today.getDate() >= 6) {
+  // --- AKHIR PERUBAHAN ---
     const lastMonthDate = new Date();
     lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
     const lastMonthStr = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
@@ -311,7 +315,9 @@ function getAttendancePageData(email, school, year, month, token) {
   }
   
   const today = new Date();
-  if (today.getDate() > 7) {
+
+  // Logika penguncian (mulai tgl 6)
+  if (today.getDate() >= 6) {
     const lastMonthDate = new Date();
     lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
     const lastMonthStr = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
@@ -330,28 +336,22 @@ function getAttendancePageData(email, school, year, month, token) {
 
   const teacherHolidays = getTeacherHolidays(email);
   
-  // --- INI ADALAH LOGIKA BARU UNTUK MEMPERBAIKI BUG ---
+  // Logika pre-fill hari libur guru
   const daysInMonth = new Date(year, month, 0).getDate();
   const currentYear = today.getFullYear();
   const currentMonth = today.getMonth() + 1;
   const isFutureMonth = year > currentYear || (year === currentYear && month > currentMonth);
 
-  if (!isFutureMonth) { // Hanya proses bulan ini atau bulan lalu
+  if (!isFutureMonth) { 
     for (let day = 1; day <= daysInMonth; day++) {
       const dateObj = new Date(Date.UTC(year, month - 1, day));
       const dateStr = Utilities.formatDate(dateObj, "GMT", "yyyy-MM-dd");
-      const dayOfWeek = dateObj.getUTCDay(); // 0 = Minggu, 1 = Senin, ... 6 = Sabtu
-
-      // Cek jika ini hari libur guru (index 0-5 = Senin-Sabtu)
+      const dayOfWeek = dateObj.getUTCDay(); 
       const isTeacherHoliday = dayOfWeek > 0 && teacherHolidays[dayOfWeek - 1];
 
-      // Jika ini adalah hari libur guru DAN BUKAN hari Minggu/Libur Nasional
       if (isTeacherHoliday && dayOfWeek !== 0 && !holidays[dateStr]) {
         const entry = attendanceData[dateStr];
-        
-        // Cek jika entri tidak ada, ATAU jika entri ada tapi kosong
         if (!entry || (entry.checkIn === "" && entry.checkOut === "" && entry.reason === "")) {
-          // Kita 'suntikkan' data ini seolah-olah berasal dari database
           attendanceData[dateStr] = {
             checkIn: "",
             checkOut: "",
@@ -361,24 +361,43 @@ function getAttendancePageData(email, school, year, month, token) {
       }
     }
   }
-  // --- AKHIR LOGIKA BARU ---
   
-  // --- AWAL LOGIKA BARU UNTUK PENGAJUAN ---
-  const lastMonthDate = new Date();
-  lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
-  const lastMonthStr = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
+  // --- AWAL LOGIKA PENGAJUAN ---
+  const lastMonthDateCheck = new Date();
+  lastMonthDateCheck.setMonth(lastMonthDateCheck.getMonth() - 1);
+  const lastMonthStr = `${lastMonthDateCheck.getFullYear()}-${String(lastMonthDateCheck.getMonth() + 1).padStart(2, '0')}`;
   const currentMonthStr = `${year}-${String(month).padStart(2, '0')}`;
-  // Bulan bisa diajukan jika: terkunci DAN merupakan 1 bulan lalu.
-  const isRequestableMonth = lockedMonths.includes(currentMonthStr) && currentMonthStr === lastMonthStr;
+  
+  // --- AWAL PERUBAHAN (Logika Batas Tanggal 10) ---
+  
+  // Ambil tanggal hari ini (angka saja)
+  const currentDayOfMonth = today.getDate();
+  
+  // Cek 1: Apakah bulan yang DILIHAT adalah bulan lalu?
+  const isLastMonth = (currentMonthStr === lastMonthStr);
+  
+  // Cek 2: Apakah bulan ini sudah terkunci? (Akan true jika tgl >= 6)
+  const isLocked = lockedMonths.includes(currentMonthStr);
+  
+  // Cek 3: Apakah hari ini MASIH dalam masa pengajuan (tanggal 1 s/d 10)?
+  const isWithinRequestPeriod = (currentDayOfMonth <= 10);
+
+  // Bulan bisa diajukan JIKA:
+  // 1. Merupakan bulan lalu (isLastMonth)
+  // 2. Bulan tersebut sudah terkunci (isLocked)
+  // 3. Hari ini masih tanggal 10 atau sebelumnya (isWithinRequestPeriod)
+  const isRequestableMonth = isLastMonth && isLocked && isWithinRequestPeriod;
+  
+  // --- AKHIR PERUBAHAN ---
 
   let pendingChanges = {};
   let rejectionInfo = null;
-  // Hanya cari data pengajuan jika bulan ini adalah bulan yang bisa diajukan
+  
   if (isRequestableMonth) {
     const reqSheet = getChangeRequestsSheet_();
     const reqData = reqSheet.getLastRow() > 1 ? reqSheet.getDataRange().getValues().slice(1) : [];
     
-    for (let i = reqData.length - 1; i >= 0; i--) { // Loop dari belakang ke depan
+    for (let i = reqData.length - 1; i >= 0; i--) { 
       const row = reqData[i];
       const reqEmail = row[2];
       const reqSchool = row[3];
@@ -387,25 +406,21 @@ function getAttendancePageData(email, school, year, month, token) {
       const reqDate = row[6];
       const reqStatus = row[13];
       
-      // Cari data yang relevan untuk user, sekolah, dan bulan ini
       if (reqEmail.toLowerCase() === email.toLowerCase() && 
           reqSchool === school && 
           parseInt(reqYear) === year && 
           parseInt(reqMonth) === month) 
       {
         if (reqStatus === 'pending' && !pendingChanges[reqDate]) {
-           // Jika status 'pending' dan tanggal ini belum dicatat, catat
            pendingChanges[reqDate] = {
              newCheckIn: row[10].replace(/^'/, ""), 
              newCheckOut: row[11].replace(/^'/, ""), 
              newReason: row[12]
            };
         } else if (reqStatus === 'rejected' && !rejectionInfo) {
-            // Jika status 'rejected' dan kita belum mencatat info penolakan, catat
-            // Ini akan mengambil info penolakan TERBARU
             rejectionInfo = {
               date: reqDate,
-              reason: row[15] // Kolom Alasan Penolakan
+              reason: row[15] 
             };
         }
       }
@@ -416,16 +431,14 @@ function getAttendancePageData(email, school, year, month, token) {
 
   // Kirim data yang sudah diperkaya ke klien
   return { 
-    attendance: attendanceData, // attendanceData sekarang sudah pre-filled
+    attendance: attendanceData, 
     lockedMonths, 
     holidays, 
     teacherHolidays, 
     token: token,
-    // --- DATA BARU UNTUK CLIENT ---
     isRequestableMonth: isRequestableMonth,
-    pendingChanges: pendingChanges, // Object berisi data pending, key-nya adalah tanggal
-    rejectionInfo: rejectionInfo // Object berisi info penolakan terakhir
-    // --- AKHIR DATA BARU ---
+    pendingChanges: pendingChanges, 
+    rejectionInfo: rejectionInfo 
   };
 }
 
