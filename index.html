@@ -4,7 +4,136 @@
     <base target="_top">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <?!= include('style'); ?>
-  </head>
+    
+    <style>
+      /* Warna baris untuk status pengajuan */
+      tr.pending-row {
+        background-color: #FEF3C7 !important; /* Kuning muda */
+        color: #92400E;
+      }
+      tr.pending-row:hover {
+        background-color: #FDE68A !important;
+      }
+      tr.pending-row input,
+      tr.pending-row select {
+        background-color: #FFFBEB;
+      }
+      
+      /* Tombol 'Ubah' di mode pengajuan */
+      .action-btn.warning.edit-btn {
+        background-color: var(--warning-color);
+        color: white;
+        border: none;
+        border-radius: 6px;
+        padding: 6px 12px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s;
+      }
+      .action-btn.warning.edit-btn:hover:not(:disabled) {
+        background-color: #D97706;
+      }
+      .action-btn.warning.edit-btn:disabled {
+        background-color: #E5E7EB;
+        color: #9CA3AF;
+        cursor: not-allowed;
+      }
+      
+      /* Tombol 'Ajukan Perubahan' */
+      #request-change-button {
+        background-color: var(--warning-color);
+        color: white;
+      }
+      #request-change-button:hover:not(:disabled) {
+        background-color: #D97706;
+        box-shadow: 0 4px 12px rgba(245, 158, 11, 0.25);
+      }
+      
+      /* Tombol 'Batalkan Ajuan' (merah) */
+      #request-change-button.cancel-request {
+        background-color: var(--danger-color);
+      }
+      #request-change-button.cancel-request:hover:not(:disabled) {
+        background-color: var(--danger-hover-color);
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+      }
+      
+      /* Style untuk daftar pengajuan di halaman Staff */
+      .request-group {
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        margin-bottom: 20px;
+        overflow: hidden;
+      }
+      .request-group-header {
+        background-color: #F9FAFB;
+        padding: 15px 20px;
+        border-bottom: 1px solid var(--border-color);
+      }
+      .request-group-header h3 {
+        margin: 0;
+        font-size: 18px;
+      }
+      .request-group-header p {
+        margin: 5px 0 0 0;
+        font-size: 14px;
+      }
+      .request-table-container {
+        padding: 0;
+        overflow-x: auto;
+      }
+      .request-table {
+        width: 100%;
+        min-width: 700px;
+        border-collapse: collapse;
+      }
+      .request-table th,
+      .request-table td {
+        padding: 12px 15px;
+        border-bottom: 1px solid var(--border-color);
+        text-align: left;
+        font-size: 14px;
+        vertical-align: top;
+      }
+      .request-table th {
+        background-color: #F9FAFB;
+      }
+      .request-table tr:last-child td {
+        border-bottom: none;
+      }
+      .request-table .data-label {
+        font-weight: 600;
+        color: var(--text-secondary-color);
+        font-size: 12px;
+      }
+      .request-table .data-old {
+        text-decoration: line-through;
+        color: var(--danger-color);
+      }
+      .request-table .data-new {
+        color: var(--success-color);
+        font-weight: 600;
+      }
+      .request-group-actions {
+        padding: 15px 20px;
+        background-color: #F9FAFB;
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        gap: 10px;
+      }
+      .request-group-actions button {
+        width: auto;
+        padding: 10px 18px;
+      }
+      .request-group-actions button.reject-btn {
+        background-color: var(--danger-color);
+      }
+      .request-group-actions button.reject-btn:hover:not(:disabled) {
+        background-color: var(--danger-hover-color);
+      }
+    </style>
+    </head>
   <body>
     <div class="container">
     
@@ -204,7 +333,11 @@
             <button class="action-button" onclick="showCeklokPageForStaff()">
               <i class="fa-solid fa-calendar-check"></i> <span>Isi Ceklok Kehadiran</span>
             </button>
-          </div>
+            
+            <button id="view-requests-button" class="action-button warning" onclick="showChangeRequestPage()">
+              <i class="fa-solid fa-file-circle-question"></i> <span>Pengajuan Ubah Data</span>
+            </button>
+            </div>
           <p id="staff-ceklok-message" class="message" style="margin-top: 5px;"></p>
           <hr style="margin: 25px 0;">
 
@@ -243,7 +376,9 @@
               <button onclick="changeMonth(1)">Bulan Depan &#9654;</button>
             </div>
             <div id="attendance-table-container"></div>
+            
             <button id="save-button" onclick="handleSave()" disabled><i class="fa-solid fa-floppy-disk"></i> <span>Simpan Semua Perubahan</span></button>
+            <button id="request-change-button" onclick="handleRequestChange()" style="display: none;"><i class="fa-solid fa-paper-plane"></i> <span>Ajukan Perubahan</span></button>
             <p id="save-message" class="message"></p>
           </div>
       </div>
@@ -361,6 +496,18 @@
       <?!= include('lkh_view'); ?>
       <?!= include('lkh_weekly'); ?>
 
+      <div id="change-request-container" style="display:none;">
+        <div class="card">
+          <button class="back-button" onclick="goBackToDashboard()">&larr; Kembali ke Dasbor</button>
+          <h2 style="margin-top: 15px;">Daftar Pengajuan Perubahan Ceklok</h2>
+          <p>Tinjau pengajuan perubahan data dari guru untuk bulan lalu yang terkunci.</p>
+          
+          <div id="request-list-container">
+            </div>
+          <p id="request-list-message" class="message" style="margin-top: 15px;"></p>
+          
+        </div>
+      </div>
       <footer class="main-footer">
         <a href="https://wa.me/qr/FMVS3NLDIRUAA1" target="_blank" rel="noopener noreferrer">
           <p>&copy; <span id="currentYear"></span> Created by Syamsul Bahri</p>
@@ -392,6 +539,19 @@
       </div>
     </div>
     
+    <div id="rejection-modal" class="modal">
+      <div class="modal-content">
+        <span class="close-btn" onclick="closeRejectionModal()">&times;</span>
+        <h3 style="margin-top:0;">Alasan Penolakan</h3>
+        <p>Silakan tulis alasan mengapa pengajuan ini ditolak.</p>
+        <input type="hidden" id="rejection-request-ids">
+        <div class="input-group">
+          <label for="rejection-reason-input">Alasan</label>
+          <textarea id="rejection-reason-input" rows="4" placeholder="Contoh: Jam pulang tidak sesuai dengan jadwal."></textarea>
+        </div>
+        <button onclick="handleSendRejection()" class="action-button reject-btn"><i class="fa-solid fa-paper-plane"></i> <span>Kirim Penolakan</span></button>
+      </div>
+    </div>
     <script>
       // ===================================================================
       // VARIABEL GLOBAL & FUNGSI UTILITAS
@@ -399,7 +559,19 @@
       let currentUser = null;
       let selectedSchool = null;
       let currentDate = new Date();
-      let appSettings = { lockedMonths: [], holidays: {}, announcements: "", teacherHolidays: [] };
+      // --- AWAL PERUBAHAN: Penambahan Variabel Global ---
+      let appSettings = { 
+        lockedMonths: [], 
+        holidays: {}, 
+        announcements: "", 
+        teacherHolidays: [],
+        // Data baru untuk fitur pengajuan
+        isRequestableMonth: false,
+        pendingChanges: {},
+        rejectionInfo: null
+      };
+      // --- AKHIR PERUBAHAN ---
+      
       let selectedTeacherForStaff = null; 
       let schoolTeachers = []; 
       let latestRequestToken = 0;
@@ -921,6 +1093,13 @@
         currentDate = new Date();
         selectedTeacherForStaff = null;
         schoolTeachers = [];
+        
+        // --- AWAL PERUBAHAN: Reset appSettings ---
+        appSettings = { 
+          lockedMonths: [], holidays: {}, announcements: "", teacherHolidays: [],
+          isRequestableMonth: false, pendingChanges: {}, rejectionInfo: null
+        };
+        // --- AKHIR PERUBAHAN ---
 
         // Pastikan kontainer login dikembalikan ke bentuk aslinya
         const loginContainer = document.getElementById("login-container");
@@ -988,12 +1167,18 @@
         document.getElementById("lkh-view-container").style.display = "none";
         document.getElementById("lkh-weekly-container").style.display = "none";
         document.getElementById("all-teachers-summary-container").style.display = "none";
+        // --- AWAL PERUBAHAN: Sembunyikan container baru ---
+        document.getElementById("change-request-container").style.display = "none";
+        // --- AKHIR PERUBAHAN ---
 
         displayMessage('login-message', "Anda berhasil logout.", { isSuccess: true });
       }
 
       function goBackToDashboard() {
         if (!currentUser) return;
+        // --- AWAL PERUBAHAN: Sembunyikan container baru ---
+        document.getElementById("change-request-container").style.display = "none";
+        // --- AKHIR PERUBAHAN ---
         if (currentUser.role === 'admin') showAdminDashboard();
         else if (currentUser.role === 'staff') showStaffDashboard();
         else showGuruDashboard();
@@ -1015,6 +1200,9 @@
           document.getElementById("lkh-sptjm-dashboard-container").style.display = "none";
           document.getElementById("lkh-weekly-container").style.display = "none";
           document.getElementById("all-teachers-summary-container").style.display = "none";
+          // --- AWAL PERUBAHAN: Sembunyikan container baru ---
+          document.getElementById("change-request-container").style.display = "none";
+          // --- AKHIR PERUBAHAN ---
           document.getElementById("guru-dashboard-container").style.display = "block";
           
           const welcomeH2 = document.getElementById('guru-welcome-message');
@@ -1143,12 +1331,17 @@
         loadMonthData(currentDate);
       }
 
+      // --- AWAL FUNGSI YANG DIMODIFIKASI BESAR-BESARAN ---
       function loadMonthData(date){
           const year = date.getFullYear();
           const month = date.getMonth() + 1;
           const userEmail = (currentUser.role === 'staff' && selectedTeacherForStaff) ? selectedTeacherForStaff.email : currentUser.email;
           const schoolForCall = (currentUser.role === 'staff' && selectedTeacherForStaff) ? selectedTeacherForStaff.school : selectedSchool;
+          
+          // --- AWAL PERUBAHAN: Menargetkan kedua tombol ---
           const saveButton = document.getElementById('save-button');
+          const requestButton = document.getElementById('request-change-button');
+          // --- AKHIR PERUBAHAN ---
 
           latestRequestToken++;
           const currentToken = latestRequestToken;
@@ -1162,17 +1355,27 @@
               </div>
               <p>Memuat data absensi...</p>
             </div>`;
+          // --- AWAL PERUBAHAN: Nonaktifkan kedua tombol ---
           saveButton.disabled = true;
+          requestButton.disabled = true;
+          // --- AKHIR PERUBAHAN ---
 
           google.script.run
             .withSuccessHandler(response => {
               if (response.token !== latestRequestToken) {
                 return;
               }
+              // --- AWAL PERUBAHAN: Simpan semua data baru dari server ---
               appSettings.attendance = response.attendance;
               appSettings.lockedMonths = response.lockedMonths;
               appSettings.holidays = response.holidays;
               appSettings.teacherHolidays = response.teacherHolidays;
+              // Data baru untuk pengajuan
+              appSettings.isRequestableMonth = response.isRequestableMonth;
+              appSettings.pendingChanges = response.pendingChanges;
+              appSettings.rejectionInfo = response.rejectionInfo;
+              // --- AKHIR PERUBAHAN ---
+
               generateMonthTable(year, month, response.attendance);
             })
             .withFailureHandler(error => {
@@ -1251,9 +1454,6 @@
               <option value="Dinas Luar">Dinas Luar</option>
           `;
           
-          // --- KODE BUGGY DIHAPUS DARI SINI ---
-          // Kita tidak lagi membutuhkan 'teacherHolidayReasonOptions'
-
           const daysInMonth = new Date(year, month, 0).getDate();
           const currentMonthStr = `${year}-${String(month).padStart(2, '0')}`;
           const isMonthLocked = appSettings.lockedMonths.includes(currentMonthStr);
@@ -1262,13 +1462,62 @@
           const currentMonth = today.getMonth() + 1;
           const isFutureMonth = year > currentYear || (year === currentYear && month > currentMonth);
           
-          const isDisabled = isMonthLocked || isFutureMonth;
+          // --- AWAL PERUBAHAN: Logika Baru untuk Pengajuan ---
+          const isReqMonth = appSettings.isRequestableMonth;
+          const pendingData = appSettings.pendingChanges;
+          const isRequestPending = Object.keys(pendingData).length > 0;
+          // Tentukan apakah input dinonaktifkan secara umum
+          const isDisabled = (isMonthLocked && !isReqMonth) || isFutureMonth;
+          // --- AKHIR PERUBAHAN ---
 
           let lockMessage = "";
-          if(isMonthLocked) lockMessage = 'Absensi untuk bulan ini telah dikunci.';
-          else if (isFutureMonth) lockMessage = 'Anda belum bisa mengisi absensi untuk bulan depan.';
+          if(isReqMonth) {
+            if (isRequestPending) {
+              lockMessage = 'Pengajuan Anda sedang ditinjau oleh Staff.';
+            } else if (appSettings.rejectionInfo) {
+              lockMessage = 'Pengajuan Anda ditolak. Lihat pesan di bawah.';
+            } else {
+              lockMessage = 'Bulan ini terkunci. Klik "Ubah" pada baris untuk mengajukan perubahan.';
+            }
+          } else if(isMonthLocked) {
+            lockMessage = 'Absensi untuk bulan ini telah dikunci.';
+          } else if (isFutureMonth) {
+            lockMessage = 'Anda belum bisa mengisi absensi untuk bulan depan.';
+          }
+          
           document.getElementById('global-lock-message').innerText = lockMessage;
-          document.getElementById('save-button').disabled = isDisabled;
+          
+          // --- AWAL PERUBAHAN: Logika Tombol Utama ---
+          const saveButton = document.getElementById('save-button');
+          const requestButton = document.getElementById('request-change-button');
+
+          if (isReqMonth) {
+            saveButton.style.display = 'none';
+            requestButton.style.display = 'inline-flex';
+            requestButton.disabled = false; // Aktifkan tombol pengajuan
+            if (isRequestPending) {
+              requestButton.innerHTML = '<i class="fa-solid fa-ban"></i> <span>Batalkan Ajuan</span>';
+              requestButton.className = 'action-button cancel-request'; // Ganti warna jadi merah
+              requestButton.onclick = handleCancelRequest;
+            } else {
+              requestButton.innerHTML = '<i class="fa-solid fa-paper-plane"></i> <span>Ajukan Perubahan</span>';
+              requestButton.className = 'action-button'; // Warna kuning default (dari style)
+              requestButton.onclick = handleRequestChange;
+            }
+          } else {
+            saveButton.style.display = 'inline-flex';
+            requestButton.style.display = 'none';
+            saveButton.disabled = isDisabled; // Nonaktifkan tombol simpan jika bulan dikunci/masa depan
+          }
+          
+          // Tampilkan pesan penolakan jika ada
+          if (isReqMonth && !isRequestPending && appSettings.rejectionInfo) {
+             displayMessage('save-message', `Pengajuan ditolak: ${appSettings.rejectionInfo.reason}`);
+          } else {
+             displayMessage('save-message', ''); // Hapus pesan lama
+          }
+          // --- AKHIR PERUBAHAN ---
+
 
           let tableHTML = '<div class="table-scroll-wrapper"><table><thead><tr><th>Tanggal</th><th>Jam Masuk</th><th>Jam Pulang</th><th>Keterangan</th><th>Aksi</th></tr></thead><tbody>';
           
@@ -1279,46 +1528,107 @@
             const dayName = dateObj.toLocaleString('id-ID', { weekday: 'short' });
             const isSunday = dayOfWeek === 0;
             const isHoliday = !!appSettings.holidays[dateStr];
-            // 'isTeacherHoliday' tidak lagi diperlukan di sini
-            // const isTeacherHoliday = appSettings.teacherHolidays[dayOfWeek - 1] && dayOfWeek !== 0; 
-            const existingData = attendanceData[dateStr]; // (data ini sudah diproses server)
+            const existingData = attendanceData[dateStr];
+            
+            // --- AWAL PERUBAHAN: Logika Aksi & Status Baris ---
+            let rowClass = '';
+            let aksiButton = '';
+            // Tentukan status baris (pending, ditolak, dll)
+            if (isReqMonth && pendingData[dateStr]) {
+              rowClass = 'pending-row'; // Oranye
+            } else if (isSunday) {
+              rowClass = 'sunday-row';
+            } else if (isHoliday) {
+              rowClass = 'holiday-row';
+            }
+
+            // Tentukan tombol aksi
+            if (isSunday || isHoliday) {
+              // Tidak ada aksi
+            } else if (isReqMonth) {
+              // Jika bulan ini bisa diajukan
+              if (isRequestPending || (appSettings.rejectionInfo && appSettings.rejectionInfo.date === dateStr)) {
+                // Jika sudah ada pengajuan pending ATAU baris ini adalah baris yg ditolak
+                // Tombol "Ubah" dinonaktifkan
+                aksiButton = `<button class="action-btn warning edit-btn" disabled>${isRequestPending ? 'Menunggu' : 'Ditolak'}</button>`;
+              } else {
+                // Tombol "Ubah" standar
+                aksiButton = `<button class="action-btn warning edit-btn" onclick="handleEnableEdit(event)">Ubah</button>`;
+              }
+            } else {
+              // Bulan normal (bukan pengajuan), tampilkan tombol "Hapus"
+              aksiButton = `<button class="clear-btn" onclick="handleClearRow(event)" ${isDisabled ? 'disabled' : ''}>Hapus</button>`;
+            }
+
+            // Tentukan apakah input di baris ini harus nonaktif
+            // Nonaktif jika: (Bulan dikunci/masa depan DAN BUKAN bulan pengajuan) ATAU (Bulan pengajuan)
+            const isRowDisabled = isDisabled || isReqMonth; 
+            // --- AKHIR PERUBAHAN ---
             
             if (isHoliday) {
-              tableHTML += `<tr id="row-${dateStr}" class="holiday-row"><td>${day} <small>(${dayName})</small></td><td colspan="3">${appSettings.holidays[dateStr]}</td><td></td></tr>`;
+              tableHTML += `<tr id="row-${dateStr}" class="${rowClass}"><td>${day} <small>(${dayName})</small></td><td colspan="3">${appSettings.holidays[dateStr]}</td><td>${aksiButton}</td></tr>`;
             } else if (isSunday) {
-              tableHTML += `<tr id="row-${dateStr}" class="sunday-row"><td>${day} <small>(${dayName})</small></td><td colspan="3">Hari Libur</td><td></td></tr>`;
+              tableHTML += `<tr id="row-${dateStr}" class="${rowClass}"><td>${day} <small>(${dayName})</small></td><td colspan="3">Hari Libur</td><td>${aksiButton}</td></tr>`;
             } 
-            // --- BLOK 'else if (isTeacherHoliday...)' TELAH DIHAPUS ---
             else {
-              // Blok ini sekarang menangani SEMUA hari kerja
-              // 'reasonOptions' standar digunakan
-              tableHTML += `<tr id="row-${dateStr}"><td>${day} <small>(${dayName})</small></td><td><input type="text" class="time-entry" id="in-${dateStr}" placeholder="HH:MM" maxlength="5" inputmode="numeric" oninput="handleTimeInput(event)" ${isDisabled ? 'disabled' : ''}></td><td><input type="text" class="time-entry" id="out-${dateStr}" placeholder="HH:MM" maxlength="5" inputmode="numeric" oninput="handleTimeInput(event)" ${isDisabled ? 'disabled' : ''}></td><td><select id="reason-${dateStr}" ${isDisabled ? 'disabled' : ''} onchange="handleReasonChange(event)">${reasonOptions}</select></td><td><button class="clear-btn" onclick="handleClearRow(event)" ${isDisabled ? 'disabled' : ''}>Hapus</button></td></tr>`;
+              tableHTML += `<tr id="row-${dateStr}" class="${rowClass}"><td>${day} <small>(${dayName})</small></td><td><input type="text" class="time-entry" id="in-${dateStr}" placeholder="HH:MM" maxlength="5" inputmode="numeric" oninput="handleTimeInput(event)" ${isRowDisabled ? 'disabled' : ''}></td><td><input type="text" class="time-entry" id="out-${dateStr}" placeholder="HH:MM" maxlength="5" inputmode="numeric" oninput="handleTimeInput(event)" ${isRowDisabled ? 'disabled' : ''}></td><td><select id="reason-${dateStr}" ${isRowDisabled ? 'disabled' : ''} onchange="handleReasonChange(event)">${reasonOptions}</select></td><td>${aksiButton}</td></tr>`;
             }
           }
           tableHTML += '</tbody></table></div>';
           container.innerHTML = tableHTML;
           
-          // populateAttendanceData sekarang akan menerima data yang sudah bersih dari server
           populateAttendanceData(attendanceData); 
       }
       
       function populateAttendanceData(data) {
+        // --- AWAL PERUBAHAN: Dapatkan data pending ---
+        const pendingData = appSettings.pendingChanges;
+        const isReqMonth = appSettings.isRequestableMonth;
+        // --- AKHIR PERUBAHAN ---
+
         for (const date in data) {
           const checkInInput = document.getElementById(`in-${date}`);
           const checkOutInput = document.getElementById(`out-${date}`);
           const reasonSelect = document.getElementById(`reason-${date}`);
-          if (checkInInput) checkInInput.value = data[date].checkIn;
-          if (checkOutInput) checkOutInput.value = data[date].checkOut;
+          
+          // --- AWAL PERUBAHAN: Logika pengisian data ---
+          if (isReqMonth && pendingData[date]) {
+            // Jika ini bulan pengajuan DAN ada data pending untuk tanggal ini
+            const pending = pendingData[date];
+            if (checkInInput) checkInInput.value = pending.newCheckIn;
+            if (checkOutInput) checkOutInput.value = pending.newCheckOut;
+            if (reasonSelect) {
+                reasonSelect.value = pending.newReason || "";
+                // Nonaktifkan input jika ada alasan (logika standar)
+                if (pending.newReason) {
+                  if (checkInInput) checkInInput.disabled = true;
+                  if (checkOutInput) checkOutInput.disabled = true;
+                }
+            }
+            // Input/select sudah dinonaktifkan oleh generateMonthTable (karena rowClass 'pending-row')
+            // Tapi kita pastikan lagi
+            if (checkInInput) checkInInput.disabled = true;
+            if (checkOutInput) checkOutInput.disabled = true;
+            if (reasonSelect) reasonSelect.disabled = true;
 
-          if (reasonSelect) {
-            reasonSelect.value = data[date].reason || "";
-            if (data[date].reason) {
-              if (checkInInput) checkInInput.disabled = true;
-              if (checkOutInput) checkOutInput.disabled = true;
+          } else {
+            // Logika standar
+            if (checkInInput) checkInInput.value = data[date].checkIn;
+            if (checkOutInput) checkOutInput.value = data[date].checkOut;
+
+            if (reasonSelect) {
+              reasonSelect.value = data[date].reason || "";
+              if (data[date].reason) {
+                if (checkInInput) checkInInput.disabled = true;
+                if (checkOutInput) checkOutInput.disabled = true;
+              }
             }
           }
+          // --- AKHIR PERUBAHAN ---
         }
       }
+      // --- AKHIR FUNGSI YANG DIMODIFIKASI BESAR-BESARAN ---
+
 
       function handleReasonChange(event) {
         const selectElement = event.target;
@@ -1366,9 +1676,13 @@
               const checkOutInput = row.querySelector(`#out-${date}`);
               const reasonSelect = row.querySelector('select');
               
-              const checkIn = checkInInput ? checkInInput.value : "";
-              const checkOut = checkOutInput ? checkOutInput.value : "";
-              const reason = reasonSelect ? reasonSelect.value : "";
+              // --- AWAL PERUBAHAN: Pastikan input tidak disabled (bukan baris libur) ---
+              if (!checkInInput || checkInInput.disabled) return; 
+              // --- AKHIR PERUBAHAN ---
+
+              const checkIn = checkInInput.value;
+              const checkOut = checkOutInput.value;
+              const reason = reasonSelect.value;
 
               const hasCheckIn = checkIn.trim() !== "";
               const hasCheckOut = checkOut.trim() !== "";
@@ -1417,6 +1731,324 @@
               })
               .saveMonthlyAttendance(payload);
       }
+
+      // --- AWAL FUNGSI BARU UNTUK FITUR PENGAJUAN ---
+
+      /**
+       * (GURU) Dipanggil saat tombol 'Ubah' diklik di bulan pengajuan.
+       */
+      function handleEnableEdit(event) {
+        event.preventDefault();
+        const row = event.target.closest('tr');
+        
+        // Aktifkan semua input di baris ini
+        row.querySelectorAll('input.time-entry, select').forEach(el => {
+          el.disabled = false;
+        });
+        
+        // Jika ada alasan yang dipilih, input jam tetap nonaktif (panggil handleReasonChange)
+        const reasonSelect = row.querySelector('select');
+        if (reasonSelect) {
+          handleReasonChange({ target: reasonSelect });
+        }
+
+        // Nonaktifkan tombol 'Ubah' itu sendiri
+        event.target.disabled = true;
+        event.target.textContent = 'Diubah';
+      }
+
+      /**
+       * (GURU) Dipanggil saat tombol 'Ajukan Perubahan' diklik.
+       */
+      function handleRequestChange() {
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth() + 1;
+        const userEmail = (currentUser.role === 'staff' && selectedTeacherForStaff) ? selectedTeacherForStaff.email : currentUser.email;
+        const schoolForCall = (currentUser.role === 'staff' && selectedTeacherForStaff) ? selectedTeacherForStaff.school : selectedSchool;
+        const button = document.getElementById('request-change-button');
+
+        const changes = [];
+        const rows = document.querySelectorAll('#attendance-table-container tbody tr');
+        const timeRegex = /^(?:2[0-3]|[01]?[0-9]):[0-5][0-9]$/;
+        let validationError = false;
+        let firstErrorRow = null;
+
+        rows.forEach(row => {
+          const editBtn = row.querySelector('.edit-btn');
+          // Cari baris yang tombol 'Ubah'-nya sudah diklik (dan disabled)
+          if (editBtn && editBtn.disabled && editBtn.textContent === 'Diubah') {
+            const date = row.id.replace('row-', '');
+            if (!date) return;
+
+            const checkInInput = row.querySelector(`#in-${date}`);
+            const checkOutInput = row.querySelector(`#out-${date}`);
+            const reasonSelect = row.querySelector(`#reason-${date}`);
+            
+            const newCheckIn = checkInInput.value;
+            const newCheckOut = checkOutInput.value;
+            const newReason = reasonSelect.value;
+            const oldData = appSettings.attendance[date] || { checkIn: "", checkOut: "", reason: "" };
+
+            // Validasi (sama seperti handleSave)
+            const hasCheckIn = newCheckIn.trim() !== "";
+            const hasCheckOut = newCheckOut.trim() !== "";
+            const hasReason = newReason.trim() !== "";
+
+            if (!hasReason) {
+              if ((hasCheckIn && !timeRegex.test(newCheckIn)) || (hasCheckOut && !timeRegex.test(newCheckOut)) || (hasCheckIn && !hasCheckOut) || (!hasCheckIn && hasCheckOut)) {
+                validationError = true;
+                row.classList.add('invalid-row');
+                if (!firstErrorRow) firstErrorRow = row;
+              }
+            }
+            
+            // Cek apakah ada perubahan
+            if (oldData.checkIn !== newCheckIn || oldData.checkOut !== newCheckOut || oldData.reason !== newReason) {
+              changes.push({ 
+                date: date, 
+                oldData: oldData, 
+                newData: { checkIn: newCheckIn, checkOut: newCheckOut, reason: newReason } 
+              });
+            }
+          }
+        });
+
+        if (validationError) {
+            displayMessage('save-message', "Gagal: Mohon perbaiki format waktu (HH:MM) pada baris merah.");
+            if (firstErrorRow) firstErrorRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
+
+        if (changes.length === 0) {
+          displayMessage('save-message', 'Tidak ada perubahan data. Klik "Ubah" pada baris dan ubah datanya terlebih dahulu.');
+          return;
+        }
+
+        button.disabled = true;
+        displayMessage('save-message', 'Mengirim pengajuan...', { isProcessing: true });
+
+        google.script.run
+          .withSuccessHandler(response => {
+            if (response.status === 'success') {
+              displayMessage('save-message', 'Pengajuan berhasil terkirim!', { isSuccess: true });
+              loadMonthData(currentDate); // Muat ulang data untuk menampilkan status 'pending'
+            } else {
+              displayMessage('save-message', `Gagal: ${response.message}`);
+              button.disabled = false;
+            }
+          })
+          .withFailureHandler(error => {
+            displayMessage('save-message', `Error: ${error.message}`);
+            button.disabled = false;
+          })
+          .submitChangeRequest(userEmail, schoolForCall, year, month, changes);
+      }
+
+      /**
+       * (GURU) Dipanggil saat tombol 'Batalkan Ajuan' diklik.
+       */
+      function handleCancelRequest() {
+        if (!confirm('Yakin ingin membatalkan semua pengajuan yang sedang ditinjau untuk bulan ini?')) return;
+        
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth() + 1;
+        const userEmail = (currentUser.role === 'staff' && selectedTeacherForStaff) ? selectedTeacherForStaff.email : currentUser.email;
+        const schoolForCall = (currentUser.role === 'staff' && selectedTeacherForStaff) ? selectedTeacherForStaff.school : selectedSchool;
+        const button = document.getElementById('request-change-button');
+        
+        button.disabled = true;
+        displayMessage('save-message', 'Membatalkan pengajuan...', { isProcessing: true });
+
+        google.script.run
+          .withSuccessHandler(response => {
+            if (response.status === 'success') {
+              displayMessage('save-message', 'Pengajuan berhasil dibatalkan.', { isSuccess: true });
+              loadMonthData(currentDate); // Muat ulang data
+            } else {
+              displayMessage('save-message', `Gagal: ${response.message}`);
+              button.disabled = false;
+            }
+          })
+          .withFailureHandler(error => {
+            displayMessage('save-message', `Error: ${error.message}`);
+            button.disabled = false;
+          })
+          .cancelChangeRequest(userEmail, schoolForCall, year, month);
+      }
+      
+      /**
+       * (STAFF) Menampilkan halaman daftar pengajuan.
+       */
+      function showChangeRequestPage() {
+        document.getElementById("staff-dashboard-container").style.display = "none";
+        document.getElementById("change-request-container").style.display = "block";
+        
+        const container = document.getElementById('request-list-container');
+        container.innerHTML = `
+          <div class="loader-container">
+            <div class="loader">
+              <div class="ball"></div><div class="ball"></div><div class="ball"></div>
+            </div>
+            <p>Memuat daftar pengajuan...</p>
+          </div>`;
+        
+        displayMessage('request-list-message', ''); // Hapus pesan lama
+
+        google.script.run
+          .withSuccessHandler(response => {
+            if (response.success) {
+              renderChangeRequestList(response.requests);
+            } else {
+              container.innerHTML = `<p style="color: var(--danger-color);">${response.error}</p>`;
+            }
+          })
+          .withFailureHandler(error => {
+            container.innerHTML = `<p style="color: var(--danger-color);">Gagal memuat: ${error.message}</p>`;
+          })
+          .getPendingRequests(currentUser.email, selectedSchool);
+      }
+
+      /**
+       * (STAFF) Merender daftar pengajuan di halaman staff.
+       */
+      function renderChangeRequestList(requests) {
+        const container = document.getElementById('request-list-container');
+        if (!requests || requests.length === 0) {
+          container.innerHTML = '<p style="text-align: center;">Tidak ada pengajuan perubahan data saat ini.</p>';
+          return;
+        }
+
+        let html = '';
+        requests.forEach(guruRequest => {
+          const requestIds = guruRequest.changes.map(c => c.requestId);
+          const requestIdsJson = JSON.stringify(requestIds).replace(/"/g, "'");
+
+          html += `
+            <div class="request-group">
+              <div class="request-group-header">
+                <h3>${guruRequest.name}</h3>
+                <p>${guruRequest.school} - ${guruRequest.monthName}</p>
+              </div>
+              <div class="request-table-container">
+                <table class="request-table">
+                  <thead>
+                    <tr>
+                      <th>Tanggal</th>
+                      <th>Data Lama</th>
+                      <th>Data Pengajuan (Baru)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+          `;
+          
+          guruRequest.changes.forEach(change => {
+            html += `
+              <tr>
+                <td>${change.date}</td>
+                <td>
+                  <span class="data-label">Masuk:</span> <span class="data-old">${change.oldData.checkIn || '-'}</span><br>
+                  <span class="data-label">Pulang:</span> <span class="data-old">${change.oldData.checkOut || '-'}</span><br>
+                  <span class="data-label">Alasan:</span> <span class="data-old">${change.oldData.reason || '-'}</span>
+                </td>
+                <td>
+                  <span class="data-label">Masuk:</span> <span class="data-new">${change.newData.checkIn || '-'}</span><br>
+                  <span class="data-label">Pulang:</span> <span class="data-new">${change.newData.checkOut || '-'}</span><br>
+                  <span class="data-label">Alasan:</span> <span class="data-new">${change.newData.reason || '-'}</span>
+                </td>
+              </tr>
+            `;
+          });
+
+          html += `
+                  </tbody>
+                </table>
+              </div>
+              <div class="request-group-actions">
+                <button class="action-button" onclick="handleApproveRequest(${requestIdsJson})">
+                  <i class="fa-solid fa-check"></i> <span>Setujui (${guruRequest.changes.length})</span>
+                </button>
+                <button class="action-button reject-btn" onclick="openRejectionModal(${requestIdsJson})">
+                  <i class="fa-solid fa-times"></i> <span>Tolak (${guruRequest.changes.length})</span>
+                </button>
+              </div>
+            </div>
+          `;
+        });
+        
+        container.innerHTML = html;
+      }
+
+      /**
+       * (STAFF) Dipanggil saat staff menekan 'Setujui'.
+       */
+      function handleApproveRequest(requestIds) {
+        if (!confirm(`Yakin ingin MENYETUJUI ${requestIds.length} perubahan ini? Tindakan ini akan langsung mengubah data absensi guru.`)) return;
+
+        displayMessage('request-list-message', 'Menyetujui pengajuan...', { isProcessing: true });
+        
+        google.script.run
+          .withSuccessHandler(response => {
+            if (response.status === 'success') {
+              displayMessage('request-list-message', 'Pengajuan berhasil disetujui!', { isSuccess: true });
+              showChangeRequestPage(); // Muat ulang daftar
+            } else {
+              displayMessage('request-list-message', `Gagal: ${response.message}`);
+            }
+          })
+          .withFailureHandler(error => {
+            displayMessage('request-list-message', `Error: ${error.message}`);
+          })
+          .processChangeRequest(currentUser.email, requestIds, 'approve', null);
+      }
+
+      /**
+       * (STAFF) Membuka modal untuk alasan penolakan.
+       */
+      function openRejectionModal(requestIds) {
+        document.getElementById('rejection-request-ids').value = JSON.stringify(requestIds);
+        document.getElementById('rejection-reason-input').value = '';
+        document.getElementById('rejection-modal').style.display = 'block';
+      }
+
+      /**
+       * (STAFF) Menutup modal alasan penolakan.
+       */
+      function closeRejectionModal() {
+        document.getElementById('rejection-modal').style.display = 'none';
+      }
+
+      /**
+       * (STAFF) Dipanggil saat staff mengirim alasan penolakan.
+       */
+      function handleSendRejection() {
+        const requestIds = JSON.parse(document.getElementById('rejection-request-ids').value);
+        const reason = document.getElementById('rejection-reason-input').value.trim();
+
+        if (!reason) {
+          alert('Alasan penolakan wajib diisi.');
+          return;
+        }
+        
+        closeRejectionModal();
+        displayMessage('request-list-message', 'Memproses penolakan...', { isProcessing: true });
+        
+        google.script.run
+          .withSuccessHandler(response => {
+            if (response.status === 'success') {
+              displayMessage('request-list-message', 'Pengajuan berhasil ditolak.', { isSuccess: true });
+              showChangeRequestPage(); // Muat ulang daftar
+            } else {
+              displayMessage('request-list-message', `Gagal: ${response.message}`);
+            }
+          })
+          .withFailureHandler(error => {
+            displayMessage('request-list-message', `Error: ${error.message}`);
+          })
+          .processChangeRequest(currentUser.email, requestIds, 'reject', reason);
+      }
+
+      // --- AKHIR FUNGSI BARU ---
+
 
       function loadAndRenderSummary() {
           const summaryMonthInput = document.getElementById('summary-month-input');
@@ -1782,6 +2414,9 @@
           document.getElementById("emis-import-container").style.display = "none";
           document.getElementById("emis-export-container").style.display = "none";
           document.getElementById("all-teachers-summary-container").style.display = "none";
+          // --- AWAL PERUBAHAN: Sembunyikan container baru ---
+          document.getElementById("change-request-container").style.display = "none";
+          // --- AKHIR PERUBAHAN ---
 
 
           document.getElementById("staff-dashboard-container").style.display = "block";
