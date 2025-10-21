@@ -981,6 +981,7 @@
   .message-loader {
     width: 16px; /* Ukuran disesuaikan dengan font pesan */
     height: 16px;
+    flex-shrink: 0; /* --- TAMBAHKAN INI --- */
     border: 3px solid rgba(107, 114, 128, 0.2); /* Warna abu-abu muda */
     border-top-color: var(--text-secondary-color); /* Warna abu-abu teks */
     border-radius: 50%;
@@ -1158,5 +1159,24 @@
   }
   .request-group-actions button.reject-btn:hover:not(:disabled) {
     background-color: var(--danger-hover-color);
+  }
+
+  /* --- TAMBAHAN: Animasi Loading Ringkasan --- */
+  @keyframes pulse-dots {
+    0%, 100% {
+      opacity: 0.4;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.05);
+    }
+  }
+
+  .summary-value.loading-dots {
+    /* Terapkan animasi */
+    animation: pulse-dots 1.3s infinite ease-in-out;
+    /* Ubah warna '...' agar tidak terlalu mencolok */
+    color: var(--text-secondary-color);
   }
 </style>
