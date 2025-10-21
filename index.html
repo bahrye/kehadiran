@@ -153,6 +153,9 @@
               <input type="month" id="all-teachers-summary-month-input" onchange="loadAllTeacherSummaryData()">
           </div>
           
+          <button onclick="handleReloadAllTeacherSummary()" class="action-button secondary" style="width: auto; padding: 10px 18px; margin-bottom: 20px;">
+            <i class="fa-solid fa-rotate-right"></i> <span>Muat Ulang Data</span>
+          </button>
           <div id="all-teachers-summary-table-container">
             <p>Memuat ringkasan guru...</p>
           </div>
@@ -3104,6 +3107,43 @@
         textareas.forEach(textarea => {
           textarea.value = '';
         });
+      }
+
+      // --- FUNGSI BARU UNTUK RELOAD RINGKASAN ---
+      function handleReloadAllTeacherSummary() {
+        const monthInput = document.getElementById('all-teachers-summary-month-input');
+        if (!monthInput.value) {
+            alert("Silakan pilih bulan terlebih dahulu.");
+            return;
+        }
+        const [year, month] = monthInput.value.split('-').map(Number);
+        const container = document.getElementById('all-teachers-summary-table-container');
+        
+        // Tampilkan loading
+        container.innerHTML = `
+          <div class="loader-container">
+            <div class="loader">
+              <div class="ball"></div><div class="ball"></div><div class="ball"></div>
+            </div>
+            <p>Menghapus cache dan memuat ulang data...</p>
+          </div>`;
+        
+        // 1. Panggil fungsi baru untuk hapus cache di server
+        google.script.run
+          .withSuccessHandler(response => {
+            if (response.success) {
+              // 2. Jika cache berhasil dihapus, panggil fungsi load data seperti biasa
+              loadAllTeacherSummaryData();
+            } else {
+              // Jika gagal hapus cache, tetap coba load (mungkin error di server)
+              loadAllTeacherSummaryData();
+            }
+          })
+          .withFailureHandler(err => {
+            // Jika gagal, tetap panggil load data
+            loadAllTeacherSummaryData();
+          })
+          .clearSchoolSummaryCache(currentUser.email, selectedSchool, year, month);
       }
     </script>
   </body>
