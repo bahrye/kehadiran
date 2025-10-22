@@ -687,19 +687,8 @@
           button.querySelector('span').textContent = 'Membuat PDF...';
           displayMessage('sptjm-download-message', 'Sedang memproses & membuat PDF, mohon tunggu...', { isProcessing: true });
 
-          // Mengumpulkan semua data dari tampilan untuk dikirim ke server
-          const data = {
-              name: document.getElementById('sptjm-view-name').innerText,
-              nip: document.getElementById('sptjm-view-nip').innerText,
-              jabatan: document.getElementById('sptjm-view-jabatan').innerText,
-              satker: document.getElementById('sptjm-view-satker').innerText,
-              bulan: document.getElementById('sptjm-view-month').innerText,
-              placeDate: document.getElementById('sptjm-view-place-date').innerText,
-              signatureName: document.getElementById('sptjm-view-signature-name').innerText,
-              signatureNip: document.getElementById('sptjm-view-signature-nip').innerText,
-              headmasterName: document.getElementById('sptjm-view-headmaster-name').innerText,
-              nipKepala: document.getElementById('sptjm-view-headmaster-nip').innerText
-          };
+          // HAPUS SEMUA BLOK 'const data = { ... }' YANG MENGAMBIL innerText
+          // (Baris 423-433)
 
           google.script.run
               .withSuccessHandler(response => {
@@ -722,7 +711,9 @@
                   button.disabled = false;
                   button.querySelector('span').textContent = 'Unduh PDF';
               })
-              .generateSptjmPdf(data);
+              // 1. Ganti panggilan fungsi di bawah ini
+              // .generateSptjmPdf(data); // <-- BARIS LAMA
+              .generateSptjmPdf(currentUser.email, selectedSchool); // <-- BARIS BARU
       }
 
       function showLkhWeeklyPage() {
