@@ -736,13 +736,14 @@ function getAttendanceSummary(userEmail, school, year, month) {
       }
     });
     const teacherHolidays = getTeacherHolidays(userEmail);
-    const attendanceData = getMonthlyAttendance(userEmail, school, year, month);
+    const attendanceData = getMonthlyAttendance(userEmail, school, year, month); // <-- Data ini sudah ada
 
     const summary = calculateSummaryForUser_(attendanceData, teacherHolidays, nationalHolidays, year, month);
     
     return { 
       success: true, 
-      summary: summary
+      summary: summary,
+      attendanceData: attendanceData // <-- TAMBAHAN BARU: Kirim juga data detailnya
     };
   } catch(e) {
     Logger.log("Error di getAttendanceSummary: " + e.message);
