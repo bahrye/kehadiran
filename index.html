@@ -1499,51 +1499,61 @@
       }
 
       function populateAttendanceData(data) {
-        // --- AWAL PERUBAHAN: Dapatkan data pending ---
+        // --- AWAL PERBAIKAN ---
         const pendingData = appSettings.pendingChanges;
         const isReqMonth = appSettings.isRequestableMonth;
-        // --- AKHIR PERUBAHAN ---
 
-        for (const date in data) { // Loop berdasarkan data ASLI
+        // 1. Buat Set (daftar unik) dari SEMUA tanggal,
+        //    baik dari data asli (data) maupun dari data pending (pendingData)
+        const allDates = new Set([...Object.keys(data), ...Object.keys(pendingData)]);
+
+        // 2. Loop menggunakan 'allDates' yang sudah lengkap, bukan hanya 'data'
+        for (const date of allDates) {
+        // --- AKHIR PERBAIKAN ---
+
           const checkInInput = document.getElementById(`in-${date}`);
           const checkOutInput = document.getElementById(`out-${date}`);
           const reasonSelect = document.getElementById(`reason-${date}`);
 
           if(!checkInInput && !checkOutInput && !reasonSelect) continue; // Skip jika baris tidak ada (misal, hari libur)
 
-          // --- AWAL PERUBAHAN: Logika pengisian data ---
-          if (isReqMonth && pendingData[date]) {
-            // Jika ini bulan pengajuan DAN ada data pending untuk tanggal ini
-            const pending = pendingData[date];
-            if (checkInInput) checkInInput.value = pending.newCheckIn;
-            if (checkOutInput) checkOutInput.value = pending.newCheckOut;
+          // Ambil data dari kedua sumber
+          const originalEntry = data[date]; // Ini mungkin undefined (jika Alpa)
+          const pendingEntry = pendingData[date]; // Ini mungkin undefined (jika tidak ada ajuan)
+
+          if (isReqMonth && pendingEntry) {
+            // Jika ada data PENDING, tampilkan data pending
+            if (checkInInput) checkInInput.value = pendingEntry.newCheckIn;
+            
+            // --- AWAL PERBAIKAN TYPO ---
+            // Bug sebelumnya: checkInInput.value = pendingEntry.newCheckOut
+            if (checkOutInput) checkOutInput.value = pendingEntry.newCheckOut; 
+            // --- AKHIR PERBAIKAN TYPO ---
+
             if (reasonSelect) {
-                reasonSelect.value = pending.newReason || "";
+                reasonSelect.value = pendingEntry.newReason || "";
             }
-            // Pastikan disable (meski sudah dari generateMonthTable)
+            // Pastikan input dinonaktifkan karena statusnya 'pending'
             if (checkInInput) checkInInput.disabled = true;
             if (checkOutInput) checkOutInput.disabled = true;
             if (reasonSelect) reasonSelect.disabled = true;
 
-          } else {
-            // Logika standar: Isi dengan data ASLI
-            if (checkInInput) checkInInput.value = data[date].checkIn;
-            if (checkOutInput) checkOutInput.value = data[date].checkOut;
+          } else if (originalEntry) { 
+            // Jika tidak ada data pending, TAPI ada data asli, tampilkan data asli
+            if (checkInInput) checkInInput.value = originalEntry.checkIn;
+            if (checkOutInput) checkOutInput.value = originalEntry.checkOut;
 
             if (reasonSelect) {
-              reasonSelect.value = data[date].reason || "";
-              // --- PERUBAHAN: Nonaktifkan input time jika ada alasan LAMA, HANYA jika BUKAN bulan pengajuan ---
-              if (data[date].reason && !isReqMonth) {
+              reasonSelect.value = originalEntry.reason || "";
+              // Logika lama untuk menonaktifkan input time jika ada alasan (di bulan normal)
+              if (originalEntry.reason && !isReqMonth) {
                  if (checkInInput) checkInInput.disabled = true;
                  if (checkOutInput) checkOutInput.disabled = true;
-              } else if (isReqMonth) {
-                 // Jika bulan pengajuan, pastikan input time bisa diaktifkan oleh tombol Ubah
-                 // (Status disabled awal sudah diatur oleh isRowDisabled di generateMonthTable)
-                 // Tidak perlu mengubah status disabled di sini untuk kasus non-pending.
               }
             }
           }
-          // --- AKHIR PERUBAHAN ---
+          // Jika tidak ada 'pendingEntry' atau 'originalEntry' (kasus Alpa di bulan normal),
+          // maka input akan otomatis kosong, dan itu sudah benar.
         }
       }
       // --- AKHIR FUNGSI YANG DIMODIFIKASI BESAR-BESARAN ---
