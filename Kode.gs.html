@@ -404,13 +404,15 @@ function getAttendancePageData(email, school, year, month, token) {
 
         // --- AWAL PERBAIKAN FORMAT TANGGAL ---
         let reqDateStr = null;
+        // --- INI PERUBAHANNYA: Gunakan "GMT+8" ---
+        const TIMEZONE = "GMT+8"; // Gunakan timezone yang sama dengan getMonthlyAttendance
         try {
           // Coba format tanggal, tangani jika reqDateValue tidak valid
           if (reqDateValue instanceof Date && !isNaN(reqDateValue)) {
-            reqDateStr = Utilities.formatDate(reqDateValue, "GMT", "yyyy-MM-dd");
+            reqDateStr = Utilities.formatDate(reqDateValue, TIMEZONE, "yyyy-MM-dd");
           } else if (typeof reqDateValue === 'string' && reqDateValue.length > 0) {
             // Jika string, coba parse (misal jika formatnya sudah benar)
-             reqDateStr = Utilities.formatDate(new Date(reqDateValue), "GMT", "yyyy-MM-dd");
+             reqDateStr = Utilities.formatDate(new Date(reqDateValue), TIMEZONE, "yyyy-MM-dd");
           }
         } catch(dateError) {
            Logger.log(`Error formatting date for row ${i+1} in ChangeRequests: ${dateError.message}. Value: ${reqDateValue}`);
@@ -2198,6 +2200,90 @@ function notifyStaffOfNewRequest(guruEmail, guruName, school, changeCount) {
   }
 }
 
+
+// --- FUNGSI BARU YANG ANDA MINTA ---
+/**
+ * Helper: Mengirim notifikasi email ke GURU saat pengajuan berhasil dibuat.
+ */
+function notifyGuruOfSubmission(guruEmail, guruName, school, year, month, changes) {
+  try {
+    const monthName = new Date(year, month - 1, 1).toLocaleString('id-ID', { month: 'long', year: 'numeric', timeZone: 'GMT' });
+    const subject = `[CEKLOK] Pengajuan Ubah Data Anda untuk ${monthName} Telah Diterima`;
+
+    // Membuat tabel HTML untuk detail perubahan
+    let changesTable = `
+      <table style="width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 15px; font-family: 'Poppins', sans-serif; font-size: 14px;">
+        <thead style="background-color: #F9FAFB; text-align: left;">
+          <tr>
+            <th style="padding: 10px 12px; border: 1px solid #E5E7EB;">Tanggal</th>
+            <th style="padding: 10px 12px; border: 1px solid #E5E7EB;">Data Lama</th>
+            <th style="padding: 10px 12px; border: 1px solid #E5E7EB;">Data Ajuan Baru</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    // Helper kecil untuk format data
+    const formatData = (data) => {
+      if (data.reason) return `<strong>Alasan:</strong> ${data.reason}`;
+      if (!data.checkIn && !data.checkOut) return `<em>(Kosong)</em>`;
+      return `<strong>Masuk:</strong> ${data.checkIn || '-'} <br> <strong>Pulang:</strong> ${data.checkOut || '-'}`;
+    };
+    
+    // Loop melalui setiap perubahan dan tambahkan ke tabel
+    for (const change of changes) {
+       // Format tanggal 'yyyy-mm-dd' menjadi 'dd MMMM yyyy'
+       const parts = change.date.split('-'); // 'yyyy-mm-dd'
+       let formattedDate = change.date; // Fallback
+       try {
+         const dateObj = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+         formattedDate = Utilities.formatDate(dateObj, "GMT+8", "dd MMMM yyyy"); // Cth: 15 Oktober 2024
+       } catch(e) { /* biarkan fallback */ }
+
+       changesTable += `
+        <tr style="border-bottom: 1px solid #E5E7EB;">
+          <td style="padding: 10px 12px; border: 1px solid #E5E7EB; vertical-align: top;">${formattedDate}</td>
+          <td style="padding: 10px 12px; border: 1px solid #E5E7EB; vertical-align: top; text-decoration: line-through; color: #DC2626;">${formatData(change.oldData)}</td>
+          <td style="padding: 10px 12px; border: 1px solid #E5E7EB; vertical-align: top; font-weight: 600; color: #16A34A;">${formatData(change.newData)}</td>
+        </tr>
+       `;
+    }
+    changesTable += `</tbody></table>`;
+    
+    // --- Ini adalah kata-kata menarik yang diminta ---
+    const body = `
+      <p style="font-family: 'Poppins', sans-serif; font-size: 16px; color: #1F2937;">Halo ${guruName},</p>
+      <p style="font-family: 'Poppins', sans-serif; font-size: 16px; color: #1F2937;">Pengajuan perubahan data Ceklok Anda untuk <strong>${school}</strong> bulan <strong>${monthName}</strong> telah berhasil kami terima.</p>
+      <p style="font-family: 'Poppins', sans-serif; font-size: 16px; color: #1F2937;">Detail pengajuan Anda adalah sebagai berikut:</p>
+      
+      ${changesTable}
+
+      <p style="font-family: 'Poppins', sans-serif; font-size: 16px; color: #1F2937;">Saat ini, pengajuan Anda sedang dalam antrian untuk ditinjau oleh Staff/Admin.</p>
+      <p style="font-family: 'Poppins', sans-serif; font-size: 16px; color: #1F2937;">
+        <strong>Butuh persetujuan lebih cepat?</strong> Silakan hubungi staff administrasi sekolah Anda untuk mempercepat proses peninjauan.
+      </p>
+      <br>
+      <a href="${DEPLOYMENT_URL}" style="background-color: #3B82F6; color: white; padding: 12px 20px; text-decoration: none; border-radius: 8px; font-weight: 600; font-family: 'Poppins', sans-serif; display: inline-block;">
+        Kembali ke Aplikasi Ceklok
+      </a>
+      <br>
+      <p style="font-size: 12px; color: #6B7280; font-family: 'Poppins', sans-serif;">(Ini adalah email konfirmasi otomatis.)</p>
+    `;
+
+    MailApp.sendEmail({ 
+      to: guruEmail, 
+      subject: subject, 
+      htmlBody: body, 
+      name: "Sistem Ceklok Otomatis" 
+    });
+
+  } catch (e) {
+    Logger.log(`Gagal mengirim notifikasi konfirmasi ke guru ${guruEmail}: ${e.message}`);
+  }
+}
+// --- AKHIR FUNGSI BARU ---
+
+
 /**
  * Helper: Mengirim notifikasi email ke guru tentang keputusan.
  */
@@ -2328,6 +2414,16 @@ function submitChangeRequest(email, school, year, month, changes) {
 
     // Kirim notifikasi ke Staff
     notifyStaffOfNewRequest(email, userName, school, changes.length);
+
+    // --- TAMBAHAN BARU: Kirim notifikasi konfirmasi ke Guru ---
+    try {
+      // 'changes' (dari parameter) berisi {date, oldData, newData}
+      // 'date' di 'changes' adalah string 'yyyy-mm-dd'.
+      notifyGuruOfSubmission(email, userName, school, year, month, changes);
+    } catch (e) {
+       Logger.log(`Gagal memicu notifikasi konfirmasi guru: ${e.message}`);
+    }
+    // --- AKHIR TAMBAHAN ---
 
     return { status: "success", message: "Pengajuan berhasil dikirim." };
   } catch (e) {
