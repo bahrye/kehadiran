@@ -285,7 +285,7 @@ function getAppSettingsForUser(email, school, year, month) {
   try {
     const holidaysData = holidaysSheet.getDataRange().getValues().slice(1);
     holidaysData.forEach(row => {
-      if (row[0] instanceof Date && row[1]) holidays[Utilities.formatDate(row[0], "GMT", "yyyy-MM-dd")] = row[1];
+      if (row[0] instanceof Date && row[1]) holidays[Utilities.formatDate(row[0], "Asia/Makassar", "yyyy-MM-dd")] = row[1];
     });
   } catch (e) {
     Logger.log(`Error parsing holidays: ${e.toString()}`);
@@ -335,7 +335,7 @@ function getAttendancePageData(email, school, year, month, token) {
     try {
       const holidaysData = holidaysSheet.getDataRange().getValues().slice(1);
       holidaysData.forEach(row => {
-        if (row[0] instanceof Date && row[1]) holidays[Utilities.formatDate(row[0], "GMT", "yyyy-MM-dd")] = row[1];
+        if (row[0] instanceof Date && row[1]) holidays[Utilities.formatDate(row[0], "Asia/Makassar", "yyyy-MM-dd")] = row[1];
       });
     } catch (e) {
       Logger.log(`Error parsing holidays in getAttendancePageData: ${e.toString()}`);
@@ -351,7 +351,7 @@ function getAttendancePageData(email, school, year, month, token) {
     if (!isFutureMonth) {
       for (let day = 1; day <= daysInMonth; day++) {
         const dateObj = new Date(Date.UTC(year, month - 1, day));
-        const dateStr = Utilities.formatDate(dateObj, "GMT", "yyyy-MM-dd");
+        const dateStr = Utilities.formatDate(dateObj, "Asia/Makassar", "yyyy-MM-dd");
         const dayOfWeek = dateObj.getUTCDay();
         const isTeacherHoliday = dayOfWeek > 0 && teacherHolidays[dayOfWeek - 1];
 
@@ -405,7 +405,7 @@ function getAttendancePageData(email, school, year, month, token) {
         // --- AWAL PERBAIKAN FORMAT TANGGAL ---
         let reqDateStr = null;
         // --- INI PERUBAHANNYA: Gunakan "GMT+8" ---
-        const TIMEZONE = "GMT+8"; // Gunakan timezone yang sama dengan getMonthlyAttendance
+        const TIMEZONE = "Asia/Makassar"; // Gunakan timezone yang sama dengan getMonthlyAttendance
         try {
           // Coba format tanggal, tangani jika reqDateValue tidak valid
           if (reqDateValue instanceof Date && !isNaN(reqDateValue)) {
@@ -470,7 +470,7 @@ function getAttendancePageData(email, school, year, month, token) {
 }
 
 function getMonthlyAttendance(email, school, year, month) {
-  const TIMEZONE = "GMT+8"; 
+  const TIMEZONE = "Asia/Makassar";
   
   // 1. Buat cache key yang SANGAT SPESIFIK per pengguna
   const cache = CacheService.getScriptCache();
@@ -533,7 +533,7 @@ function saveMonthlyAttendance(payload) {
 
     const sheet = getAttendanceSheet_(year, month, true);
     const allData = sheet.getDataRange().getValues();
-    const TIMEZONE = "GMT+8";
+    const TIMEZONE = "Asia/Makassar";
     const existingRecords = {};
 
     for (let i = 1; i < allData.length; i++) {
@@ -592,7 +592,7 @@ function saveMonthlyAttendance(payload) {
       const nationalHolidays = {};
       holidaysData.forEach(row => {
         if (row[0] instanceof Date && row[1]) {
-          nationalHolidays[Utilities.formatDate(row[0], "GMT", "yyyy-MM-dd")] = row[1];
+          nationalHolidays[Utilities.formatDate(row[0], "Asia/Makassar", "yyyy-MM-dd")] = row[1];
         }
       });
       
@@ -607,7 +607,7 @@ function saveMonthlyAttendance(payload) {
       const notificationKey = `completion_notif_${email}_${school}_${monthStr}`;
       const userProperties = PropertiesService.getUserProperties();
       const notificationSent = userProperties.getProperty(notificationKey);
-      const monthName = new Date(year, month - 1, 1).toLocaleString('id-ID', { month: 'long', year: 'numeric', timeZone: 'GMT' });
+      const monthName = new Date(year, month - 1, 1).toLocaleString('id-ID', { month: 'long', year: 'numeric', timeZone: 'Asia/Makassar' });
 
       if (summary.persentase === 100) {
         if (notificationSent !== 'sent') {
@@ -680,7 +680,7 @@ function calculateSummaryForUser_(attendanceData, teacherHolidays, nationalHolid
     
     for (let day = 1; day <= daysInMonth; day++) {
         const dateObj = new Date(Date.UTC(year, month - 1, day));
-        const dateStr = Utilities.formatDate(dateObj, "GMT", "yyyy-MM-dd");
+        const dateStr = Utilities.formatDate(dateObj, "Asia/Makassar", "yyyy-MM-dd");
         const dayOfWeek = dateObj.getUTCDay();
         
         if (dayOfWeek === 0 || nationalHolidays[dateStr]) continue;
@@ -732,7 +732,7 @@ function getAttendanceSummary(userEmail, school, year, month) {
     const nationalHolidays = {};
     holidaysData.forEach(row => {
       if (row[0] instanceof Date && row[1]) {
-        nationalHolidays[Utilities.formatDate(row[0], "GMT", "yyyy-MM-dd")] = row[1];
+        nationalHolidays[Utilities.formatDate(row[0], "Asia/Makassar", "yyyy-MM-dd")] = row[1];
       }
     });
     const teacherHolidays = getTeacherHolidays(userEmail);
@@ -765,7 +765,7 @@ function getSchoolAttendanceSummary(userEmail, school, year, month) {
     const cachedData = cache.get(rawCacheKey);
     
     // --- TENTUKAN TIMEZONE (DIPERLUKAN UNTUK getValues()) ---
-    const TIMEZONE = "GMT+8";
+    const TIMEZONE = "Asia/Makassar";
     
     if (cachedData) {
       Logger.log(`Mengambil summary mentah dari cache: ${rawCacheKey}`);
@@ -790,7 +790,7 @@ function getSchoolAttendanceSummary(userEmail, school, year, month) {
     const nationalHolidays = {};
     holidaysData.forEach(row => {
       if (row[0] instanceof Date && row[1]) {
-        nationalHolidays[Utilities.formatDate(row[0], "GMT", "yyyy-MM-dd")] = row[1];
+        nationalHolidays[Utilities.formatDate(row[0], "Asia/Makassar", "yyyy-MM-dd")] = row[1];
       }
     });
 
@@ -874,8 +874,8 @@ function exportToExcel(userEmail, school, selectedMonthYear, startLockId) {
     
     for (let day = 1; day <= daysInMonth; day++) {
       const currentDate = new Date(Date.UTC(year, month - 1, day));
-      const tanggal = Utilities.formatDate(currentDate, "GMT", "yyyy-MM-dd");
-      const hari = currentDate.toLocaleString('id-ID', { weekday: 'long', timeZone: "GMT" });
+      const tanggal = Utilities.formatDate(currentDate, "Asia/Makassar", "yyyy-MM-dd");
+      const hari = currentDate.toLocaleString('id-ID', { weekday: 'long', timeZone: "Asia/Makassar" });
       const dailyData = attendanceData[tanggal] || {};
       
       const checkIn = dailyData.checkIn ? formatTimeAsFormula(dailyData.checkIn) : "";
@@ -912,7 +912,7 @@ function exportToExcel(userEmail, school, selectedMonthYear, startLockId) {
     const userRow = users.find(u => u[0].toLowerCase() === userEmail.toLowerCase());
     const userName = userRow ? userRow[2] : userEmail;
     
-    const bulanNama = new Date(year, month - 1, 1).toLocaleString('id-ID', { month: 'long' });
+    const bulanNama = new Date(year, month - 1, 1).toLocaleString('id-ID', { month: 'long', timeZone: 'Asia/Makassar' });
     const fileName = `EMIS_${userName.replace(/\s/g, '_')}_${school.replace(/\s/g, '_')}_${bulanNama}_${year}.xlsx`;
     const fileData = Utilities.base64Encode(response.getBlob().getBytes());
 
@@ -963,10 +963,10 @@ function importFromEmis(userEmail, school, fileData) {
     
     const firstDateStr = parseDateFromExcel(data[1][dateIndex]);
     if (firstDateStr) {
-        const importDate = new Date(firstDateStr);
-        const importMonthStr = `${importDate.getUTCFullYear()}-${String(importDate.getUTCMonth() + 1).padStart(2, '0')}`;
+        const importDate = new Date(firstDateStr); // Ini akan membuat Date object T00:00:00Z (UTC)
+        const importMonthStr = Utilities.formatDate(importDate, "Asia/Makassar", "yyyy-MM");
         if (lockedMonths.includes(importMonthStr)) {
-            throw new Error(`Gagal mengimpor: Absensi untuk bulan ${importDate.toLocaleString('id-ID', { month: 'long', year: 'numeric', timeZone: 'UTC' })} sudah dikunci.`);
+            throw new Error(`Gagal mengimpor: Absensi untuk bulan ${Utilities.formatDate(importDate, "Asia/Makassar", "MMMM yyyy")} sudah dikunci.`);
         }
     } else {
         throw new Error("Tidak dapat menemukan tanggal valid di baris pertama data.");
@@ -1007,9 +1007,9 @@ function importFromEmis(userEmail, school, fileData) {
     return { 
         status: "success", 
         count: Object.keys(attendancePayload.attendance).length,
-        year: firstDate.getUTCFullYear(),
-        month: firstDate.getUTCMonth() + 1,
-        monthName: firstDate.toLocaleString('id-ID', { month: 'long', timeZone: 'UTC' })
+        year: Utilities.formatDate(firstDate, "Asia/Makassar", "yyyy"),
+        month: Utilities.formatDate(firstDate, "Asia/Makassar", "M"), // 'M' untuk bulan tanpa 0 di depan
+        monthName: Utilities.formatDate(firstDate, "Asia/Makassar", "MMMM")
     };
 
   } catch (e) {
@@ -1023,28 +1023,28 @@ function importFromEmis(userEmail, school, fileData) {
 }
 
 function parseDateFromExcel(cellValue) {
-  if (cellValue instanceof Date && !isNaN(cellValue)) return Utilities.formatDate(cellValue, "GMT", "yyyy-MM-dd");
+  if (cellValue instanceof Date && !isNaN(cellValue)) return Utilities.formatDate(cellValue, "Asia/Makassar", "yyyy-MM-dd");
   if (typeof cellValue === 'number' && cellValue > 0) {
     const jsDate = new Date((cellValue - 25569) * 86400 * 1000);
-    return Utilities.formatDate(jsDate, "GMT", "yyyy-MM-dd");
+    return Utilities.formatDate(jsDate, "Asia/Makassar", "yyyy-MM-dd");
   }
   if (typeof cellValue === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(cellValue.trim())) return cellValue.trim();
   return null;
 }
 
 function parseTimeFromExcel(cellValue) {
-  if (cellValue instanceof Date && !isNaN(cellValue)) return Utilities.formatDate(cellValue, "GMT", "HH:mm");
+  if (cellValue instanceof Date && !isNaN(cellValue)) return Utilities.formatDate(cellValue, "Asia/Makassar", "HH:mm");
   if (typeof cellValue === 'number' && cellValue > 0 && cellValue < 1) {
     const dummyDate = new Date(1970, 0, 1, 0, 0, 0);
     dummyDate.setSeconds(cellValue * 86400);
-    return Utilities.formatDate(dummyDate, "GMT", "HH:mm");
+    return Utilities.formatDate(dummyDate, "Asia/Makassar", "HH:mm");
   }
   if (typeof cellValue === 'string' && /^\d{2}:\d{2}/.test(cellValue.trim())) return cellValue.trim().substring(0, 5);
   return "";
 }
 
 function formatTimeToHHMM_or_Empty(timeValue) {
-  const TIMEZONE = "GMT+8";
+  const TIMEZONE = "Asia/Makassar";
   if (timeValue instanceof Date && !isNaN(timeValue)) return "'" + Utilities.formatDate(timeValue, TIMEZONE, "HH.mm");
   if (typeof timeValue === 'string' && timeValue.includes(':')) return "'" + timeValue.replace(':', '.');
   return "";
@@ -1056,7 +1056,7 @@ function generateRekapPDF(selectedMonthYear, selectedSchool, singleUserEmail) {
     const [yyyyStr, mmStr] = selectedMonthYear.split('-');
     const yyyy = parseInt(yyyyStr, 10);
     const mm = parseInt(mmStr, 10);
-    const TIMEZONE = "GMT+8";
+    const TIMEZONE = "Asia/Makassar";
 
     // PERUBAHAN: Memanggil getAttendanceSheet_ tanpa membuat sheet baru.
     const attendanceSheetForMonth = getAttendanceSheet_(yyyy, mm, false);
@@ -1308,7 +1308,7 @@ function getSettings(adminEmail) {
   let holidays = [];
   try {
     const holidaysData = holidaysSheet.getDataRange().getValues().slice(1);
-    holidays = holidaysData.map(row => ({ date: Utilities.formatDate(new Date(row[0]), "GMT", "yyyy-MM-dd"), description: row[1] })).filter(h => h.description);
+    holidays = holidaysData.map(row => ({ date: Utilities.formatDate(new Date(row[0]), "Asia/Makassar", "yyyy-MM-dd"), description: row[1] })).filter(h => h.description);
   } catch (e) {}
   
   const announcements = getAnnouncements();
@@ -1469,7 +1469,7 @@ function sendIncompleteAttendanceReminders() {
 
   const allUsers = usersSheet.getDataRange().getValues().slice(1);
   const teachers = allUsers.filter(user => user[4] === 'guru');
-  const monthName = new Date(year, month - 1, 1).toLocaleString('id-ID', { month: 'long', year: 'numeric', timeZone: 'GMT' });
+  const monthName = new Date(year, month - 1, 1).toLocaleString('id-ID', { month: 'long', year: 'numeric', timeZone: 'Asia/Makassar' });
 
   teachers.forEach(teacher => {
     const teacherEmail = teacher[0];
@@ -1598,7 +1598,7 @@ function getSptjmSettings(userEmail) {
             headers.forEach((header, index) => {
                 if (header) {
                     if (userRow[index] instanceof Date) {
-                        userSettings[header] = Utilities.formatDate(userRow[index], "GMT", "yyyy-MM-dd");
+                        userSettings[header] = Utilities.formatDate(userRow[index], "Asia/Makassar", "yyyy-MM-dd");
                     } else {
                         userSettings[header] = userRow[index];
                     }
@@ -1653,6 +1653,9 @@ function saveSptjmSettings(userEmail, settings) {
 
 function getSptjmDataForUser(email, school) {
   try {
+    if (!checkIfLKHUser_(email)) {
+      return { error: "Akses LKH ditolak." };
+    }
     const users = usersSheet.getDataRange().getValues();
     const userRow = users.find(u => u[0].toLowerCase() === email.toLowerCase());
     if (!userRow) {
@@ -1672,51 +1675,74 @@ function getSptjmDataForUser(email, school) {
   }
 }
 
-function generateSptjmPdf(data) {
+function generateSptjmPdf(userEmail, school) { // <-- 1. Ubah parameter fungsi
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   let tempFileId = null;
   try {
+    if (!checkIfLKHUser_(userEmail)) {
+      return { success: false, error: "Akses LKH ditolak." };
+    }
+    // 2. Ambil data secara aman dari sisi server
+    const serverData = getSptjmDataForUser(userEmail, school);
+    if (serverData.error) {
+      return { success: false, error: serverData.error };
+    }
+    
+    const user = serverData.user || {};
+    const settings = serverData.settings || {};
+
     const templateIds = {
       'MTS TANUNTUNG': '1cSPnqi9sfgoVXh-V9ePLNbdrMgP3D4AeU7kokHhYxro',
       'MIS BUTUNG': '1TEw6NM4lXD-2dDBk3wL3ihuLYvuiwofvahAMhMm19yo'
     };
     
-    const schoolName = Object.keys(templateIds).find(name => (data.satker || "").includes(name));
+    // 3. Gunakan data server (user.school)
+    const schoolName = Object.keys(templateIds).find(name => (user.school || "").includes(name));
     const templateId = schoolName ? templateIds[schoolName] : null;
 
     if (!templateId) {
-      return { success: false, error: `Template untuk sekolah "${data.satker}" tidak ditemukan.` };
+      return { success: false, error: `Template untuk sekolah "${user.school}" tidak ditemukan.` };
     }
 
     const originalFile = DriveApp.getFileById(templateId);
-    const newFileName = `SPTJM_${data.name.replace(/\s/g, '_')}_${new Date().getTime()}`;
+    // 4. Gunakan data server (user.name)
+    const newFileName = `SPTJM_${user.name.replace(/\s/g, '_')}_${new Date().getTime()}`;
     const tempFile = originalFile.makeCopy(newFileName);
     tempFileId = tempFile.getId();
     
     const doc = DocumentApp.openById(tempFileId);
     const body = doc.getBody();
 
-    body.replaceText('{{NAMA}}', data.name || '-');
-    body.replaceText('{{NIP}}', data.nip || '-');
-    body.replaceText('{{JABATAN}}', data.jabatan || '-');
-    body.replaceText('{{SATKER}}', data.satker || '-');
-    body.replaceText('{{BULAN}}', data.bulan || '-');
-    body.replaceText('{{TEMPAT_TANGGAL}}', data.placeDate || '-');
-    body.replaceText('{{NAMA_KEPALA}}', data.headmasterName || '-');
-    body.replaceText('{{NIP_KEPALA}}', data.nipKepala || '-');
-    body.replaceText('{{NAMA_TTD}}', data.signatureName || data.name || '-');
-    body.replaceText('{{NIP_TTD}}', data.signatureNip || data.nip || '-');
+    // 5. Rekonstruksi 'placeDate' dari data server yang andal
+    // (Menggunakan perbaikan Timezone "Asia/Makassar" dari langkah sebelumnya)
+    const signatureDate = settings.tanggal 
+      ? new Date(settings.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'Asia/Makassar' }) 
+      : '[Tanggal]';
+    const placeDate = `${settings.tempat || '[Tempat]'}, ${signatureDate}`;
+
+    // 6. Ganti semua placeholder menggunakan data 'user' dan 'settings'
+    body.replaceText('{{NAMA}}', user.name || '-');
+    body.replaceText('{{NIP}}', settings.nip || '-');
+    body.replaceText('{{JABATAN}}', settings.jabatan || '-');
+    body.replaceText('{{SATKER}}', user.school || '-');
+    body.replaceText('{{BULAN}}', settings.bulan || '-');
+    body.replaceText('{{TEMPAT_TANGGAL}}', placeDate); // <-- Gunakan placeDate yang baru
+    body.replaceText('{{NAMA_KEPALA}}', settings.namaKepala || '-');
+    body.replaceText('{{NIP_KEPALA}}', settings.nipKepala || '-');
+    body.replaceText('{{NAMA_TTD}}', user.name || '-');
+    body.replaceText('{{NIP_TTD}}', settings.nip || '-');
     
     doc.saveAndClose();
     const pdfBlob = tempFile.getAs('application/pdf');
     const pdfData = Utilities.base64Encode(pdfBlob.getBytes());
-    const finalFileName = `SPTJM_${data.name.replace(/\s/g, '_')}.pdf`;
+    // 7. Gunakan data server (user.name) untuk nama file
+    const finalFileName = `SPTJM_${user.name.replace(/\s/g, '_')}.pdf`;
 
     return { success: true, pdfData: pdfData, fileName: finalFileName };
 
   } catch (e) {
-    Logger.log(`Error di generateSptjmPdf: ${e.toString()} \nStack: ${e.stack}`);
+    Logger.log(`Error di generateSptjmPdf (Refactored): ${e.toString()} \nStack: ${e.stack}`); // Log diubah
     return { success: false, error: "Gagal membuat PDF SPTJM. Terjadi kesalahan server." };
   } finally {
     if (tempFileId) {
@@ -1742,11 +1768,14 @@ function getLKHSheetForUser_(userName) {
 
 function getLKHData(email, school, year, month) {
   try {
+    if (!checkIfLKHUser_(email)) {
+      return { success: false, error: "Akses LKH ditolak." };
+    }
     const holidaysData = holidaysSheet.getDataRange().getValues().slice(1);
     const nationalHolidays = {};
     holidaysData.forEach(row => {
       if (row[0] instanceof Date && row[1]) {
-        nationalHolidays[Utilities.formatDate(row[0], "GMT", "yyyy-MM-dd")] = row[1];
+        nationalHolidays[Utilities.formatDate(row[0], "Asia/Makassar", "yyyy-MM-dd")] = row[1];
       }
     });
 
@@ -1756,15 +1785,15 @@ function getLKHData(email, school, year, month) {
 
     for (let day = 1; day <= daysInMonth; day++) {
       const dateObj = new Date(Date.UTC(year, month - 1, day));
-      const dateStr = Utilities.formatDate(dateObj, "GMT", "yyyy-MM-dd");
+      const dateStr = Utilities.formatDate(dateObj, "Asia/Makassar", "yyyy-MM-dd");
       const dayOfWeek = dateObj.getUTCDay();
       const entry = attendanceData[dateStr];
 
       if (dayOfWeek !== 0 && !nationalHolidays[dateStr] && (!entry || !entry.reason)) {
         workingDays.push({
           date: dateStr,
-          dayName: dateObj.toLocaleString('id-ID', { weekday: 'long', timeZone: 'UTC' }),
-          formattedDate: dateObj.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC' })
+          dayName: dateObj.toLocaleString('id-ID', { weekday: 'long', timeZone: 'Asia/Makassar' }),
+          formattedDate: dateObj.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'Asia/Makassar' })
         });
       }
     }
@@ -1778,7 +1807,7 @@ function getLKHData(email, school, year, month) {
     const monthStr = `${year}-${String(month).padStart(2, '0')}`;
     
     lkhData.forEach(row => {
-      const rowDate = Utilities.formatDate(new Date(row[0]), "GMT", "yyyy-MM-dd");
+      const rowDate = Utilities.formatDate(new Date(row[0]), "Asia/Makassar", "yyyy-MM-dd");
       if(rowDate.startsWith(monthStr)) {
         existingData[rowDate] = {
           uraian: row[1] || "",
@@ -1797,6 +1826,9 @@ function getLKHData(email, school, year, month) {
 
 function saveLKHData(email, school, year, month, lkhData) {
   try {
+    if (!checkIfLKHUser_(email)) {
+      return { status: "error", message: "Akses LKH ditolak." };
+    }
     const users = usersSheet.getDataRange().getValues();
     const userRow = users.find(u => u[0].toLowerCase() === email.toLowerCase());
     if (!userRow) throw new Error("User not found");
@@ -1809,7 +1841,7 @@ function saveLKHData(email, school, year, month, lkhData) {
     const rowsToDelete = [];
     
     for (let i = 1; i < allData.length; i++) {
-      const rowDate = Utilities.formatDate(new Date(allData[i][0]), "GMT", "yyyy-MM-dd");
+      const rowDate = Utilities.formatDate(new Date(allData[i][0]), "Asia/Makassar", "yyyy-MM-dd");
       if (rowDate.startsWith(monthStr)) {
         rowsToDelete.push(i + 1);
       }
@@ -1846,6 +1878,9 @@ function saveLKHData(email, school, year, month, lkhData) {
 
 function getLkhViewData(email, school, year, month) {
   try {
+    if (!checkIfLKHUser_(email)) {
+      return { success: false, error: "Akses LKH ditolak." };
+    }
     const users = usersSheet.getDataRange().getValues();
     const userRow = users.find(u => u[0].toLowerCase() === email.toLowerCase());
     if (!userRow) throw new Error("Pengguna tidak ditemukan.");
@@ -1886,14 +1921,14 @@ function getLkhViewData(email, school, year, month) {
     const nationalHolidays = {};
     holidaysData.forEach(row => {
       if (row[0] instanceof Date) {
-        nationalHolidays[Utilities.formatDate(row[0], "GMT", "yyyy-MM-dd")] = true;
+        nationalHolidays[Utilities.formatDate(row[0], "Asia/Makassar", "yyyy-MM-dd")] = true;
       }
     });
     let signatureDateObj = new Date(Date.UTC(year, month, 0));
-    while (signatureDateObj.getUTCDay() === 0 || nationalHolidays[Utilities.formatDate(signatureDateObj, "GMT", "yyyy-MM-dd")]) {
+    while (signatureDateObj.getUTCDay() === 0 || nationalHolidays[Utilities.formatDate(signatureDateObj, "Asia/Makassar", "yyyy-MM-dd")]) {
       signatureDateObj.setDate(signatureDateObj.getDate() - 1);
     }
-    const formattedSignatureDate = signatureDateObj.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC' });
+    const formattedSignatureDate = signatureDateObj.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'Asia/Makassar' });
 
     return {
       success: true,
@@ -1916,6 +1951,9 @@ function generateLkhPdf(email, school, selectedMonthYear) {
   lock.waitLock(30000);
   let tempDocId = null;
   try {
+    if (!checkIfLKHUser_(email)) {
+      return { success: false, error: "Akses LKH ditolak." };
+    }
     const [yearStr, monthStr] = selectedMonthYear.split('-');
     const year = parseInt(yearStr, 10);
     const month = parseInt(monthStr, 10);
@@ -1935,19 +1973,19 @@ function generateLkhPdf(email, school, selectedMonthYear) {
     const nationalHolidays = {};
     holidaysData.forEach(row => {
       if (row[0] instanceof Date) {
-        nationalHolidays[Utilities.formatDate(row[0], "GMT", "yyyy-MM-dd")] = true;
+        nationalHolidays[Utilities.formatDate(row[0], "Asia/Makassar", "yyyy-MM-dd")] = true;
       }
     });
 
     let signatureDate = new Date(Date.UTC(year, month, 0));
-    while (signatureDate.getUTCDay() === 0 || nationalHolidays[Utilities.formatDate(signatureDate, "GMT", "yyyy-MM-dd")]) {
+    while (signatureDate.getUTCDay() === 0 || nationalHolidays[Utilities.formatDate(signatureDate, "Asia/Makassar", "yyyy-MM-dd")]) {
       signatureDate.setDate(signatureDate.getDate() - 1);
     }
     const formattedSignatureDate = signatureDate.toLocaleDateString('id-ID', {
       day: '2-digit',
       month: 'long',
       year: 'numeric',
-      timeZone: 'UTC'
+      timeZone: 'Asia/Makassar'
     });
     
     const templateIds = {
@@ -2037,6 +2075,9 @@ function getLKHWeeklySheet_() {
 
 function getLKHWeeklyData(email) {
   try {
+    if (!checkIfLKHUser_(email)) {
+      return { success: false, error: "Akses LKH ditolak." };
+    }
     const sheet = getLKHWeeklySheet_();
     const data = sheet.getDataRange().getValues();
     const existingData = {};
@@ -2064,6 +2105,9 @@ function getLKHWeeklyData(email) {
 
 function saveLKHWeeklyData(email, school, lkhWeeklyData) {
   try {
+    if (!checkIfLKHUser_(email)) {
+      return { status: "error", message: "Akses LKH ditolak." };
+    }
     const users = usersSheet.getDataRange().getValues();
     const userRow = users.find(u => u[0].toLowerCase() === email.toLowerCase());
     if (!userRow) throw new Error("User not found");
@@ -2207,7 +2251,7 @@ function notifyStaffOfNewRequest(guruEmail, guruName, school, changeCount) {
  */
 function notifyGuruOfSubmission(guruEmail, guruName, school, year, month, changes) {
   try {
-    const monthName = new Date(year, month - 1, 1).toLocaleString('id-ID', { month: 'long', year: 'numeric', timeZone: 'GMT' });
+    const monthName = new Date(year, month - 1, 1).toLocaleString('id-ID', { month: 'long', year: 'numeric', timeZone: 'Asia/Makassar' });
     const subject = `[CEKLOK] Pengajuan Ubah Data Anda untuk ${monthName} Telah Diterima`;
 
     // Membuat tabel HTML untuk detail perubahan
@@ -2237,7 +2281,7 @@ function notifyGuruOfSubmission(guruEmail, guruName, school, year, month, change
        let formattedDate = change.date; // Fallback
        try {
          const dateObj = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
-         formattedDate = Utilities.formatDate(dateObj, "GMT+8", "dd MMMM yyyy"); // Cth: 15 Oktober 2024
+         formattedDate = Utilities.formatDate(dateObj, "Asia/Makassar", "dd MMMM yyyy"); // Cth: 15 Oktober 2024
        } catch(e) { /* biarkan fallback */ }
 
        changesTable += `
@@ -2289,7 +2333,7 @@ function notifyGuruOfSubmission(guruEmail, guruName, school, year, month, change
  */
 function notifyGuruOfDecision(guruEmail, guruName, school, year, month, action, rejectionReason) {
    try {
-      const monthName = new Date(year, month - 1, 1).toLocaleString('id-ID', { month: 'long', year: 'numeric', timeZone: 'GMT' });
+      const monthName = new Date(year, month - 1, 1).toLocaleString('id-ID', { month: 'long', year: 'numeric', timeZone: 'Asia/Makassar' });
       const subject = `[CEKLOK] Pengajuan Ubah Data Anda di-${action}`;
       let body;
 
@@ -2336,7 +2380,7 @@ function updateMainAttendanceSheet_(requestRow) {
     
     const sheet = getAttendanceSheet_(year, month, true);
     const allData = sheet.getDataRange().getValues();
-    const TIMEZONE = "GMT+8";
+    const TIMEZONE = "Asia/Makassar";
     
     let rowIndex = -1;
     // Cari data yang ada
@@ -2485,9 +2529,9 @@ function getPendingRequests(staffEmail, school) {
         let formattedDateForDisplay = "[Tanggal Error]"; // Default jika error
         try {
            if (dateObjFromSheet instanceof Date && !isNaN(dateObjFromSheet)) {
-              formattedDateForDisplay = Utilities.formatDate(dateObjFromSheet, "GMT+8", "dd-MM-yyyy");
+              formattedDateForDisplay = Utilities.formatDate(dateObjFromSheet, "Asia/Makassar", "dd-MM-yyyy");
            } else if (typeof dateObjFromSheet === 'string' && dateObjFromSheet.length > 0) {
-              formattedDateForDisplay = Utilities.formatDate(new Date(dateObjFromSheet), "GMT+8", "dd-MM-yyyy");
+              formattedDateForDisplay = Utilities.formatDate(new Date(dateObjFromSheet), "Asia/Makassar", "dd-MM-yyyy");
            }
         } catch (dateError) {
           Logger.log(`Error formatting display date for row ${i+1} in ChangeRequests (getPendingRequests): ${dateError.message}. Value: ${dateObjFromSheet}`);
