@@ -1237,4 +1237,82 @@
     box-shadow: none; /* Hilangkan shadow bawaan */
     transform: none; /* Hilangkan efek angkat */
   }
+
+  /* ===== TAMBAHAN BARU: GAYA KALENDER VISUAL ===== */
+  #calendar-view-container {
+      width: 100%;
+  }
+  .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 5px; /* Jarak antar kotak hari */
+  }
+  .calendar-day-name {
+      font-weight: 600;
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-secondary-color);
+      margin-bottom: 5px;
+  }
+  .calendar-day {
+      width: 100%;
+      padding-top: 100%; /* Ini akan membuat kotak menjadi persegi (aspect-ratio: 1/1) */
+      position: relative;
+      border-radius: 8px;
+      background-color: #F9FAFB;
+      border: 1px solid var(--border-color);
+      overflow: hidden;
+  }
+  .calendar-day.day-not-in-month {
+      background-color: transparent;
+      border: none;
+  }
+  .calendar-day-content {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-weight: 600;
+      font-size: 16px;
+      color: var(--text-primary-color);
+  }
+
+  /* Status Warna */
+  .calendar-day.day-hadir .calendar-day-content {
+      background-color: var(--success-color);
+      color: white;
+      border: 1px solid var(--success-color);
+  }
+  .calendar-day.day-alpa .calendar-day-content {
+      background-color: var(--danger-color);
+      color: white;
+      border: 1px solid var(--danger-color);
+  }
+  .calendar-day.day-izin .calendar-day-content {
+      background-color: var(--warning-color);
+      color: white;
+      border: 1px solid var(--warning-color);
+  }
+  .calendar-day.day-libur .calendar-day-content {
+      background-color: #E5E7EB; /* Abu-abu libur */
+      color: var(--text-secondary-color);
+      border: 1px solid #D1D5DB;
+  }
+  .calendar-day.day-future .calendar-day-content {
+      background-color: #FFFFFF;
+  }
+
+  /* Legenda */
+  .calendar-legend-box {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      border: 1px solid #ccc;
+  }
+  /* ===== AKHIR TAMBAHAN BARU ===== */
 </style>
