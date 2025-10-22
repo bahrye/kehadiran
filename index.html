@@ -544,7 +544,7 @@
               if (settings) {
                 document.getElementById('sptjm-nip').value = settings.nip || '';
                 document.getElementById('sptjm-jabatan').value = settings.jabatan || '';
-                document.getElementById('sptjm-bulan').value = settings.bulan || '';
+                // document.getElementById('sptjm-bulan').value = settings.bulan || '';
                 document.getElementById('sptjm-tempat').value = settings.tempat || '';
                 document.getElementById('sptjm-tanggal').value = settings.tanggal || '';
                 document.getElementById('sptjm-nama-kepala').value = settings.namaKepala || '';
@@ -565,7 +565,7 @@
           // Properti yang sudah dihapus tidak lagi dibaca
           nip: document.getElementById('sptjm-nip').value,
           jabatan: document.getElementById('sptjm-jabatan').value,
-          bulan: document.getElementById('sptjm-bulan').value,
+          // bulan: document.getElementById('sptjm-bulan').value,
           tempat: document.getElementById('sptjm-tempat').value,
           tanggal: document.getElementById('sptjm-tanggal').value,
           namaKepala: document.getElementById('sptjm-nama-kepala').value,
@@ -592,8 +592,6 @@
         const requiredFields = [
           'jabatan',
           'namaKepala',
-          // 'nipKepala', // Dihapus dari validasi wajib
-          'bulan',
           'tempat',
           'tanggal'
         ];
@@ -619,6 +617,24 @@
 
           // 2. Nonaktifkan tombol di awal
           downloadButton.disabled = true;
+
+          // --- AWAL PERUBAHAN: LOGIKA BULAN LALU ---
+          const sptjmMonthInput = document.getElementById('sptjm-view-month-input');
+          
+          // Jika input bulan di halaman SPTJM belum diisi...
+          if (!sptjmMonthInput.value) {
+              // Selalu default ke BULAN LALU
+              const today = new Date();
+              today.setMonth(today.getMonth() - 1); // Mundur 1 bulan
+              const year = today.getFullYear();
+              const month = String(today.getMonth() + 1).padStart(2, '0'); // +1 karena 0-indexed
+              sptjmMonthInput.value = `${year}-${month}`;
+          }
+          
+          // Ambil nilai yang sudah pasti terisi
+          const selectedMonth = sptjmMonthInput.value;
+          const [year, month] = selectedMonth.split('-').map(Number);
+          // --- AKHIR PERUBAHAN ---
 
           // Menampilkan pesan "Memuat..." saat data diambil
           const fieldsToLoad = [
@@ -669,7 +685,7 @@
                   } else {
                       // 6. Jika tidak lengkap: Tombol tetap nonaktif dan tampilkan pesan permanen
                       downloadButton.disabled = true;
-                      messageElement.innerHTML = 'Tombol Unduh PDF akan aktif setelah Pengaturan Cetak dilengkapi. <a href="#" onclick="event.preventDefault(); showSptjmSettingsPage();">Lengkapi Sekarang</a>';
+                      messageElement.innerHTML = 'Tombol Unduh PDF akan aktif setelah Pengaturan Cetak LKH/SPTJM dilengkapi. <a href="#" onclick="event.preventDefault(); showSptjmSettingsPage();">Lengkapi Sekarang</a>';
                       messageElement.style.color = 'var(--text-secondary-color)'; // Atur warna pesan
                   }
                   // --- AKHIR PERUBAHAN LOGIKA ---
@@ -678,7 +694,7 @@
                   displayMessage('sptjm-download-message', `Error: ${err.message}`);
                   // Tombol tetap nonaktif jika ada error
               })
-              .getSptjmDataForUser(currentUser.email, selectedSchool);
+              .getSptjmDataForUser(currentUser.email, selectedSchool, year, month);
       }
 
       function handleDownloadSptjmPdf() {
@@ -687,8 +703,15 @@
           button.querySelector('span').textContent = 'Membuat PDF...';
           displayMessage('sptjm-download-message', 'Sedang memproses & membuat PDF, mohon tunggu...', { isProcessing: true });
 
-          // HAPUS SEMUA BLOK 'const data = { ... }' YANG MENGAMBIL innerText
-          // (Baris 423-433)
+          // --- AWAL PERUBAHAN: Ambil bulan dari input ---
+          const monthInput = document.getElementById('sptjm-view-month-input').value;
+          if (!monthInput) {
+              displayMessage('sptjm-download-message', 'Error: Bulan dan Tahun belum dipilih.');
+              button.disabled = false;
+              button.querySelector('span').textContent = 'Unduh PDF';
+              return;
+          }
+          // --- AKHIR PERUBAHAN ---
 
           google.script.run
               .withSuccessHandler(response => {
@@ -713,7 +736,7 @@
               })
               // 1. Ganti panggilan fungsi di bawah ini
               // .generateSptjmPdf(data); // <-- BARIS LAMA
-              .generateSptjmPdf(currentUser.email, selectedSchool); // <-- BARIS BARU
+              .generateSptjmPdf(currentUser.email, selectedSchool, monthInput);
       }
 
       function showLkhWeeklyPage() {
@@ -1605,13 +1628,20 @@
               const checkOutInput = row.querySelector(`#out-${date}`);
               const reasonSelect = row.querySelector('select');
 
-              // --- AWAL PERUBAHAN: Pastikan input tidak disabled (bukan baris libur) ---
-              if (!checkInInput || checkInInput.disabled) return;
-              // --- AKHIR PERUBAHAN ---
+              // Jika tidak ada elemen input 'select' di baris ini,
+              // berarti ini baris info (spt "Hari Libur"), jadi lewati.
+              if (!reasonSelect) return; 
 
               const checkIn = checkInInput.value;
               const checkOut = checkOutInput.value;
               const reason = reasonSelect.value;
+
+              // Validasi baru:
+              // Hanya lewati baris jika input jam-nya nonaktif (disabled)
+              // DAN alasan-nya juga kosong.
+              // Ini untuk mengabaikan baris di bulan terkunci, TAPI
+              // tetap memproses baris yang punya "Alasan" (seperti Cuti/Sakit).
+              if (checkInInput.disabled && reason.trim() === "") return;
 
               const hasCheckIn = checkIn.trim() !== "";
               const hasCheckOut = checkOut.trim() !== "";
@@ -2935,8 +2965,13 @@
         document.getElementById("lkh-container").style.display = "block";
         const lkhMonthInput = document.getElementById('lkh-month-input');
         if (!lkhMonthInput.value) {
+          // --- PERUBAHAN: Default ke bulan lalu ---
           const today = new Date();
-          lkhMonthInput.value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+          today.setMonth(today.getMonth() - 1); // Mundur 1 bulan
+          const year = today.getFullYear();
+          const month = String(today.getMonth() + 1).padStart(2, '0'); // +1 karena 0-indexed
+          lkhMonthInput.value = `${year}-${month}`;
+          // --- AKHIR PERUBAHAN ---
         }
         handleLkhMonthChange();
       }
@@ -3056,17 +3091,24 @@
           // 2. Nonaktifkan tombol di awal
           downloadButton.disabled = true;
 
-          // 3. Tampilkan pesan loading
           displayMessage('lkh-download-message', 'Memuat data pratinjau LKH...', { isProcessing: true });
 
-          // --- LOGIKA BARU ---
+          // --- AWAL PERUBAHAN: LOGIKA BULAN LALU ---
           const lkhMonthInput = document.getElementById('lkh-view-month-input');
-          // Jika input bulan di halaman LKH kosong, ambil nilai dari dasbor utama
+          
+          // Jika input bulan di halaman LKH belum diisi...
           if (!lkhMonthInput.value) {
-            lkhMonthInput.value = document.getElementById('summary-month-input').value || new Date().toISOString().slice(0, 7);
+              // Selalu default ke BULAN LALU
+              const today = new Date();
+              today.setMonth(today.getMonth() - 1); // Mundur 1 bulan
+              const year = today.getFullYear();
+              const month = String(today.getMonth() + 1).padStart(2, '0'); // +1 karena 0-indexed
+              lkhMonthInput.value = `${year}-${month}`;
           }
+          
+          // Ambil nilai yang sudah pasti terisi
           const selectedMonth = lkhMonthInput.value;
-          // --- AKHIR LOGIKA BARU ---
+          // --- AKHIR PERUBAHAN ---
 
           const [year, month] = selectedMonth.split('-').map(Number);
 
@@ -3116,7 +3158,7 @@
                       } else {
                           // 6. Jika tidak lengkap: Tombol tetap nonaktif dan tampilkan pesan permanen
                           downloadButton.disabled = true;
-                          messageElement.innerHTML = 'Tombol Unduh PDF akan aktif setelah Pengaturan Cetak dilengkapi. <a href="#" onclick="event.preventDefault(); showSptjmSettingsPage();">Lengkapi Sekarang</a>';
+                          messageElement.innerHTML = 'Tombol Unduh PDF akan aktif setelah Pengaturan Cetak LKH/SPTJM dilengkapi. <a href="#" onclick="event.preventDefault(); showSptjmSettingsPage();">Lengkapi Sekarang</a>';
                           messageElement.style.color = 'var(--text-secondary-color)'; // Atur warna pesan
                       }
                       // --- AKHIR PERUBAHAN LOGIKA ---
@@ -3168,6 +3210,10 @@
 
       function handleLkhViewMonthChange() {
         showLkhViewPage();
+      }
+
+      function handleSptjmViewMonthChange() {
+        showSptjmViewPage();
       }
 
       function handleApplyWeeklyData() {
