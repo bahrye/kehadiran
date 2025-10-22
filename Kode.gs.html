@@ -406,8 +406,9 @@ function getAttendancePageData(email, school, year, month, token) {
       const reqDate = row[6];
       const reqStatus = row[13];
       
-      if (reqEmail.toLowerCase() === email.toLowerCase() && 
-          reqSchool === school && 
+      if (reqEmail && reqSchool && 
+          reqEmail.toLowerCase() === email.toLowerCase() && 
+          reqSchool === school &&
           parseInt(reqYear) === year && 
           parseInt(reqMonth) === month) 
       {
