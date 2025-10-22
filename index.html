@@ -650,7 +650,7 @@
                   document.getElementById('sptjm-view-satker').innerText = user.school || '-';
                   document.getElementById('sptjm-view-month').innerText = settings.bulan || '[Bulan]';
 
-                  const signatureDate = settings.tanggal ? new Date(settings.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC' }) : '[Tanggal]';
+                  const signatureDate = settings.tanggal ? new Date(settings.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'Asia/Makassar' }) : '[Tanggal]';
                   document.getElementById('sptjm-view-place-date').innerText = `${settings.tempat || '[Tempat]'}, ${signatureDate}`;
 
                   document.getElementById('sptjm-view-signature-name').innerText = user.name || '-';
