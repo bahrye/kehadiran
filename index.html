@@ -93,11 +93,13 @@
 
               <div id="calendar-view-container">
                 </div>
+              
               <div id="calendar-legend" style="font-size: 12px; display: flex; flex-wrap: wrap; gap: 10px 15px; justify-content: center; margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border-color);">
                   <div style="display: flex; align-items: center; gap: 5px;"><span class="calendar-legend-box" style="background-color: var(--success-color);"></span> Hadir</div>
                   <div style="display: flex; align-items: center; gap: 5px;"><span class="calendar-legend-box" style="background-color: var(--danger-color);"></span> Alpa</div>
                   <div style="display: flex; align-items: center; gap: 5px;"><span class="calendar-legend-box" style="background-color: var(--warning-color);"></span> Tanpa Jadwal</div>
-                  <div style="display: flex; align-items: center; gap: 5px;"><span class="calendar-legend-box" style="background-color: #D1D5DB;"></span> Libur Nasional</div>
+                  <div style="display: flex; align-items: center; gap: 5px;"><span class="calendar-legend-box" style="background-color: #BFDBFE; border-color: #93C5FD;"></span> Libur Nasional</div>
+                  <div style="display: flex; align-items: center; gap: 5px;"><span class="calendar-legend-box" style="background-color: #E5E7EB; border-color: #D1D5DB;"></span> Hari Minggu</div>
               </div>
           </div>
           <hr style="margin: 25px 0;">
@@ -2256,15 +2258,30 @@
               
               let dayClass = 'day-future'; // Default untuk hari biasa
               
-              // Cek status hari
+              // --- AWAL PERUBAHAN: Memprioritaskan Hari Libur Nasional ---
               const isSunday = (dayOfWeek === 0);
               const isNationalHoliday = !!nationalHolidays[dateStr];
-              // teacherHolidays indexnya 0=Senin, 1=Selasa...
+              const holidayDescription = nationalHolidays[dateStr]; // Ambil deskripsinya
               const isTeacherHoliday = (dayOfWeek > 0 && teacherHolidays[dayOfWeek - 1]); 
               
-              if (isSunday || isNationalHoliday || isTeacherHoliday) {
-                  dayClass = 'day-libur';
-              } else {
+              let onClickHandler = ''; // Variabel untuk menyimpan event click
+
+              // PERUBAHAN LOGIKA: Cek Libur Nasional (biru) DULU
+              if (isNationalHoliday) {
+                  dayClass = 'day-libur-nasional'; // <-- Class baru (biru)
+                  if (holidayDescription) {
+                      // Escape tanda kutip dalam deskripsi agar tidak merusak HTML
+                      const escapedDescription = holidayDescription.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+                      onClickHandler = `onclick="showHolidayDetail(this, '${escapedDescription}')" style="cursor: pointer;"`;
+                  }
+              } 
+              // Baru cek Minggu atau Libur Guru (abu-abu)
+              else if (isSunday || isTeacherHoliday) {
+                  dayClass = 'day-libur'; // <-- Class lama (abu-abu)
+              }
+              // --- AKHIR PERUBAHAN ---
+
+              else {
                   // Jika bukan hari libur, cek data absensi
                   const entry = attendanceData[dateStr];
                   if (entry) {
@@ -2295,8 +2312,7 @@
               }
 
               html += `
-                  <div class="calendar-day ${dayClass}">
-                      <div class="calendar-day-content" style="${contentStyle}">
+                  <div class="calendar-day ${dayClass}" ${onClickHandler}> <div class="calendar-day-content" style="${contentStyle}">
                           ${day}
                       </div>
                   </div>
@@ -2305,6 +2321,61 @@
           
           html += '</div>'; // Tutup .calendar-grid
           container.innerHTML = html;
+      }
+      // --- AKHIR TAMBAHAN BARU ---
+
+      // --- TAMBAHAN BARU: Fungsi untuk Menampilkan Detail Hari Libur ---
+      function showHolidayDetail(element, description) {
+          // Hapus tooltip lama jika ada
+          const oldTooltip = document.getElementById('calendar-tooltip');
+          if (oldTooltip) {
+              oldTooltip.remove();
+          }
+
+          // 1. Buat elemen tooltip
+          const tooltip = document.createElement('div');
+          tooltip.id = 'calendar-tooltip';
+          tooltip.textContent = description;
+
+          // 2. Tambahkan ke body
+          document.body.appendChild(tooltip);
+
+          // 3. Posisikan tooltip
+          const rect = element.getBoundingClientRect(); // Posisi kotak tanggal
+          const tooltipRect = tooltip.getBoundingClientRect(); // Ukuran tooltip
+
+          // Coba posisikan di atas kotak tanggal
+          let top = rect.top + window.scrollY - tooltipRect.height - 10; // 10px spacing
+          let left = rect.left + window.scrollX + (rect.width / 2) - (tooltipRect.width / 2);
+
+          // Cek jika mentok di atas (terlalu dekat ke top 0)
+          if (top < window.scrollY + 10) { // Beri jarak 10px dari atas
+              top = rect.bottom + window.scrollY + 10; // Pindahkan ke bawah
+          }
+          
+          // Cek jika mentok di kiri
+          if (left < window.scrollX + 10) {
+              left = window.scrollX + 10;
+          }
+          
+          // Cek jika mentok di kanan
+          const screenWidth = document.documentElement.clientWidth;
+          if (left + tooltipRect.width > window.scrollX + screenWidth - 10) {
+              left = window.scrollX + screenWidth - tooltipRect.width - 10;
+          }
+
+          tooltip.style.top = `${top}px`;
+          tooltip.style.left = `${left}px`;
+
+          // 4. Buat agar bisa ditutup (jika diklik tooltipnya)
+          tooltip.onclick = () => tooltip.remove();
+
+          // 5. Hapus otomatis setelah beberapa detik
+          setTimeout(() => {
+              if (document.getElementById('calendar-tooltip')) {
+                  tooltip.remove();
+              }
+          }, 4000); // 4 detik
       }
       // --- AKHIR TAMBAHAN BARU ---
 
