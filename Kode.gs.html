@@ -299,148 +299,172 @@ function getAppSettingsForUser(email, school, year, month) {
   };
 }
 
+// --- FUNGSI INI YANG DIPERBAIKI ---
 function getAttendancePageData(email, school, year, month, token) {
-  // 1. Ambil semua data seperti biasa
-  const attendanceData = getMonthlyAttendance(email, school, year, month); // Fungsi ini sudah di-cache (bagus!)
-  let lockedMonths = [];
-  try {
-    const settingsData = settingsSheet.getDataRange().getValues();
-    settingsData.forEach(row => {
-      if (row[0] === 'locked_months' && row[1]) {
-        lockedMonths = JSON.parse(row[1]);
-      }
-    });
-  } catch (e) {
-    Logger.log(`Error parsing locked months: ${e.toString()}`);
-  }
-  
-  const today = new Date();
+  try { // Tambahkan try...catch di level atas fungsi
+    const attendanceData = getMonthlyAttendance(email, school, year, month);
+    let lockedMonths = [];
+    let requestDayLimit = 10;
 
-  // Logika penguncian (mulai tgl 6)
-  if (today.getDate() >= 6) {
-    const lastMonthDate = new Date();
-    lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
-    const lastMonthStr = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
-    if (!lockedMonths.includes(lastMonthStr)) lockedMonths.push(lastMonthStr);
-  }
-
-  const holidays = {};
-  try {
-    const holidaysData = holidaysSheet.getDataRange().getValues().slice(1);
-    holidaysData.forEach(row => {
-      if (row[0] instanceof Date && row[1]) holidays[Utilities.formatDate(row[0], "GMT", "yyyy-MM-dd")] = row[1];
-    });
-  } catch (e) {
-    Logger.log(`Error parsing holidays: ${e.toString()}`);
-  }
-
-  const teacherHolidays = getTeacherHolidays(email);
-  
-  // Logika pre-fill hari libur guru
-  const daysInMonth = new Date(year, month, 0).getDate();
-  const currentYear = today.getFullYear();
-  const currentMonth = today.getMonth() + 1;
-  const isFutureMonth = year > currentYear || (year === currentYear && month > currentMonth);
-
-  if (!isFutureMonth) { 
-    for (let day = 1; day <= daysInMonth; day++) {
-      const dateObj = new Date(Date.UTC(year, month - 1, day));
-      const dateStr = Utilities.formatDate(dateObj, "GMT", "yyyy-MM-dd");
-      const dayOfWeek = dateObj.getUTCDay(); 
-      const isTeacherHoliday = dayOfWeek > 0 && teacherHolidays[dayOfWeek - 1];
-
-      if (isTeacherHoliday && dayOfWeek !== 0 && !holidays[dateStr]) {
-        const entry = attendanceData[dateStr];
-        if (!entry || (entry.checkIn === "" && entry.checkOut === "" && entry.reason === "")) {
-          attendanceData[dateStr] = {
-            checkIn: "",
-            checkOut: "",
-            reason: "Hari Libur Sekolah"
-          };
+    try {
+      const settingsData = settingsSheet.getDataRange().getValues();
+      settingsData.forEach(row => {
+        if (row[0] === 'locked_months' && row[1]) {
+          lockedMonths = JSON.parse(row[1]);
         }
-      }
+        if (row[0] === 'request_day_limit' && row[1]) {
+          const parsedLimit = parseInt(row[1], 10);
+          if (!isNaN(parsedLimit) && parsedLimit > 0) {
+            requestDayLimit = parsedLimit;
+          }
+        }
+      });
+    } catch (e) {
+      Logger.log(`Error parsing settings in getAttendancePageData: ${e.toString()}`);
     }
-  }
-  
-  // --- AWAL LOGIKA PENGAJUAN ---
-  const lastMonthDateCheck = new Date();
-  lastMonthDateCheck.setMonth(lastMonthDateCheck.getMonth() - 1);
-  const lastMonthStr = `${lastMonthDateCheck.getFullYear()}-${String(lastMonthDateCheck.getMonth() + 1).padStart(2, '0')}`;
-  const currentMonthStr = `${year}-${String(month).padStart(2, '0')}`;
-  
-  // --- AWAL PERUBAHAN (Logika Batas Tanggal 10) ---
-  
-  // Ambil tanggal hari ini (angka saja)
-  const currentDayOfMonth = today.getDate();
-  
-  // Cek 1: Apakah bulan yang DILIHAT adalah bulan lalu?
-  const isLastMonth = (currentMonthStr === lastMonthStr);
-  
-  // Cek 2: Apakah bulan ini sudah terkunci? (Akan true jika tgl >= 6)
-  const isLocked = lockedMonths.includes(currentMonthStr);
-  
-  // Cek 3: Apakah hari ini MASIH dalam masa pengajuan (tanggal 1 s/d 10)?
-  const isWithinRequestPeriod = (currentDayOfMonth <= 10);
 
-  // Bulan bisa diajukan JIKA:
-  // 1. Merupakan bulan lalu (isLastMonth)
-  // 2. Bulan tersebut sudah terkunci (isLocked)
-  // 3. Hari ini masih tanggal 10 atau sebelumnya (isWithinRequestPeriod)
-  const isRequestableMonth = isLastMonth && isLocked && isWithinRequestPeriod;
-  
-  // --- AKHIR PERUBAHAN ---
+    const today = new Date();
+    if (today.getDate() >= 6) {
+      const lastMonthDate = new Date();
+      lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
+      const lastMonthStr = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
+      if (!lockedMonths.includes(lastMonthStr)) lockedMonths.push(lastMonthStr);
+    }
 
-  let pendingChanges = {};
-  let rejectionInfo = null;
-  
-  if (isRequestableMonth) {
-    const reqSheet = getChangeRequestsSheet_();
-    const reqData = reqSheet.getLastRow() > 1 ? reqSheet.getDataRange().getValues().slice(1) : [];
-    
-    for (let i = reqData.length - 1; i >= 0; i--) { 
-      const row = reqData[i];
-      const reqEmail = row[2];
-      const reqSchool = row[3];
-      const reqYear = row[4];
-      const reqMonth = row[5];
-      const reqDate = row[6];
-      const reqStatus = row[13];
-      
-      if (reqEmail && reqSchool && 
-          reqEmail.toLowerCase() === email.toLowerCase() && 
-          reqSchool === school &&
-          parseInt(reqYear) === year && 
-          parseInt(reqMonth) === month) 
-      {
-        if (reqStatus === 'pending' && !pendingChanges[reqDate]) {
-           pendingChanges[reqDate] = {
-             newCheckIn: row[10].replace(/^'/, ""), 
-             newCheckOut: row[11].replace(/^'/, ""), 
-             newReason: row[12]
-           };
-        } else if (reqStatus === 'rejected' && !rejectionInfo) {
-            rejectionInfo = {
-              date: reqDate,
-              reason: row[15] 
+    const holidays = {};
+    try {
+      const holidaysData = holidaysSheet.getDataRange().getValues().slice(1);
+      holidaysData.forEach(row => {
+        if (row[0] instanceof Date && row[1]) holidays[Utilities.formatDate(row[0], "GMT", "yyyy-MM-dd")] = row[1];
+      });
+    } catch (e) {
+      Logger.log(`Error parsing holidays in getAttendancePageData: ${e.toString()}`);
+    }
+
+    const teacherHolidays = getTeacherHolidays(email);
+
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth() + 1;
+    const isFutureMonth = year > currentYear || (year === currentYear && month > currentMonth);
+
+    if (!isFutureMonth) {
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateObj = new Date(Date.UTC(year, month - 1, day));
+        const dateStr = Utilities.formatDate(dateObj, "GMT", "yyyy-MM-dd");
+        const dayOfWeek = dateObj.getUTCDay();
+        const isTeacherHoliday = dayOfWeek > 0 && teacherHolidays[dayOfWeek - 1];
+
+        if (isTeacherHoliday && dayOfWeek !== 0 && !holidays[dateStr]) {
+          const entry = attendanceData[dateStr];
+          if (!entry || (entry.checkIn === "" && entry.checkOut === "" && entry.reason === "")) {
+            attendanceData[dateStr] = {
+              checkIn: "",
+              checkOut: "",
+              reason: "Hari Libur Sekolah"
             };
+          }
         }
       }
     }
+
+    const lastMonthDateCheck = new Date();
+    lastMonthDateCheck.setMonth(lastMonthDateCheck.getMonth() - 1);
+    const lastMonthStr = `${lastMonthDateCheck.getFullYear()}-${String(lastMonthDateCheck.getMonth() + 1).padStart(2, '0')}`;
+    const currentMonthStr = `${year}-${String(month).padStart(2, '0')}`;
+    const currentDayOfMonth = today.getDate();
+    const isLastMonth = (currentMonthStr === lastMonthStr);
+    const isLocked = lockedMonths.includes(currentMonthStr);
+    const isWithinRequestPeriod = (currentDayOfMonth <= requestDayLimit);
+    const isRequestableMonth = isLastMonth && isLocked && isWithinRequestPeriod;
+
+    let pendingChanges = {};
+    let rejectionInfo = null;
+
+    if (isRequestableMonth) {
+      const reqSheet = getChangeRequestsSheet_();
+      const reqData = reqSheet.getLastRow() > 1 ? reqSheet.getDataRange().getValues().slice(1) : [];
+
+      for (let i = reqData.length - 1; i >= 0; i--) {
+        const row = reqData[i];
+        // --- AWAL PERBAIKAN KRITIS ---
+        // Tambahkan pengecekan null/undefined sebelum mengakses properti row
+        if (!row || row.length < 16) {
+           Logger.log(`Skipping invalid row at index ${i+1} in ChangeRequests sheet.`);
+           continue; // Lewati baris yang tidak lengkap/valid
+        }
+        // --- AKHIR PERBAIKAN KRITIS ---
+
+        const reqEmail = row[2];
+        const reqSchool = row[3];
+        const reqYear = row[4];
+        const reqMonth = row[5];
+        const reqDateValue = row[6]; // Kolom Tanggal (bisa jadi Date object atau string)
+        const reqStatus = row[13];
+
+        // --- AWAL PERBAIKAN FORMAT TANGGAL ---
+        let reqDateStr = null;
+        try {
+          // Coba format tanggal, tangani jika reqDateValue tidak valid
+          if (reqDateValue instanceof Date && !isNaN(reqDateValue)) {
+            reqDateStr = Utilities.formatDate(reqDateValue, "GMT", "yyyy-MM-dd");
+          } else if (typeof reqDateValue === 'string' && reqDateValue.length > 0) {
+            // Jika string, coba parse (misal jika formatnya sudah benar)
+             reqDateStr = Utilities.formatDate(new Date(reqDateValue), "GMT", "yyyy-MM-dd");
+          }
+        } catch(dateError) {
+           Logger.log(`Error formatting date for row ${i+1} in ChangeRequests: ${dateError.message}. Value: ${reqDateValue}`);
+           continue; // Lewati baris ini jika tanggal bermasalah
+        }
+
+        if (!reqDateStr) continue; // Lewati jika tidak dapat memformat tanggal
+        // --- AKHIR PERBAIKAN FORMAT TANGGAL ---
+
+
+        if (reqEmail && reqSchool &&
+            reqEmail.toLowerCase() === email.toLowerCase() &&
+            reqSchool === school &&
+            parseInt(reqYear) === year &&
+            parseInt(reqMonth) === month)
+        {
+          if (reqStatus === 'pending' && !pendingChanges[reqDateStr]) {
+             pendingChanges[reqDateStr] = {
+               newCheckIn: (row[10] || "").toString().replace(/^'/, ""), // Tambah safety check
+               newCheckOut: (row[11] || "").toString().replace(/^'/, ""), // Tambah safety check
+               newReason: row[12] || "" // Tambah safety check
+             };
+          } else if (reqStatus === 'rejected' && !rejectionInfo) {
+              rejectionInfo = {
+                date: reqDateStr,
+                reason: row[15] || "" // Tambah safety check
+              };
+              // Tidak perlu break, mungkin masih ada pending change di tanggal lain
+          }
+        }
+      }
+    }
+
+    return {
+      attendance: attendanceData,
+      lockedMonths,
+      holidays,
+      teacherHolidays,
+      token: token, // Pastikan token selalu ada di return object
+      isRequestableMonth: isRequestableMonth,
+      pendingChanges: pendingChanges,
+      rejectionInfo: rejectionInfo
+    };
+  } catch (error) {
+     Logger.log(`CRITICAL ERROR in getAttendancePageData for ${email}, ${school}, ${year}-${month}: ${error.toString()} \nStack: ${error.stack}`);
+     // Kembalikan objek error agar frontend bisa menanganinya, JANGAN return null
+     // Kita tetap perlu 'token' agar pengecekan awal di frontend tidak gagal
+     return {
+        error: `Terjadi kesalahan saat memuat data absensi (${error.message}). Coba muat ulang halaman.`,
+        token: token, // Sertakan token dummy agar pengecekan awal lolos
+        attendance: {}, lockedMonths:[], holidays:{}, teacherHolidays: [],
+        isRequestableMonth: false, pendingChanges: {}, rejectionInfo: null
+     };
   }
-  // --- AKHIR LOGIKA PENGAJUAN ---
-
-
-  // Kirim data yang sudah diperkaya ke klien
-  return { 
-    attendance: attendanceData, 
-    lockedMonths, 
-    holidays, 
-    teacherHolidays, 
-    token: token,
-    isRequestableMonth: isRequestableMonth,
-    pendingChanges: pendingChanges, 
-    rejectionInfo: rejectionInfo 
-  };
 }
 
 function getMonthlyAttendance(email, school, year, month) {
@@ -1233,29 +1257,89 @@ function deleteUser(adminEmail, emailToDelete) {
   return { status: "error", message: "User tidak ditemukan." };
 }
 
+// --- FUNGSI HELPER BARU UNTUK SIMPAN PENGATURAN ---
+/**
+ * Helper untuk menyimpan satu pengaturan ke SettingsSheet.
+ * Mencari key yang ada dan memperbaruinya, atau menambahkannya jika belum ada.
+ */
+function setSetting_(key, value) {
+  try {
+    const data = settingsSheet.getDataRange().getValues();
+    let rowIndex = -1;
+    // Mulai dari 1 untuk lewati header
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] === key) {
+        rowIndex = i + 1; // 1-based index
+        break;
+      }
+    }
+    
+    if (rowIndex > 0) {
+      // Update nilai jika key ditemukan
+      settingsSheet.getRange(rowIndex, 2).setValue(value);
+    } else {
+      // Tambah baris baru jika key tidak ditemukan
+      settingsSheet.appendRow([key, value]);
+    }
+  } catch(e) {
+    Logger.log(`Error di setSetting_ untuk key ${key}: ${e.message}`);
+  }
+}
+// --- AKHIR FUNGSI HELPER ---
+
 function getSettings(adminEmail) {
   if (!checkIfAdmin(adminEmail)) throw new Error("Akses ditolak.");
+  
+  // --- AWAL PERUBAHAN ---
   let lockedMonths = "[]";
+  let requestDayLimit = "10"; // Default
+  
   try {
     const settingsData = settingsSheet.getDataRange().getValues();
-    settingsData.forEach(row => { if (row[0] === 'locked_months') lockedMonths = row[1]; });
+    settingsData.forEach(row => { 
+      if (row[0] === 'locked_months') lockedMonths = row[1] || "[]";
+      if (row[0] === 'request_day_limit') requestDayLimit = String(row[1] || "10"); // Ambil nilainya
+    });
   } catch (e) {}
+  // --- AKHIR PERUBAHAN ---
+
   let holidays = [];
   try {
     const holidaysData = holidaysSheet.getDataRange().getValues().slice(1);
     holidays = holidaysData.map(row => ({ date: Utilities.formatDate(new Date(row[0]), "GMT", "yyyy-MM-dd"), description: row[1] })).filter(h => h.description);
   } catch (e) {}
+  
   const announcements = getAnnouncements();
-  return { lockedMonths: JSON.parse(lockedMonths), holidays: holidays, announcements: announcements };
+  
+  // --- PERUBAHAN ---
+  return { 
+    lockedMonths: JSON.parse(lockedMonths), 
+    requestDayLimit: requestDayLimit, // Kirim ke client
+    holidays: holidays, 
+    announcements: announcements 
+  };
+  // --- AKHIR PERUBAHAN ---
 }
 
 function saveLockedMonths(adminEmail, months) {
   if (!checkIfAdmin(adminEmail)) throw new Error("Akses ditolak.");
-  settingsSheet.clearContents();
-  settingsSheet.appendRow(["Key", "Value"]);
-  settingsSheet.appendRow(["locked_months", JSON.stringify(months)]);
+  // --- PERUBAHAN: Menggunakan helper ---
+  setSetting_("locked_months", JSON.stringify(months));
+  // --- AKHIR PERUBAHAN ---
   return { status: "success", message: "Bulan terkunci berhasil disimpan." };
 }
+
+// --- FUNGSI BARU UNTUK ADMIN ---
+function saveRequestDayLimit(adminEmail, dayLimit) {
+  if (!checkIfAdmin(adminEmail)) throw new Error("Akses ditolak.");
+  const limit = parseInt(dayLimit, 10);
+  if (isNaN(limit) || limit < 1 || limit > 31) {
+    return { status: "error", message: "Batas tanggal harus angka antara 1 dan 31." };
+  }
+  setSetting_("request_day_limit", limit);
+  return { status: "success", message: "Batas tanggal pengajuan berhasil disimpan." };
+}
+// --- AKHIR FUNGSI BARU ---
 
 function saveHolidays(adminEmail, holidays) {
   if (!checkIfAdmin(adminEmail)) throw new Error("Akses ditolak.");
@@ -2280,42 +2364,72 @@ function getPendingRequests(staffEmail, school) {
     if (reqSheet.getLastRow() < 2) return { success: true, requests: [] }; // Kosong
 
     const data = reqSheet.getDataRange().getValues().slice(1);
-    
+
     // Map untuk mengelompokkan berdasarkan guru
     const requestsByEmail = new Map();
-    
+
     for (let i = 0; i < data.length; i++) {
       const row = data[i];
+      // --- AWAL PERBAIKAN KRITIS (Sama seperti di getAttendancePageData) ---
+      if (!row || row.length < 16) {
+         Logger.log(`Skipping invalid row at index ${i+1} in ChangeRequests sheet (getPendingRequests).`);
+         continue;
+      }
+      // --- AKHIR PERBAIKAN KRITIS ---
+
       const reqSchool = row[3];
       const reqStatus = row[13];
 
       // Hanya ambil data 'pending' untuk sekolah yang dikelola staff
       if (reqSchool === school && reqStatus === 'pending') {
         const reqEmail = row[2];
+
+        // --- AWAL PERBAIKAN FORMAT TANGGAL (Sama seperti di getAttendancePageData) ---
+        const dateObjFromSheet = row[6]; // Kolom ke-7 (index 6) adalah Date
+        let formattedDateForDisplay = "[Tanggal Error]"; // Default jika error
+        try {
+           if (dateObjFromSheet instanceof Date && !isNaN(dateObjFromSheet)) {
+              formattedDateForDisplay = Utilities.formatDate(dateObjFromSheet, "GMT+8", "dd-MM-yyyy");
+           } else if (typeof dateObjFromSheet === 'string' && dateObjFromSheet.length > 0) {
+              formattedDateForDisplay = Utilities.formatDate(new Date(dateObjFromSheet), "GMT+8", "dd-MM-yyyy");
+           }
+        } catch (dateError) {
+          Logger.log(`Error formatting display date for row ${i+1} in ChangeRequests (getPendingRequests): ${dateError.message}. Value: ${dateObjFromSheet}`);
+        }
+        // --- AKHIR PERBAIKAN FORMAT TANGGAL ---
+
         const changeDetail = {
           requestId: row[0],
-          date: Utilities.formatDate(new Date(row[6]), "GMT", "dd-MM-yyyy"), // Format tanggal untuk tampilan
-          oldData: { checkIn: row[7].replace(/^'/, ""), checkOut: row[8].replace(/^'/, ""), reason: row[9] },
-          newData: { checkIn: row[10].replace(/^'/, ""), checkOut: row[11].replace(/^'/, ""), reason: row[12] }
+          date: formattedDateForDisplay, // Gunakan tanggal yang sudah diformat
+          oldData: { checkIn: (row[7] || "").toString().replace(/^'/, ""), checkOut: (row[8] || "").toString().replace(/^'/, ""), reason: row[9] || "" },
+          newData: { checkIn: (row[10] || "").toString().replace(/^'/, ""), checkOut: (row[11] || "").toString().replace(/^'/, ""), reason: row[12] || "" }
         };
 
         // Jika guru ini belum ada di Map, tambahkan
         if (!requestsByEmail.has(reqEmail)) {
           const allUsers = usersSheet.getDataRange().getValues();
           const userName = allUsers.find(u => u[0].toLowerCase() === reqEmail.toLowerCase())?.[2] || reqEmail;
-          const monthName = new Date(row[4], row[5] - 1, 1).toLocaleString('id-ID', { month: 'long', year: 'numeric' });
+          const reqYear = row[4];
+          const reqMonth = row[5];
+          let monthName = "[Bulan Error]";
+          try {
+             monthName = new Date(reqYear, reqMonth - 1, 1).toLocaleString('id-ID', { month: 'long', year: 'numeric' });
+          } catch(monthError){
+             Logger.log(`Error getting month name for row ${i+1}: ${monthError.message}`);
+          }
+
 
           requestsByEmail.set(reqEmail, {
             email: reqEmail,
             name: userName,
             school: reqSchool,
             monthName: monthName,
-            year: row[4], // Simpan untuk internal
-            month: row[5], // Simpan untuk internal
+            year: reqYear, // Simpan untuk internal
+            month: reqMonth, // Simpan untuk internal
             changes: []
           });
         }
-        
+
         // Tambahkan detail perubahan ke guru yang sesuai
         requestsByEmail.get(reqEmail).changes.push(changeDetail);
       }
@@ -2323,10 +2437,11 @@ function getPendingRequests(staffEmail, school) {
 
     return { success: true, requests: Array.from(requestsByEmail.values()) };
   } catch (e) {
-    Logger.log(`Error di getPendingRequests: ${e.message}`);
+    Logger.log(`Error di getPendingRequests: ${e.message} \nStack: ${e.stack}`); // Tambah stack trace
     return { success: false, error: "Gagal mengambil data pengajuan." };
   }
 }
+
 
 /**
  * (STAFF) Dipanggil saat staff menekan "Setujui" atau "Tolak".
