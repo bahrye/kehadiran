@@ -1555,15 +1555,17 @@ function setupDailyTrigger() {
 
 // --- BLOK FUNGSI PENGATURAN LKH & SPTJM ---
 
+// (File: Kode.gs.html)
 function getLKHUsersSheet_() {
   let sheet = ss.getSheetByName("LKHUsers");
   if (!sheet) {
     sheet = ss.insertSheet("LKHUsers");
     // Menghapus "kopUrl" dan "kementerian" dari header
-    sheet.appendRow(["Email", "nip", "jabatan", "namaKepala", "nipKepala", "bulan", "tempat", "tanggal"]);
+    // --- PERUBAHAN: Hapus "bulan" dari daftar header ---
+    sheet.appendRow(["Email", "nip", "jabatan", "namaKepala", "nipKepala", "tempat", "tanggal"]);
     SpreadsheetApp.flush();
-    // Mengubah jangkauan format dari A:J menjadi A:H
-    sheet.getRange("A:H").setNumberFormat("@");
+    // --- PERUBAHAN: Ubah jangkauan format dari A:H menjadi A:G ---
+    sheet.getRange("A:G").setNumberFormat("@");
   }
   return sheet;
 }
@@ -1651,7 +1653,7 @@ function saveSptjmSettings(userEmail, settings) {
   }
 }
 
-function getSptjmDataForUser(email, school) {
+function getSptjmDataForUser(email, school, year, month) {
   try {
     if (!checkIfLKHUser_(email)) {
       return { error: "Akses LKH ditolak." };
@@ -1668,6 +1670,19 @@ function getSptjmDataForUser(email, school) {
     
     const settingsData = getSptjmSettings(email);
 
+    // --- AWAL TAMBAHAN DINAMIS ---
+    // Logika ini menggantikan 'settingsData.bulan' yang statis
+    if (year && month) {
+      const monthName = new Date(year, month - 1, 1).toLocaleString('id-ID', { month: 'long', timeZone: 'Asia/Makassar' });
+      settingsData.bulan = monthName; // Ganti 'bulan' statis dengan yang dinamis
+    } else {
+      // Fallback jika year/month tidak ada (misalnya untuk halaman cetak)
+      const today = new Date();
+      const monthName = today.toLocaleString('id-ID', { month: 'long', timeZone: 'Asia/Makassar' });
+      settingsData.bulan = monthName; // Default ke bulan ini
+    }
+    // --- AKHIR TAMBAHAN DINAMIS ---
+
     return { user: userData, settings: settingsData };
   } catch (e) {
     Logger.log(`Error di getSptjmDataForUser: ${e.toString()}`);
@@ -1675,7 +1690,7 @@ function getSptjmDataForUser(email, school) {
   }
 }
 
-function generateSptjmPdf(userEmail, school) { // <-- 1. Ubah parameter fungsi
+function generateSptjmPdf(userEmail, school, selectedMonthYear) {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   let tempFileId = null;
@@ -1683,8 +1698,8 @@ function generateSptjmPdf(userEmail, school) { // <-- 1. Ubah parameter fungsi
     if (!checkIfLKHUser_(userEmail)) {
       return { success: false, error: "Akses LKH ditolak." };
     }
-    // 2. Ambil data secara aman dari sisi server
-    const serverData = getSptjmDataForUser(userEmail, school);
+    // 2. Ambil data (HANYA pengaturan NIP, Nama Kepala, dll. 'bulan' di sini diabaikan)
+    const serverData = getSptjmDataForUser(userEmail, school, null, null); // Kirim null untuk bulan
     if (serverData.error) {
       return { success: false, error: serverData.error };
     }
@@ -1714,6 +1729,18 @@ function generateSptjmPdf(userEmail, school) { // <-- 1. Ubah parameter fungsi
     const doc = DocumentApp.openById(tempFileId);
     const body = doc.getBody();
 
+    // --- AWAL TAMBAHAN DINAMIS ---
+    let dynamicMonthName = '[Bulan]';
+    if (selectedMonthYear) {
+       try {
+         const [yearStr, monthStr] = selectedMonthYear.split('-');
+         const year = parseInt(yearStr, 10);
+         const month = parseInt(monthStr, 10);
+         dynamicMonthName = new Date(year, month - 1, 1).toLocaleString('id-ID', { month: 'long', timeZone: 'Asia/Makassar' });
+       } catch(e) { Logger.log("Error parsing selectedMonthYear di generateSptjmPdf: " + e.message); }
+    }
+    // --- AKHIR TAMBAHAN DINAMIS ---
+
     // 5. Rekonstruksi 'placeDate' dari data server yang andal
     // (Menggunakan perbaikan Timezone "Asia/Makassar" dari langkah sebelumnya)
     const signatureDate = settings.tanggal 
@@ -1726,7 +1753,7 @@ function generateSptjmPdf(userEmail, school) { // <-- 1. Ubah parameter fungsi
     body.replaceText('{{NIP}}', settings.nip || '-');
     body.replaceText('{{JABATAN}}', settings.jabatan || '-');
     body.replaceText('{{SATKER}}', user.school || '-');
-    body.replaceText('{{BULAN}}', settings.bulan || '-');
+    body.replaceText('{{BULAN}}', dynamicMonthName);
     body.replaceText('{{TEMPAT_TANGGAL}}', placeDate); // <-- Gunakan placeDate yang baru
     body.replaceText('{{NAMA_KEPALA}}', settings.namaKepala || '-');
     body.replaceText('{{NIP_KEPALA}}', settings.nipKepala || '-');
