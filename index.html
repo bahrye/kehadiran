@@ -7,7 +7,7 @@
   </head>
   <body>
     <div class="container">
-    
+
       <div id="login-container">
          <form id="login-form" onsubmit="event.preventDefault(); handleLogin();">
              <div class="card">
@@ -17,7 +17,7 @@
                 <label for="email">Email</label>
                 <input type="email" id="email" placeholder="Masukkan email Anda" autocomplete="username">
               </div>
-              
+
               <div class="input-group">
                 <label for="password">Password</label>
                 <div class="password-wrapper">
@@ -46,7 +46,7 @@
       <div id="guru-dashboard-container" style="display:none;">
         <div class="card">
           <h2 id="guru-welcome-message"></h2>
-          
+
           <div id="announcement-section">
             <h3><i class="fa-solid fa-bullhorn"></i> Pengumuman</h3>
             <p id="announcement-text">Tidak ada pengumuman saat ini.</p>
@@ -88,7 +88,7 @@
               </button>
           </div>
           <hr style="margin: 25px 0;">
-          
+
           <h3>Unduh Rekap</h3>
           <div class="input-group">
               <label for="guru-rekap-month">Pilih Bulan dan Tahun</label>
@@ -101,7 +101,7 @@
           <button onclick="handleGuruDownloadAllRekap()" id="guru-download-all-rekap-button" class="action-button secondary">
               <i class="fa-solid fa-file-zipper"></i> <span>Unduh Rekap Semua Guru (Satu Sekolah)</span>
           </button>
-          
+
           <p id="guru-rekap-message" class="message" style="margin-top: 5px;"></p>
           <hr style="margin: 25px 0;">
 
@@ -110,7 +110,7 @@
             <button id="ceklok-button" class="action-button" onclick="showCeklokPage()">
               <i class="fa-solid fa-calendar-check"></i> <span>Isi Ceklok Kehadiran</span>
             </button>
-            
+
             <button id="lkh-sptjm-button" class="action-button" onclick="showLkhSptjmDashboard()" style="display:none;">
               <i class="fa-solid fa-file-signature"></i> <span>LKH dan SPTJM</span>
             </button>
@@ -119,9 +119,9 @@
               <i class="fa-solid fa-gear"></i> <span>Setting Hari Libur Guru</span>
             </button>
           </div>
-          
+
           <hr style="margin: 25px 0;">
-          
+
           <div id="emis-section">
               <h3>EMIS</h3>
               <div class="dashboard-actions" style="margin-top: 10px;">
@@ -142,24 +142,24 @@
           <button class="logout" onclick="handleLogout()"><i class="fa-solid fa-right-from-bracket"></i> <span>Logout</span></button>
         </div>
       </div>
-      
+
       <div id="all-teachers-summary-container" style="display:none;">
         <div class="card">
           <button class="back-button" onclick="goBackToDashboard()">&larr; Kembali ke Dasbor</button>
           <h2 style="margin-top: 15px;" id="all-teachers-summary-title">Ringkasan Kehadiran Sekolah</h2>
-          
+
           <div class="input-group">
               <label for="all-teachers-summary-month-input">Pilih Bulan dan Tahun</label>
               <input type="month" id="all-teachers-summary-month-input" onchange="loadAllTeacherSummaryData()">
           </div>
-          
+
           <button onclick="handleReloadAllTeacherSummary()" class="action-button secondary" style="width: auto; padding: 10px 18px; margin-bottom: 20px;">
             <i class="fa-solid fa-rotate-right"></i> <span>Muat Ulang Data</span>
           </button>
           <div id="all-teachers-summary-table-container">
             <p>Memuat ringkasan guru...</p>
           </div>
-          
+
           <div id="summary-legend" style="margin-top: 20px; text-align: left; font-size: 14px;">
             </div>
 
@@ -173,7 +173,7 @@
             <h3><i class="fa-solid fa-bullhorn"></i> Pengumuman</h3>
             <p id="staff-announcement-text">Tidak ada pengumuman saat ini.</p>
           </div>
-          
+
           <div id="staff-summary-section">
               <div class="summary-title">
                   <h3>Ringkasan Bulanan Sekolah</h3>
@@ -207,7 +207,7 @@
             <button class="action-button" onclick="showCeklokPageForStaff()">
               <i class="fa-solid fa-calendar-check"></i> <span>Isi Ceklok Kehadiran</span>
             </button>
-            
+
             <button id="view-requests-button" class="action-button warning" onclick="showChangeRequestPage()">
               <i class="fa-solid fa-file-circle-question"></i> <span>Pengajuan Ubah Data</span>
             </button>
@@ -250,13 +250,13 @@
               <button onclick="changeMonth(1)">Bulan Depan &#9654;</button>
             </div>
             <div id="attendance-table-container"></div>
-            
+
             <button id="save-button" onclick="handleSave()" disabled><i class="fa-solid fa-floppy-disk"></i> <span>Simpan Semua Perubahan</span></button>
             <button id="request-change-button" onclick="handleRequestChange()" style="display: none;"><i class="fa-solid fa-paper-plane"></i> <span>Ajukan Perubahan</span></button>
             <p id="save-message" class="message"></p>
           </div>
       </div>
-      
+
       <div id="teacher-holiday-settings-container" style="display:none;">
           <div class="card">
               <button class="back-button" onclick="goBackToDashboard()">&larr; Kembali ke Dasbor</button>
@@ -268,7 +268,7 @@
               <p id="teacher-holidays-message" class="message"></p>
           </div>
       </div>
-      
+
       <div id="emis-import-container" style="display:none;">
         <div class="card">
           <button class="back-button" onclick="goBackToDashboard()">&larr; Kembali ke Dasbor</button>
@@ -310,7 +310,7 @@
                   <div class="nav-tab active" onclick="openTab(event, 'kelola-akun')">Kelola Akun</div>
                   <div class="nav-tab" onclick="openTab(event, 'pengaturan')">Pengaturan</div>
               </div>
-              
+
               <div id="kelola-akun" class="tab-content active">
                   <h3>Daftar Akun</h3>
                   <button onclick="openUserForm()"><i class="fa-solid fa-plus"></i> <span>Tambah Akun Baru</span></button>
@@ -334,13 +334,23 @@
                       <button onclick="saveLockedMonthsSettings()" style="width: auto; margin-top: 10px;"><i class="fa-solid fa-floppy-disk"></i> <span>Simpan Bulan Terkunci</span></button>
                       <p id="locked-months-message" class="message"></p>
                   </div>
+
+                  <hr style="margin: 25px 0;">
+                  <h3>Pengajuan Ubah Data</h3>
+                  <div class="input-group">
+                      <label for="request-day-limit">Batas Tanggal Pengajuan Perubahan (Setelah Bulan Terkunci)</label>
+                      <input type="number" id="request-day-limit" placeholder="Contoh: 10" min="1" max="31">
+                      <p style="font-size: 12px; margin-top: 5px; color: var(--text-secondary-color);">Guru dapat mengajukan perubahan data untuk bulan lalu hingga tanggal ini di bulan berjalan.</p>
+                      <button onclick="saveRequestDayLimitSettings()" style="width: auto; margin-top: 10px;"><i class="fa-solid fa-floppy-disk"></i> <span>Simpan Batas Tanggal</span></button>
+                      <p id="request-day-limit-message" class="message"></p>
+                  </div>
                   <hr style="margin: 25px 0;">
                   <h3>Hari Libur Nasional</h3>
                   <div id="holidays-container"></div>
                   <button onclick="addHolidayRow()" style="width: auto;"><i class="fa-solid fa-plus"></i> <span>Tambah Hari Libur</span></button>
                   <button onclick="saveHolidaysSettings()" style="width: auto; margin-top: 20px;"><i class="fa-solid fa-floppy-disk"></i> <span>Simpan Semua Hari Libur</span></button>
                   <p id="holidays-message" class="message"></p>
-                  
+
                   <hr style="margin: 25px 0;">
                   <h3>Unduh Rekap Kehadiran</h3>
                   <div class="input-group">
@@ -362,7 +372,7 @@
               <button class="logout" onclick="handleLogout()"><i class="fa-solid fa-right-from-bracket"></i> <span>Logout</span></button>
           </div>
       </div>
-      
+
       <?!= include('sptjm_view'); ?>
       <?!= include('lkh_sptjm'); ?>
       <?!= include('sptjm_settings'); ?>
@@ -375,11 +385,11 @@
           <button class="back-button" onclick="goBackToDashboard()">&larr; Kembali ke Dasbor</button>
           <h2 style="margin-top: 15px;">Daftar Pengajuan Perubahan Ceklok</h2>
           <p>Tinjau pengajuan perubahan data dari guru untuk bulan lalu yang terkunci.</p>
-          
+
           <div id="request-list-container">
             </div>
           <p id="request-list-message" class="message" style="margin-top: 15px;"></p>
-          
+
         </div>
       </div>
       <footer class="main-footer">
@@ -388,7 +398,7 @@
         </a>
       </footer>
       </div>
-    
+
     <div id="user-form-modal" class="modal">
       <div class="modal-content">
         <span class="close-btn" onclick="closeUserForm()">&times;</span>
@@ -412,7 +422,7 @@
         </div>
       </div>
     </div>
-    
+
     <div id="rejection-modal" class="modal">
       <div class="modal-content">
         <span class="close-btn" onclick="closeRejectionModal()">&times;</span>
@@ -426,6 +436,32 @@
         <button onclick="handleSendRejection()" class="action-button reject-btn"><i class="fa-solid fa-paper-plane"></i> <span>Kirim Penolakan</span></button>
       </div>
     </div>
+
+    <div id="cancel-request-modal" class="modal confirmation-modal">
+      <div class="modal-content">
+        <span class="close-btn" onclick="closeCancelRequestModal()">&times;</span>
+        <h3>Konfirmasi Pembatalan</h3>
+        <p>Apakah Anda yakin ingin membatalkan semua pengajuan perubahan yang sedang ditinjau untuk bulan ini?</p>
+        <div class="modal-actions">
+           <button class="cancel-btn" onclick="closeCancelRequestModal()">Tutup</button>
+           <button class="confirm-btn danger" onclick="confirmCancelRequest()">Ya, Batalkan Ajuan</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="approve-request-modal" class="modal confirmation-modal">
+      <div class="modal-content">
+        <span class="close-btn" onclick="closeApproveRequestModal()">&times;</span>
+        <h3>Konfirmasi Persetujuan</h3>
+        <p>Apakah Anda yakin ingin menyetujui <strong id="approve-count">0</strong> perubahan ini? Tindakan ini akan langsung mengubah data absensi guru.</p>
+        <input type="hidden" id="approve-request-ids">
+        <div class="modal-actions">
+           <button class="cancel-btn" onclick="closeApproveRequestModal()">Tutup</button>
+           <button class="confirm-btn" onclick="confirmApproveRequest()">Ya, Setujui</button>
+        </div>
+      </div>
+    </div>
+
     <script>
       // ===================================================================
       // VARIABEL GLOBAL & FUNGSI UTILITAS
@@ -434,10 +470,10 @@
       let selectedSchool = null;
       let currentDate = new Date();
       // --- AWAL PERUBAHAN: Penambahan Variabel Global ---
-      let appSettings = { 
-        lockedMonths: [], 
-        holidays: {}, 
-        announcements: "", 
+      let appSettings = {
+        lockedMonths: [],
+        holidays: {},
+        announcements: "",
         teacherHolidays: [],
         // Data baru untuk fitur pengajuan
         isRequestableMonth: false,
@@ -445,9 +481,9 @@
         rejectionInfo: null
       };
       // --- AKHIR PERUBAHAN ---
-      
-      let selectedTeacherForStaff = null; 
-      let schoolTeachers = []; 
+
+      let selectedTeacherForStaff = null;
+      let schoolTeachers = [];
       let latestRequestToken = 0;
       const SPREADSHEET_ID = "1EIQY1DeGcwhEaYojbGMah-S5HbtsrON5YRy37bl_vLg";
 
@@ -456,7 +492,7 @@
         const { isSuccess = false, isProcessing = false } = options;
         const msgElem = document.getElementById(elementId);
         if (msgElem) {
-          
+
           // --- PERUBAHAN DIMULAI DI SINI ---
           if (isProcessing) {
             // Tampilkan loader dan teks
@@ -470,7 +506,7 @@
           } else {
             // Tampilkan teks biasa (untuk sukses atau error)
             msgElem.innerHTML = `<span>${text}</span>`; // Bungkus dengan span
-            
+
             if (isSuccess) {
               msgElem.style.color = 'var(--success-color)';
             } else { // isError
@@ -482,7 +518,7 @@
           if (!isProcessing) {
             setTimeout(() => {
               // Cek menggunakan textContent yang akan mengambil teks di dalam span
-              if (msgElem.textContent === text) { 
+              if (msgElem.textContent === text) {
                 msgElem.innerHTML = ''; // Hapus loader/pesan
               }
             }, 10000);
@@ -492,7 +528,7 @@
 
       function showSptjmSettingsPage() {
           document.getElementById('lkh-sptjm-dashboard-container').style.display = 'none';
-          
+
           // --- TAMBAHAN BARU UNTUK MEMPERBAIKI MASALAH TAMPILAN GANDA ---
           document.getElementById('sptjm-view-container').style.display = 'none';
           document.getElementById('lkh-view-container').style.display = 'none';
@@ -505,7 +541,7 @@
 
           google.script.run
             .withSuccessHandler(settings => {
-              if (settings) { 
+              if (settings) {
                 document.getElementById('sptjm-nip').value = settings.nip || '';
                 document.getElementById('sptjm-jabatan').value = settings.jabatan || '';
                 document.getElementById('sptjm-bulan').value = settings.bulan || '';
@@ -551,7 +587,7 @@
       // --- FUNGSI BARU UNTUK MENGECEK PENGATURAN CETAK ---
       function arePrintSettingsComplete(settings) {
         if (!settings) return false;
-        
+
         // Bidang yang wajib diisi (NIP Guru 'nip' & NIP Kepala 'nipKepala' dikecualikan)
         const requiredFields = [
           'jabatan',
@@ -561,14 +597,14 @@
           'tempat',
           'tanggal'
         ];
-        
+
         for (const field of requiredFields) {
           // Cek jika bidang tidak ada, null, atau string kosong setelah di-trim
           if (!settings[field] || String(settings[field]).trim() === '') {
             return false; // Ditemukan bidang wajib yang kosong
           }
         }
-        
+
         return true; // Semua bidang wajib telah diisi
       }
       // --- AKHIR FUNGSI BARU ---
@@ -576,17 +612,17 @@
       function showSptjmViewPage() {
           document.getElementById('lkh-sptjm-dashboard-container').style.display = 'none';
           document.getElementById('sptjm-view-container').style.display = 'block';
-          
+
           // 1. Dapatkan elemen tombol dan pesan
           const downloadButton = document.getElementById('download-sptjm-pdf-button');
           const messageElement = document.getElementById('sptjm-download-message');
-          
+
           // 2. Nonaktifkan tombol di awal
           downloadButton.disabled = true;
 
           // Menampilkan pesan "Memuat..." saat data diambil
           const fieldsToLoad = [
-              'sptjm-view-name', 'sptjm-view-nip', 'sptjm-view-jabatan', 'sptjm-view-satker', 
+              'sptjm-view-name', 'sptjm-view-nip', 'sptjm-view-jabatan', 'sptjm-view-satker',
               'sptjm-view-month', 'sptjm-view-headmaster-name', 'sptjm-view-headmaster-nip',
               'sptjm-view-signature-name', 'sptjm-view-signature-nip', 'sptjm-view-place-date'
           ];
@@ -594,7 +630,7 @@
             const el = document.getElementById(id);
             if(el) el.innerText = "Memuat...";
           });
-          
+
           // 3. Tampilkan pesan loading menggunakan displayMessage
           displayMessage('sptjm-download-message', 'Memuat data pratinjau...', { isProcessing: true });
 
@@ -611,7 +647,7 @@
                   document.getElementById('sptjm-view-name').innerText = user.name || '-';
                   document.getElementById('sptjm-view-nip').innerText = settings.nip || '-';
                   document.getElementById('sptjm-view-jabatan').innerText = settings.jabatan || 'Guru';
-                  document.getElementById('sptjm-view-satker').innerText = user.school || '-'; 
+                  document.getElementById('sptjm-view-satker').innerText = user.school || '-';
                   document.getElementById('sptjm-view-month').innerText = settings.bulan || '[Bulan]';
 
                   const signatureDate = settings.tanggal ? new Date(settings.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC' }) : '[Tanggal]';
@@ -621,7 +657,7 @@
                   document.getElementById('sptjm-view-signature-nip').innerText = settings.nip || '-';
                   document.getElementById('sptjm-view-headmaster-name').innerText = settings.namaKepala || '[Nama Kepala Madrasah]';
                   document.getElementById('sptjm-view-headmaster-nip').innerText = settings.nipKepala || '-';
-                  
+
                   // --- AWAL PERUBAHAN LOGIKA ---
                   // 4. Cek kelengkapan pengaturan
                   const settingsComplete = arePrintSettingsComplete(settings);
@@ -727,7 +763,7 @@
         const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
         // Menambahkan header kolom "AKSI"
         let tableHTML = '<table><thead><tr><th>HARI</th><th>URAIAN KEGIATAN</th><th>HASIL / OUTPUT</th><th>VOL</th><th>AKSI</th></tr></thead><tbody>';
-        
+
         days.forEach(day => {
             const data = existingData[day] || {};
             tableHTML += `
@@ -750,10 +786,10 @@
         button.disabled = true;
         button.querySelector('span').textContent = "Menyimpan...";
         displayMessage('lkh-weekly-message', 'Menyimpan data LKH mingguan...', { isProcessing: true });
-        
+
         const lkhWeeklyData = {};
         const rows = document.querySelectorAll('#lkh-weekly-table-container tbody tr');
-        
+
         rows.forEach(row => {
           const day = row.dataset.day;
           if (day) {
@@ -848,17 +884,17 @@
         };
         emailInput.addEventListener('keyup', loginOnEnter);
         passwordInput.addEventListener('keyup', loginOnEnter);
-        
+
         // ==== PERUBAHAN DIMULAI DI SINI (JavaScript untuk ikon mata) ====
         const toggleIcon = document.getElementById('togglePassword');
-        
+
         // Cek jika passwordInput (dari atas) dan toggleIcon ada
         if (passwordInput && toggleIcon) {
           toggleIcon.addEventListener('click', function () {
             // Cek tipe input saat ini
             const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
             passwordInput.setAttribute('type', type);
-            
+
             // Ganti ikon
             this.classList.toggle('fa-eye');
             this.classList.toggle('fa-eye-slash');
@@ -866,7 +902,7 @@
         }
         // ==== PERUBAHAN SELESAI ====
       });
-      
+
       function handleLogin() {
         const email = document.getElementById("email").value;
         const password = document.getElementById("password").value;
@@ -879,7 +915,7 @@
         button.querySelector('span').textContent = "Mencoba Login...";
         // Menampilkan loading saat login
         displayMessage('login-message', 'Mencoba login...', { isProcessing: true });
-        
+
         google.script.run
           .withSuccessHandler(response => {
             button.disabled = false;
@@ -889,10 +925,10 @@
               localStorage.setItem('ceklokAuthToken', response.token);
               localStorage.setItem('ceklokUser', JSON.stringify(response.user));
               // --- PERUBAHAN SELESAI ---
-              
+
               currentUser = response.user;
               displayMessage('login-message', ''); // Hapus pesan loading
-              
+
               if (currentUser.role === 'admin') {
                 showAdminDashboard(currentUser);
               } else if (currentUser.schools && currentUser.schools.length > 1) {
@@ -921,7 +957,7 @@
           })
           .userLogin(email, password);
       }
-      
+
       function showSchoolSelection(schools) {
         document.getElementById("login-container").style.display = "none";
         const select = document.getElementById('school-select');
@@ -967,9 +1003,9 @@
         currentDate = new Date();
         selectedTeacherForStaff = null;
         schoolTeachers = [];
-        
+
         // --- AWAL PERUBAHAN: Reset appSettings ---
-        appSettings = { 
+        appSettings = {
           lockedMonths: [], holidays: {}, announcements: "", teacherHolidays: [],
           isRequestableMonth: false, pendingChanges: {}, rejectionInfo: null
         };
@@ -986,7 +1022,7 @@
                   <label for="email">Email</label>
                   <input type="email" id="email" placeholder="Masukkan email Anda" autocomplete="username">
                 </div>
-                
+
                 <div class="input-group">
                   <label for="password">Password</label>
                   <div class="password-wrapper">
@@ -1005,7 +1041,7 @@
         const emailInput = document.getElementById('email');
         const passwordInput = document.getElementById('password');
         const toggleIcon = document.getElementById('togglePassword');
-        
+
         const loginOnEnter = (event) => {
           if (event.key === 'Enter') {
             event.preventDefault();
@@ -1014,7 +1050,7 @@
         };
         emailInput.addEventListener('keyup', loginOnEnter);
         passwordInput.addEventListener('keyup', loginOnEnter);
-        
+
         if (passwordInput && toggleIcon) {
           toggleIcon.addEventListener('click', function () {
             const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
@@ -1057,7 +1093,7 @@
         else if (currentUser.role === 'staff') showStaffDashboard();
         else showGuruDashboard();
       }
-      
+
       // ===================================================================
       // LOGIKA UNTUK GURU
       // ===================================================================
@@ -1078,7 +1114,7 @@
           document.getElementById("change-request-container").style.display = "none";
           // --- AKHIR PERUBAHAN ---
           document.getElementById("guru-dashboard-container").style.display = "block";
-          
+
           const welcomeH2 = document.getElementById('guru-welcome-message');
           let welcomeHTML = `Halo, <strong>${currentUser.name}</strong>`;
 
@@ -1088,7 +1124,7 @@
             welcomeHTML += `<br><small>${selectedSchool}</small>`;
           }
           welcomeH2.innerHTML = welcomeHTML;
-          
+
           const lkhButton = document.getElementById('lkh-sptjm-button');
           if (currentUser.hasLKHFeature) {
             lkhButton.style.display = 'flex';
@@ -1106,7 +1142,7 @@
 
           loadAndRenderSummary();
       }
-      
+
       function openSchoolSwitcherModal() {
         const modal = document.getElementById('school-switcher-modal');
         const container = document.getElementById('school-list-container');
@@ -1135,9 +1171,9 @@
           // --- PERUBAHAN DIMULAI ---
           localStorage.setItem('ceklokSelectedSchool', selectedSchool);
           // --- PERUBAHAN SELESAI ---
-          
+
           if (currentUser.role === 'guru') {
-            showGuruDashboard(); 
+            showGuruDashboard();
           } else if (currentUser.role === 'staff') {
             showStaffDashboard();
           }
@@ -1158,7 +1194,7 @@
         document.getElementById("guru-dashboard-container").style.display = "none";
         document.getElementById("emis-import-container").style.display = "none";
         document.getElementById("ceklok-container").style.display = "block";
-        document.getElementById('ceklok-teacher-name').innerText = ''; 
+        document.getElementById('ceklok-teacher-name').innerText = '';
         document.getElementById('ceklok-title').innerText = `Formulir Kehadiran - ${selectedSchool}`;
         loadMonthData(currentDate);
       }
@@ -1187,19 +1223,19 @@
         document.getElementById('emis-export-teacher-name').innerText = '';
         document.getElementById('emis-export-title').innerText = `Eksport Data Kehadiran - ${selectedSchool}`;
       }
-      
+
       // Modifikasi renderAnnouncements untuk menangani isProcessing
       function renderAnnouncements(text, isProcessing = false) {
         const p = document.getElementById('announcement-text');
         const defaultText = "Tidak ada pengumuman saat ini.";
-        
+
         if (isProcessing) {
             p.innerHTML = `<div class="message-with-loader" style="justify-content: left;"><div class="message-loader"></div><span>${text}</span></div>`;
         } else {
             p.innerText = (text && text.trim() !== "") ? text : defaultText;
         }
       }
-      
+
       function changeMonth(direction) {
         currentDate.setMonth(currentDate.getMonth() + direction);
         loadMonthData(currentDate);
@@ -1211,7 +1247,7 @@
           const month = date.getMonth() + 1;
           const userEmail = (currentUser.role === 'staff' && selectedTeacherForStaff) ? selectedTeacherForStaff.email : currentUser.email;
           const schoolForCall = (currentUser.role === 'staff' && selectedTeacherForStaff) ? selectedTeacherForStaff.school : selectedSchool;
-          
+
           // --- AWAL PERUBAHAN: Menargetkan kedua tombol ---
           const saveButton = document.getElementById('save-button');
           const requestButton = document.getElementById('request-change-button');
@@ -1236,7 +1272,19 @@
 
           google.script.run
             .withSuccessHandler(response => {
-              if (response.token !== latestRequestToken) {
+              // --- AWAL PERUBAHAN: Cek Error dari Backend ---
+              if (response && response.error) {
+                 // Tampilkan pesan error dari backend
+                 document.getElementById('attendance-table-container').innerHTML = `<p style="color: var(--danger-color);">${response.error}</p>`;
+                 // Nonaktifkan tombol (opsional, tergantung preferensi)
+                 saveButton.disabled = true;
+                 requestButton.disabled = true;
+                 return; // Hentikan pemrosesan lebih lanjut
+              }
+              // --- AKHIR PERUBAHAN ---
+
+              // Lanjutkan jika tidak ada error backend
+              if (!response || response.token !== latestRequestToken) { // Tambah cek !response
                 return;
               }
               // --- AWAL PERUBAHAN: Simpan semua data baru dari server ---
@@ -1253,11 +1301,14 @@
               generateMonthTable(year, month, response.attendance);
             })
             .withFailureHandler(error => {
-                document.getElementById('attendance-table-container').innerHTML = `<p style="color: var(--danger-color);">Gagal memuat data absensi.</p>`;
+                document.getElementById('attendance-table-container').innerHTML = `<p style="color: var(--danger-color);">Gagal memuat data absensi: ${error.message}</p>`; // Tambahkan detail error
+                // Nonaktifkan tombol jika gagal total
+                 saveButton.disabled = true;
+                 requestButton.disabled = true;
             })
             .getAttendancePageData(userEmail, schoolForCall, year, month, currentToken);
       }
-      
+
       function handleTimeInput(event) {
         const input = event.target;
         let value = input.value;
@@ -1288,7 +1339,7 @@
               digits = digits.substring(0, 2);
             }
           }
-          
+
           if (digits.length > 4) {
             digits = digits.substring(0, 4);
           }
@@ -1300,7 +1351,7 @@
             value = digits;
           }
         }
-        
+
         input.value = value;
       }
 
@@ -1327,7 +1378,7 @@
               <option value="Izin Sakit (Lebih dari 12 Bulan Sampai Dengan 18 Bulan)">Izin Sakit (Lebih dari 12 Bulan Sampai Dengan 18 Bulan)</option>
               <option value="Dinas Luar">Dinas Luar</option>
           `;
-          
+
           const daysInMonth = new Date(year, month, 0).getDate();
           const currentMonthStr = `${year}-${String(month).padStart(2, '0')}`;
           const isMonthLocked = appSettings.lockedMonths.includes(currentMonthStr);
@@ -1335,7 +1386,7 @@
           const currentYear = today.getFullYear();
           const currentMonth = today.getMonth() + 1;
           const isFutureMonth = year > currentYear || (year === currentYear && month > currentMonth);
-          
+
           // --- AWAL PERUBAHAN: Logika Baru untuk Pengajuan ---
           const isReqMonth = appSettings.isRequestableMonth;
           const pendingData = appSettings.pendingChanges;
@@ -1358,9 +1409,9 @@
           } else if (isFutureMonth) {
             lockMessage = 'Anda belum bisa mengisi absensi untuk bulan depan.';
           }
-          
+
           document.getElementById('global-lock-message').innerText = lockMessage;
-          
+
           // --- AWAL PERUBAHAN: Logika Tombol Utama ---
           const saveButton = document.getElementById('save-button');
           const requestButton = document.getElementById('request-change-button');
@@ -1372,7 +1423,7 @@
             if (isRequestPending) {
               requestButton.innerHTML = '<i class="fa-solid fa-ban"></i> <span>Batalkan Ajuan</span>';
               requestButton.className = 'action-button cancel-request'; // Ganti warna jadi merah
-              requestButton.onclick = handleCancelRequest;
+              requestButton.onclick = handleCancelRequest; // <<< Pastikan ini benar
             } else {
               requestButton.innerHTML = '<i class="fa-solid fa-paper-plane"></i> <span>Ajukan Perubahan</span>';
               requestButton.className = 'action-button'; // Warna kuning default (dari style)
@@ -1383,7 +1434,7 @@
             requestButton.style.display = 'none';
             saveButton.disabled = isDisabled; // Nonaktifkan tombol simpan jika bulan dikunci/masa depan
           }
-          
+
           // Tampilkan pesan penolakan jika ada
           if (isReqMonth && !isRequestPending && appSettings.rejectionInfo) {
              displayMessage('save-message', `Pengajuan ditolak: ${appSettings.rejectionInfo.reason}`);
@@ -1394,7 +1445,7 @@
 
 
           let tableHTML = '<div class="table-scroll-wrapper"><table><thead><tr><th>Tanggal</th><th>Jam Masuk</th><th>Jam Pulang</th><th>Keterangan</th><th>Aksi</th></tr></thead><tbody>';
-          
+
           for (let day = 1; day <= daysInMonth; day++) {
             const dateStr = `${currentMonthStr}-${String(day).padStart(2, '0')}`;
             const dateObj = new Date(year, month - 1, day);
@@ -1403,7 +1454,7 @@
             const isSunday = dayOfWeek === 0;
             const isHoliday = !!appSettings.holidays[dateStr];
             const existingData = attendanceData[dateStr];
-            
+
             // --- AWAL PERUBAHAN: Logika Aksi & Status Baris ---
             let rowClass = '';
             let aksiButton = '';
@@ -1416,55 +1467,59 @@
               rowClass = 'holiday-row';
             }
 
+            // --- AWAL PERBAIKAN: Perbaiki logika tombol aksi ---
             // Tentukan tombol aksi
             if (isSunday || isHoliday) {
-              // Tidak ada aksi
+              // Tidak ada aksi untuk hari libur/minggu
             } else if (isReqMonth) {
               // Jika bulan ini bisa diajukan
-              if (isRequestPending || (appSettings.rejectionInfo && appSettings.rejectionInfo.date === dateStr)) {
-                // Jika sudah ada pengajuan pending ATAU baris ini adalah baris yg ditolak
-                // Tombol "Ubah" dinonaktifkan
-                aksiButton = `<button class="action-btn warning edit-btn" disabled>${isRequestPending ? 'Menunggu' : 'Ditolak'}</button>`;
+              if (isRequestPending) {
+                // Jika ada pengajuan PENDING, tombol dinonaktifkan
+                aksiButton = `<button class="action-btn warning edit-btn" disabled>Menunggu</button>`;
               } else {
-                // Tombol "Ubah" standar
+                // Jika TIDAK PENDING (kondisi awal atau setelah ditolak), tampilkan tombol "Ubah"
                 aksiButton = `<button class="action-btn warning edit-btn" onclick="handleEnableEdit(event)">Ubah</button>`;
               }
             } else {
               // Bulan normal (bukan pengajuan), tampilkan tombol "Hapus"
               aksiButton = `<button class="clear-btn" onclick="handleClearRow(event)" ${isDisabled ? 'disabled' : ''}>Hapus</button>`;
             }
+            // --- AKHIR PERBAIKAN ---
 
             // Tentukan apakah input di baris ini harus nonaktif
-            // Nonaktif jika: (Bulan dikunci/masa depan DAN BUKAN bulan pengajuan) ATAU (Bulan pengajuan)
-            const isRowDisabled = isDisabled || isReqMonth; 
+            // Nonaktif jika: (Bulan dikunci/masa depan DAN BUKAN bulan pengajuan) ATAU (Bulan pengajuan TAPI BELUM klik Ubah)
+            // Kita sederhanakan: selalu nonaktif jika isRowDisabled true. Pengaktifan saat klik Ubah.
+            const isRowDisabled = isDisabled || isReqMonth;
             // --- AKHIR PERUBAHAN ---
-            
+
             if (isHoliday) {
               tableHTML += `<tr id="row-${dateStr}" class="${rowClass}"><td>${day} <small>(${dayName})</small></td><td colspan="3">${appSettings.holidays[dateStr]}</td><td>${aksiButton}</td></tr>`;
             } else if (isSunday) {
               tableHTML += `<tr id="row-${dateStr}" class="${rowClass}"><td>${day} <small>(${dayName})</small></td><td colspan="3">Hari Libur</td><td>${aksiButton}</td></tr>`;
-            } 
+            }
             else {
               tableHTML += `<tr id="row-${dateStr}" class="${rowClass}"><td>${day} <small>(${dayName})</small></td><td><input type="text" class="time-entry" id="in-${dateStr}" placeholder="HH:MM" maxlength="5" inputmode="numeric" oninput="handleTimeInput(event)" ${isRowDisabled ? 'disabled' : ''}></td><td><input type="text" class="time-entry" id="out-${dateStr}" placeholder="HH:MM" maxlength="5" inputmode="numeric" oninput="handleTimeInput(event)" ${isRowDisabled ? 'disabled' : ''}></td><td><select id="reason-${dateStr}" ${isRowDisabled ? 'disabled' : ''} onchange="handleReasonChange(event)">${reasonOptions}</select></td><td>${aksiButton}</td></tr>`;
             }
           }
           tableHTML += '</tbody></table></div>';
           container.innerHTML = tableHTML;
-          
-          populateAttendanceData(attendanceData); 
+
+          populateAttendanceData(attendanceData);
       }
-      
+
       function populateAttendanceData(data) {
         // --- AWAL PERUBAHAN: Dapatkan data pending ---
         const pendingData = appSettings.pendingChanges;
         const isReqMonth = appSettings.isRequestableMonth;
         // --- AKHIR PERUBAHAN ---
 
-        for (const date in data) {
+        for (const date in data) { // Loop berdasarkan data ASLI
           const checkInInput = document.getElementById(`in-${date}`);
           const checkOutInput = document.getElementById(`out-${date}`);
           const reasonSelect = document.getElementById(`reason-${date}`);
-          
+
+          if(!checkInInput && !checkOutInput && !reasonSelect) continue; // Skip jika baris tidak ada (misal, hari libur)
+
           // --- AWAL PERUBAHAN: Logika pengisian data ---
           if (isReqMonth && pendingData[date]) {
             // Jika ini bulan pengajuan DAN ada data pending untuk tanggal ini
@@ -1473,28 +1528,27 @@
             if (checkOutInput) checkOutInput.value = pending.newCheckOut;
             if (reasonSelect) {
                 reasonSelect.value = pending.newReason || "";
-                // Nonaktifkan input jika ada alasan (logika standar)
-                if (pending.newReason) {
-                  if (checkInInput) checkInInput.disabled = true;
-                  if (checkOutInput) checkOutInput.disabled = true;
-                }
             }
-            // Input/select sudah dinonaktifkan oleh generateMonthTable (karena rowClass 'pending-row')
-            // Tapi kita pastikan lagi
+            // Pastikan disable (meski sudah dari generateMonthTable)
             if (checkInInput) checkInInput.disabled = true;
             if (checkOutInput) checkOutInput.disabled = true;
             if (reasonSelect) reasonSelect.disabled = true;
 
           } else {
-            // Logika standar
+            // Logika standar: Isi dengan data ASLI
             if (checkInInput) checkInInput.value = data[date].checkIn;
             if (checkOutInput) checkOutInput.value = data[date].checkOut;
 
             if (reasonSelect) {
               reasonSelect.value = data[date].reason || "";
-              if (data[date].reason) {
-                if (checkInInput) checkInInput.disabled = true;
-                if (checkOutInput) checkOutInput.disabled = true;
+              // --- PERUBAHAN: Nonaktifkan input time jika ada alasan LAMA, HANYA jika BUKAN bulan pengajuan ---
+              if (data[date].reason && !isReqMonth) {
+                 if (checkInInput) checkInInput.disabled = true;
+                 if (checkOutInput) checkOutInput.disabled = true;
+              } else if (isReqMonth) {
+                 // Jika bulan pengajuan, pastikan input time bisa diaktifkan oleh tombol Ubah
+                 // (Status disabled awal sudah diatur oleh isRowDisabled di generateMonthTable)
+                 // Tidak perlu mengubah status disabled di sini untuk kasus non-pending.
               }
             }
           }
@@ -1526,17 +1580,17 @@
         });
         if (reasonSelect) reasonSelect.value = '';
       }
-      
+
       function handleSave() {
           const button = document.getElementById('save-button');
           document.querySelectorAll('#attendance-table-container tr.invalid-row').forEach(row => {
               row.classList.remove('invalid-row');
           });
-          
+
           const schoolForSave = (currentUser.role === 'staff' && selectedTeacherForStaff) ? selectedTeacherForStaff.school : selectedSchool;
           const targetUser = (currentUser.role === 'staff' && selectedTeacherForStaff) ? selectedTeacherForStaff : currentUser;
           const payload = { email: targetUser.email, name: targetUser.name, school: schoolForSave, attendance: {} };
-          
+
           const rows = document.querySelectorAll('#attendance-table-container tbody tr');
           let validationError = false;
           let firstErrorRow = null;
@@ -1549,9 +1603,9 @@
               const checkInInput = row.querySelector(`#in-${date}`);
               const checkOutInput = row.querySelector(`#out-${date}`);
               const reasonSelect = row.querySelector('select');
-              
+
               // --- AWAL PERUBAHAN: Pastikan input tidak disabled (bukan baris libur) ---
-              if (!checkInInput || checkInInput.disabled) return; 
+              if (!checkInInput || checkInInput.disabled) return;
               // --- AKHIR PERUBAHAN ---
 
               const checkIn = checkInInput.value;
@@ -1570,10 +1624,10 @@
                 }
               }
 
-              payload.attendance[date] = { 
-                  checkIn: hasReason ? "" : (checkIn || ""), 
-                  checkOut: hasReason ? "" : (checkOut || ""), 
-                  reason: reason || "" 
+              payload.attendance[date] = {
+                  checkIn: hasReason ? "" : (checkIn || ""),
+                  checkOut: hasReason ? "" : (checkOut || ""),
+                  reason: reason || ""
               };
           });
 
@@ -1594,7 +1648,7 @@
                   displayMessage('save-message', r.message, { isSuccess: true });
                   button.disabled = false;
                   button.querySelector('span').textContent = "Simpan Semua Perubahan";
-                  loadMonthData(currentDate); 
+                  loadMonthData(currentDate);
                   if (currentUser.role === 'guru') loadAndRenderSummary();
                   else if (currentUser.role === 'staff') loadStaffSummary();
               })
@@ -1614,12 +1668,12 @@
       function handleEnableEdit(event) {
         event.preventDefault();
         const row = event.target.closest('tr');
-        
+
         // Aktifkan semua input di baris ini
         row.querySelectorAll('input.time-entry, select').forEach(el => {
           el.disabled = false;
         });
-        
+
         // Jika ada alasan yang dipilih, input jam tetap nonaktif (panggil handleReasonChange)
         const reasonSelect = row.querySelector('select');
         if (reasonSelect) {
@@ -1657,7 +1711,7 @@
             const checkInInput = row.querySelector(`#in-${date}`);
             const checkOutInput = row.querySelector(`#out-${date}`);
             const reasonSelect = row.querySelector(`#reason-${date}`);
-            
+
             const newCheckIn = checkInInput.value;
             const newCheckOut = checkOutInput.value;
             const newReason = reasonSelect.value;
@@ -1675,13 +1729,13 @@
                 if (!firstErrorRow) firstErrorRow = row;
               }
             }
-            
+
             // Cek apakah ada perubahan
             if (oldData.checkIn !== newCheckIn || oldData.checkOut !== newCheckOut || oldData.reason !== newReason) {
-              changes.push({ 
-                date: date, 
-                oldData: oldData, 
-                newData: { checkIn: newCheckIn, checkOut: newCheckOut, reason: newReason } 
+              changes.push({
+                date: date,
+                oldData: oldData,
+                newData: { checkIn: newCheckIn, checkOut: newCheckOut, reason: newReason }
               });
             }
           }
@@ -1718,19 +1772,37 @@
           .submitChangeRequest(userEmail, schoolForCall, year, month, changes);
       }
 
+      // --- PERBAIKAN DI SINI ---
       /**
        * (GURU) Dipanggil saat tombol 'Batalkan Ajuan' diklik.
+       * Membuka modal konfirmasi.
        */
-      function handleCancelRequest() {
-        if (!confirm('Yakin ingin membatalkan semua pengajuan yang sedang ditinjau untuk bulan ini?')) return;
-        
+      function handleCancelRequest(event) {
+        if (event) event.preventDefault(); // Mencegah aksi default tombol jika ada
+        openCancelRequestModal();
+      }
+
+      // Fungsi untuk membuka modal pembatalan
+      function openCancelRequestModal() {
+        document.getElementById('cancel-request-modal').style.display = 'block';
+      }
+
+      // Fungsi untuk menutup modal pembatalan
+      function closeCancelRequestModal() {
+        document.getElementById('cancel-request-modal').style.display = 'none';
+      }
+
+      // Fungsi yang dipanggil saat tombol 'Ya, Batalkan Ajuan' di modal diklik
+      function confirmCancelRequest() {
+        closeCancelRequestModal(); // Tutup modal
+
         const year = currentDate.getFullYear();
         const month = currentDate.getMonth() + 1;
         const userEmail = (currentUser.role === 'staff' && selectedTeacherForStaff) ? selectedTeacherForStaff.email : currentUser.email;
         const schoolForCall = (currentUser.role === 'staff' && selectedTeacherForStaff) ? selectedTeacherForStaff.school : selectedSchool;
         const button = document.getElementById('request-change-button');
-        
-        button.disabled = true;
+
+        if (button) button.disabled = true; // Nonaktifkan tombol utama
         displayMessage('save-message', 'Membatalkan pengajuan...', { isProcessing: true });
 
         google.script.run
@@ -1740,23 +1812,25 @@
               loadMonthData(currentDate); // Muat ulang data
             } else {
               displayMessage('save-message', `Gagal: ${response.message}`);
-              button.disabled = false;
+              if (button) button.disabled = false; // Aktifkan lagi jika gagal
             }
           })
           .withFailureHandler(error => {
             displayMessage('save-message', `Error: ${error.message}`);
-            button.disabled = false;
+            if (button) button.disabled = false; // Aktifkan lagi jika error
           })
           .cancelChangeRequest(userEmail, schoolForCall, year, month);
       }
-      
+      // --- AKHIR PERBAIKAN ---
+
+
       /**
        * (STAFF) Menampilkan halaman daftar pengajuan.
        */
       function showChangeRequestPage() {
         document.getElementById("staff-dashboard-container").style.display = "none";
         document.getElementById("change-request-container").style.display = "block";
-        
+
         const container = document.getElementById('request-list-container');
         container.innerHTML = `
           <div class="loader-container">
@@ -1765,7 +1839,7 @@
             </div>
             <p>Memuat daftar pengajuan...</p>
           </div>`;
-        
+
         displayMessage('request-list-message', ''); // Hapus pesan lama
 
         google.script.run
@@ -1814,7 +1888,7 @@
                   </thead>
                   <tbody>
           `;
-          
+
           guruRequest.changes.forEach(change => {
             html += `
               <tr>
@@ -1838,7 +1912,7 @@
                 </table>
               </div>
               <div class="request-group-actions">
-                <button class="action-button" onclick="handleApproveRequest(${requestIdsJson})">
+                 <button class="action-button" onclick="handleApproveRequest(${requestIdsJson}, event)">
                   <i class="fa-solid fa-check"></i> <span>Setujui (${guruRequest.changes.length})</span>
                 </button>
                 <button class="action-button reject-btn" onclick="openRejectionModal(${requestIdsJson})">
@@ -1848,18 +1922,43 @@
             </div>
           `;
         });
-        
+
         container.innerHTML = html;
       }
 
+      // --- PERBAIKAN DI SINI ---
       /**
        * (STAFF) Dipanggil saat staff menekan 'Setujui'.
+       * Membuka modal konfirmasi.
        */
-      function handleApproveRequest(requestIds) {
-        if (!confirm(`Yakin ingin MENYETUJUI ${requestIds.length} perubahan ini? Tindakan ini akan langsung mengubah data absensi guru.`)) return;
+      function handleApproveRequest(requestIds, event) {
+        if (event) event.preventDefault(); // Mencegah aksi default tombol jika ada
+        openApproveRequestModal(requestIds);
+      }
+
+      // Fungsi untuk membuka modal persetujuan
+      function openApproveRequestModal(requestIds) {
+        document.getElementById('approve-count').textContent = requestIds.length;
+        document.getElementById('approve-request-ids').value = JSON.stringify(requestIds);
+        document.getElementById('approve-request-modal').style.display = 'block';
+      }
+
+      // Fungsi untuk menutup modal persetujuan
+      function closeApproveRequestModal() {
+        document.getElementById('approve-request-modal').style.display = 'none';
+      }
+
+      // Fungsi yang dipanggil saat tombol 'Ya, Setujui' di modal diklik
+      function confirmApproveRequest() {
+        const requestIds = JSON.parse(document.getElementById('approve-request-ids').value);
+        closeApproveRequestModal(); // Tutup modal
 
         displayMessage('request-list-message', 'Menyetujui pengajuan...', { isProcessing: true });
-        
+
+        // Nonaktifkan tombol sementara di list (opsional)
+        const actionButtons = document.querySelectorAll('.request-group-actions button');
+        actionButtons.forEach(btn => btn.disabled = true);
+
         google.script.run
           .withSuccessHandler(response => {
             if (response.status === 'success') {
@@ -1867,13 +1966,16 @@
               showChangeRequestPage(); // Muat ulang daftar
             } else {
               displayMessage('request-list-message', `Gagal: ${response.message}`);
+              actionButtons.forEach(btn => btn.disabled = false); // Aktifkan lagi jika gagal
             }
           })
           .withFailureHandler(error => {
             displayMessage('request-list-message', `Error: ${error.message}`);
+            actionButtons.forEach(btn => btn.disabled = false); // Aktifkan lagi jika error
           })
           .processChangeRequest(currentUser.email, requestIds, 'approve', null);
       }
+      // --- AKHIR PERBAIKAN ---
 
       /**
        * (STAFF) Membuka modal untuk alasan penolakan.
@@ -1902,10 +2004,15 @@
           alert('Alasan penolakan wajib diisi.');
           return;
         }
-        
+
         closeRejectionModal();
         displayMessage('request-list-message', 'Memproses penolakan...', { isProcessing: true });
-        
+
+        // Nonaktifkan tombol sementara (opsional)
+        const actionButtons = document.querySelectorAll('.request-group-actions button');
+        actionButtons.forEach(btn => btn.disabled = true);
+
+
         google.script.run
           .withSuccessHandler(response => {
             if (response.status === 'success') {
@@ -1913,10 +2020,12 @@
               showChangeRequestPage(); // Muat ulang daftar
             } else {
               displayMessage('request-list-message', `Gagal: ${response.message}`);
+               actionButtons.forEach(btn => btn.disabled = false); // Aktifkan lagi
             }
           })
           .withFailureHandler(error => {
             displayMessage('request-list-message', `Error: ${error.message}`);
+             actionButtons.forEach(btn => btn.disabled = false); // Aktifkan lagi
           })
           .processChangeRequest(currentUser.email, requestIds, 'reject', reason);
       }
@@ -1926,7 +2035,7 @@
 
       function loadAndRenderSummary() {
           const summaryMonthInput = document.getElementById('summary-month-input');
-          
+
           if (!summaryMonthInput.value) {
               const today = new Date();
               const year = today.getFullYear();
@@ -1965,7 +2074,7 @@
       function handleSummaryMonthChange() {
         loadAndRenderSummary();
       }
-      
+
       function renderSummary(summary) {
           // --- AWAL PERUBAHAN ---
           // Hentikan animasi loading
@@ -2006,7 +2115,7 @@
           } else {
               alpaEl.style.color = 'var(--success-color)';
           }
-          
+
           // Logika untuk menambahkan atau menghapus efek glow
           if (summary.alpaUpToToday > 0) {
               alpaBox.classList.add('alpa-warning');
@@ -2025,7 +2134,7 @@
           persentaseEl.style.color = persentaseColor;
           ceklokEl.style.color = persentaseColor;
       }
-      
+
       function renderTeacherHolidaySwitches() {
           const container = document.getElementById('holiday-switches-container');
           const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
@@ -2049,7 +2158,7 @@
         button.disabled = true;
         button.querySelector('span').textContent = 'Memuat...';
         displayMessage('teacher-holidays-message', 'Memuat pengaturan...', { isProcessing: true });
-        
+
         google.script.run
             .withSuccessHandler(settings => {
                 if (settings && settings.length === 6) {
@@ -2079,7 +2188,7 @@
           button.disabled = true;
           button.querySelector('span').textContent = 'Menyimpan...';
           displayMessage('teacher-holidays-message', 'Menyimpan...', { isProcessing: true });
-          
+
           google.script.run
               .withSuccessHandler(response => {
                   displayMessage('teacher-holidays-message', response.message, { isSuccess: true });
@@ -2105,7 +2214,7 @@
           button.disabled = true;
           button.querySelector('span').textContent = 'Mengimpor...';
           displayMessage('emis-import-message', 'Sedang mengunggah dan memproses file...', { isProcessing: true });
-          
+
           const schoolForImport = (currentUser.role === 'staff' && selectedTeacherForStaff) ? selectedTeacherForStaff.school : selectedSchool;
           const targetEmail = (currentUser.role === 'staff' && selectedTeacherForStaff) ? selectedTeacherForStaff.email : currentUser.email;
 
@@ -2125,10 +2234,10 @@
                       if (response.status === 'success') {
                           const successMsg = `Berhasil mengimpor ${response.count} data untuk bulan ${response.monthName}. Anda akan dialihkan...`;
                           displayMessage('emis-import-message', successMsg, { isSuccess: true });
-                          
+
                           setTimeout(() => {
                               currentDate = new Date(response.year, response.month - 1, 1);
-                              fileInput.value = ""; 
+                              fileInput.value = "";
                               if (currentUser.role === 'staff') {
                                 showCeklokPageForStaff(true);
                               } else {
@@ -2168,7 +2277,7 @@
         button.disabled = true;
         button.querySelector('span').textContent = 'Membuat File...';
         displayMessage('emis-export-message', 'Sedang memproses & membuat file Excel, mohon tunggu...', { isProcessing: true });
-        
+
         google.script.run
           .withSuccessHandler(response => {
             if (response.status === "success") {
@@ -2192,7 +2301,7 @@
           })
           .exportToExcel(targetEmail, schoolForExport, monthInput, lockIdInput);
       }
-      
+
       // ===================================================================
       // LOGIKA UNTUK RINGKASAN SEMUA GURU (DARI AKUN GURU)
       // ===================================================================
@@ -2232,13 +2341,13 @@
             })
             .getSchoolAttendanceSummary(currentUser.email, selectedSchool, year, month);
       }
-      
+
       function renderAllTeacherSummaryTable(summaries) {
         const container = document.getElementById('all-teachers-summary-table-container');
         const legendContainer = document.getElementById('summary-legend');
 
         let tableHTML = '<div class="table-scroll-wrapper"><table id="all-teachers-summary-table"><thead><tr><th>Nama Guru</th><th>Persentase</th><th>Hari Kerja</th><th>Hadir</th><th>Alpa</th><th>Alasan</th><th>Ceklok</th></tr></thead><tbody>';
-        
+
         if (summaries && summaries.length > 0) {
           summaries.forEach(item => {
             // --- AWAL PERUBAHAN ---
@@ -2248,7 +2357,7 @@
             } else {
               rowClass = 'summary-row-incomplete';
             }
-            
+
             tableHTML += `
               <tr class="${rowClass}">
                 <td>${item.name}</td>
@@ -2262,7 +2371,7 @@
             `;
             // --- AKHIR PERUBAHAN ---
           });
-          
+
           // --- AWAL PERUBAHAN UNTUK LEGENDA ---
           legendContainer.innerHTML = `
             <div class="legend-item">
@@ -2280,7 +2389,7 @@
           tableHTML += '<tr><td colspan="7">Tidak ada data guru untuk ditampilkan.</td></tr>';
           legendContainer.innerHTML = ''; // Kosongkan legenda jika tidak ada data
         }
-        
+
         tableHTML += '</tbody></table></div>';
         container.innerHTML = tableHTML;
       }
@@ -2295,7 +2404,7 @@
           document.getElementById("ceklok-container").style.display = "none";
           document.getElementById("admin-container").style.display = "none";
           document.getElementById("school-selection-container").style.display = "none";
-          
+
           document.getElementById("teacher-holiday-settings-container").style.display = "none";
           document.getElementById("emis-import-container").style.display = "none";
           document.getElementById("emis-export-container").style.display = "none";
@@ -2306,7 +2415,7 @@
 
 
           document.getElementById("staff-dashboard-container").style.display = "block";
-          
+
           // MODIFIKASI DIMULAI DI SINI
           const welcomeH2 = document.getElementById('staff-welcome-message');
           let welcomeHTML = `Halo Staff, <strong>${currentUser.name}</strong>`;
@@ -2318,7 +2427,7 @@
           }
           welcomeH2.innerHTML = welcomeHTML;
           // MODIFIKASI SELESAI
-          
+
           loadSchoolTeachers();
           loadStaffSummary();
 
@@ -2409,7 +2518,7 @@
         tableHTML += '</tbody></table></div>';
         container.innerHTML = tableHTML;
       }
-      
+
       function getSelectedTeacher(selectId) {
           const select = document.getElementById(selectId);
           const email = select.value;
@@ -2420,14 +2529,14 @@
       }
 
       function showCeklokPageForStaff(isRedirect = false) {
-          if (!isRedirect) { 
+          if (!isRedirect) {
               selectedTeacherForStaff = getSelectedTeacher('staff-teacher-select-ceklok');
           }
           if (!selectedTeacherForStaff) {
             displayMessage('staff-ceklok-message', 'Silakan pilih seorang guru terlebih dahulu.');
             return;
           }
-          
+
           document.getElementById("staff-dashboard-container").style.display = "none";
           document.getElementById("emis-import-container").style.display = "none";
           document.getElementById("ceklok-container").style.display = "block";
@@ -2435,20 +2544,20 @@
           document.getElementById('ceklok-teacher-name').innerText = `Untuk: ${selectedTeacherForStaff.name}`;
           loadMonthData(currentDate);
       }
-      
+
       function showEmisImportPageForStaff() {
           selectedTeacherForStaff = getSelectedTeacher('staff-teacher-select-emis');
           if (!selectedTeacherForStaff) {
             displayMessage('staff-emis-message', 'Silakan pilih seorang guru terlebih dahulu untuk import.');
             return;
           }
-          
+
           document.getElementById("staff-dashboard-container").style.display = "none";
           document.getElementById("emis-import-container").style.display = "block";
           document.getElementById('emis-import-title').innerText = `Import Data Kehadiran EMIS - ${selectedTeacherForStaff.school}`;
           document.getElementById('emis-import-teacher-name').innerText = `Untuk: ${selectedTeacherForStaff.name}`;
       }
-      
+
       function showEmisExportPageForStaff() {
           selectedTeacherForStaff = getSelectedTeacher('staff-teacher-select-emis');
           if (!selectedTeacherForStaff) {
@@ -2513,7 +2622,7 @@
         loadAdminSettings();
         loadSchoolDropdown();
       }
-      
+
       function loadUsers() {
         document.getElementById('user-table-container').innerHTML = `
             <div class="loader-container">
@@ -2522,7 +2631,7 @@
             </div>`;
         google.script.run.withSuccessHandler(renderUserTable).getUsers(currentUser.email);
       }
-      
+
       function renderUserTable(users) {
         const container = document.getElementById('user-table-container');
         let tableHTML = '<table><thead><tr><th>Email</th><th>Nama</th><th>Sekolah</th><th>Peran</th><th>Aksi</th></tr></thead><tbody>';
@@ -2555,7 +2664,7 @@
       function closeUserForm() {
         document.getElementById('user-form-modal').style.display = 'none';
       }
-      
+
       function handleUserSave() {
         const userData = {
           originalEmail: document.getElementById('original-email').value,
@@ -2566,7 +2675,7 @@
           role: document.getElementById('user-role').value
         };
         const apiCall = userData.originalEmail ? 'updateUser' : 'addUser';
-        
+
         displayMessage('user-form-message', 'Menyimpan...', { isProcessing: true });
 
         google.script.run.withSuccessHandler(r => {
@@ -2601,10 +2710,16 @@
         // Menampilkan pesan loading untuk pengaturan
         displayMessage('announcements-message', 'Memuat...', { isProcessing: true });
         displayMessage('locked-months-message', 'Memuat...', { isProcessing: true });
+        // --- AWAL PERUBAHAN ---
+        displayMessage('request-day-limit-message', 'Memuat...', { isProcessing: true });
+        // --- AKHIR PERUBAHAN ---
         displayMessage('holidays-message', 'Memuat...', { isProcessing: true });
-        
+
         google.script.run.withSuccessHandler(settings => {
           document.getElementById('locked-months').value = settings.lockedMonths.join(',');
+          // --- AWAL PERUBAHAN ---
+          document.getElementById('request-day-limit').value = settings.requestDayLimit || '10'; // Isi input baru
+          // --- AKHIR PERUBAHAN ---
           document.getElementById('announcement-input').value = settings.announcements || "";
           const holidaysContainer = document.getElementById('holidays-container');
           holidaysContainer.innerHTML = '';
@@ -2614,6 +2729,9 @@
           // Hapus pesan loading
           displayMessage('announcements-message', '');
           displayMessage('locked-months-message', '');
+          // --- AWAL PERUBAHAN ---
+          displayMessage('request-day-limit-message', '');
+          // --- AKHIR PERUBAHAN ---
           displayMessage('holidays-message', '');
         }).getSettings(currentUser.email);
       }
@@ -2625,14 +2743,26 @@
         newRow.innerHTML = `<div style="display:flex; gap:10px; margin-bottom:10px;"><input type="date" value="${date}" style="flex-grow:1;"><input type="text" placeholder="Keterangan" value="${description}" style="flex-grow:2;"><button class="clear-btn" onclick="this.parentElement.remove()">X</button></div>`;
         container.appendChild(newRow);
       }
-      
+
       function saveLockedMonthsSettings() {
         const input = document.getElementById('locked-months').value;
         const months = input.split(',').map(s => s.trim()).filter(Boolean);
         displayMessage('locked-months-message', 'Menyimpan...', { isProcessing: true });
         google.script.run.withSuccessHandler(r => displayMessage('locked-months-message', r.message, { isSuccess: true })).saveLockedMonths(currentUser.email, months);
       }
-      
+
+      // --- FUNGSI BARU ---
+      function saveRequestDayLimitSettings() {
+        const dayLimit = document.getElementById('request-day-limit').value;
+        displayMessage('request-day-limit-message', 'Menyimpan...', { isProcessing: true });
+        google.script.run
+          .withSuccessHandler(r => {
+            displayMessage('request-day-limit-message', r.message, { isSuccess: r.status === 'success' });
+          })
+          .saveRequestDayLimit(currentUser.email, dayLimit);
+      }
+      // --- AKHIR FUNGSI BARU ---
+
       function saveHolidaysSettings() {
         const rows = document.querySelectorAll('#holidays-container .holiday-input-row');
         const holidays = [];
@@ -2650,7 +2780,7 @@
         displayMessage('announcements-message', 'Menyimpan...', { isProcessing: true });
         google.script.run.withSuccessHandler(r => displayMessage('announcements-message', r.message, { isSuccess: true })).saveAnnouncements(currentUser.email, text);
       }
-      
+
       function loadSchoolDropdown() {
         const select = document.getElementById('rekap-school');
         select.innerHTML = '<option value="">-- Memuat Daftar Sekolah --</option>';
@@ -2758,9 +2888,9 @@
               })
               .prepareMyRekapForPrint(currentUser.email, selectedSchool, monthInput);
       }
-      
+
       function handleGuruDownloadAllRekap() {
-          const monthInput = document.getElementById('guru-rekap-month').value; 
+          const monthInput = document.getElementById('guru-rekap-month').value;
           const button = document.getElementById('guru-download-all-rekap-button');
           if (!monthInput) {
               // Menargetkan ID pesan yang sudah digabung dan menggunakan pesan yang konsisten
@@ -2836,7 +2966,7 @@
             .withSuccessHandler(response => {
               if (response.success) {
                 renderLkhTable(response.workingDays, response.existingData);
-                saveButton.disabled = false; 
+                saveButton.disabled = false;
                 applyWeeklyButton.disabled = false; // 3. Aktifkan kembali setelah sukses
               } else {
                 container.innerHTML = `<p style="color: var(--danger-color);">Gagal memuat data: ${response.error}</p>`;
@@ -2874,18 +3004,18 @@
         tableHTML += '</tbody></table>';
         container.innerHTML = tableHTML;
       }
-      
+
       function handleSaveLKH() {
         const button = document.getElementById('save-lkh-button');
         button.disabled = true;
         button.querySelector('span').textContent = "Menyimpan...";
         displayMessage('lkh-message', 'Menyimpan data LKH...', { isProcessing: true });
-        
+
         const monthInputValue = document.getElementById('lkh-month-input').value;
         const [year, month] = monthInputValue.split('-').map(Number);
         const lkhData = {};
         const rows = document.querySelectorAll('#lkh-table-container tbody tr');
-        
+
         rows.forEach(row => {
           const date = row.dataset.date;
           if (date) {
@@ -2921,13 +3051,13 @@
           // 1. Dapatkan elemen tombol dan pesan
           const downloadButton = document.getElementById('download-lkh-pdf-button');
           const messageElement = document.getElementById('lkh-download-message');
-          
+
           // 2. Nonaktifkan tombol di awal
           downloadButton.disabled = true;
-          
+
           // 3. Tampilkan pesan loading
           displayMessage('lkh-download-message', 'Memuat data pratinjau LKH...', { isProcessing: true });
-          
+
           // --- LOGIKA BARU ---
           const lkhMonthInput = document.getElementById('lkh-view-month-input');
           // Jika input bulan di halaman LKH kosong, ambil nilai dari dasbor utama
@@ -2943,7 +3073,7 @@
               .withSuccessHandler(response => {
                   if (response.success) {
                       const data = response.data;
-                      
+
                       document.getElementById('lkh-view-name').innerText = data.user.name || '-';
                       document.getElementById('lkh-view-nip').innerText = data.settings.nip || '-';
                       document.getElementById('lkh-view-jabatan').innerText = data.settings.jabatan || 'Guru';
@@ -3005,7 +3135,7 @@
           button.disabled = true;
           button.querySelector('span').textContent = 'Membuat PDF...';
           displayMessage('lkh-download-message', 'Sedang memproses & membuat PDF, mohon tunggu...', { isProcessing: true });
-          
+
           // --- PERUBAHAN ---
           // Mengambil nilai bulan dari input di halaman LKH, bukan dari dasbor
           const monthInput = document.getElementById('lkh-view-month-input').value;
@@ -3056,7 +3186,7 @@
               rows.forEach(row => {
                 const date = row.dataset.date;
                 if (!date) return;
-                
+
                 const dayNameCell = row.querySelector('td');
                 if (!dayNameCell) return;
 
@@ -3064,7 +3194,7 @@
 
                 if (weeklyData[dayName]) {
                   const template = weeklyData[dayName];
-                  
+
                   const uraianTextarea = document.getElementById(`uraian-${date}`);
                   const hasilTextarea = document.getElementById(`hasil-${date}`);
                   const volTextarea = document.getElementById(`vol-${date}`);
@@ -3110,7 +3240,7 @@
 
       function handleClearLkhRow(event) {
         // Mencegah perilaku default dari tombol
-        event.preventDefault(); 
+        event.preventDefault();
         // Menemukan baris (tr) terdekat dari tombol yang diklik
         const row = event.target.closest('tr');
         // Menemukan semua elemen textarea di dalam baris tersebut
@@ -3130,7 +3260,7 @@
         }
         const [year, month] = monthInput.value.split('-').map(Number);
         const container = document.getElementById('all-teachers-summary-table-container');
-        
+
         // Tampilkan loading
         container.innerHTML = `
           <div class="loader-container">
@@ -3139,7 +3269,7 @@
             </div>
             <p>Menghapus cache dan memuat ulang data...</p>
           </div>`;
-        
+
         // 1. Panggil fungsi baru untuk hapus cache di server
         google.script.run
           .withSuccessHandler(response => {
