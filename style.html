@@ -1297,15 +1297,30 @@
       color: white;
       border: 1px solid var(--warning-color);
   }
+
+  /* --- AWAL PERUBAHAN: Warna Hari Libur --- */
+  
+  /* Ini untuk Minggu & Libur Guru (Tetap Abu-abu) */
   .calendar-day.day-libur .calendar-day-content {
       background-color: #E5E7EB; /* Abu-abu libur */
       color: var(--text-secondary-color);
       border: 1px solid #D1D5DB;
   }
+
+  /* Ini untuk Libur Nasional (Baru - Biru) */
+  .calendar-day.day-libur-nasional .calendar-day-content {
+      background-color: #BFDBFE; /* Biru muda */
+      color: #1E40AF; /* Biru tua (teks) */
+      border: 1px solid #93C5FD;
+      font-weight: 700; /* Tebalkan teks */
+  }
+  /* --- AKHIR PERUBAHAN --- */
+
   .calendar-day.day-future .calendar-day-content {
       background-color: #FFFFFF;
   }
 
+  /* --- AWAL PERUBAHAN: Legenda --- */
   /* Legenda */
   .calendar-legend-box {
       display: inline-block;
@@ -1313,6 +1328,39 @@
       height: 12px;
       border-radius: 3px;
       border: 1px solid #ccc;
+  }
+  /* (Legenda di index.html akan di-update oleh fungsi renderSummary) */
+  /* --- AKHIR PERUBAHAN --- */
+  
+  /* ===== AKHIR TAMBAHAN BARU ===== */
+
+  /* ===== TAMBAHAN BARU: GAYA TOOLTIP HARI LIBUR ===== */
+  #calendar-tooltip {
+    position: absolute; /* Harus absolute untuk "melayang" */
+    background-color: var(--text-primary-color); /* Latar belakang gelap */
+    color: white; /* Teks putih */
+    padding: 10px 15px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    z-index: 1001; /* Tampil di atas modal (modal z-index 1000) */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    max-width: 250px;
+    text-align: center;
+    animation: fadeIn 0.3s ease-out;
+    cursor: pointer; /* Menandakan bisa diklik untuk ditutup */
+  }
+
+  /* Animasi fade-in sederhana */
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
   /* ===== AKHIR TAMBAHAN BARU ===== */
 </style>
