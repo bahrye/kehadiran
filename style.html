@@ -1179,4 +1179,62 @@
     /* Ubah warna '...' agar tidak terlalu mencolok */
     color: var(--text-secondary-color);
   }
+
+  /* --- Style untuk Modal Konfirmasi --- */
+  .confirmation-modal .modal-content {
+    text-align: center; /* Pusatkan teks dan tombol */
+  }
+
+  .confirmation-modal h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: var(--text-primary-color);
+  }
+
+  .confirmation-modal p {
+    color: var(--text-secondary-color);
+    margin-bottom: 25px;
+    line-height: 1.6;
+  }
+
+  .confirmation-modal .modal-actions {
+    display: flex;
+    justify-content: center; /* Pusatkan tombol */
+    gap: 15px; /* Jarak antar tombol */
+  }
+
+  .confirmation-modal .modal-actions button {
+    width: auto; /* Lebar tombol menyesuaikan teks */
+    padding: 10px 25px; /* Padding tombol */
+    font-size: 15px;
+  }
+
+  /* Tombol Konfirmasi Utama (misal: Setuju, Hapus) */
+  .confirmation-modal .confirm-btn {
+    background-color: var(--primary-color); /* Warna biru standar */
+    color: white;
+  }
+  .confirmation-modal .confirm-btn:hover:not(:disabled) {
+    background-color: var(--primary-hover-color);
+  }
+
+  /* Tombol Konfirmasi Aksi Berbahaya (misal: Batalkan Ajuan) */
+  .confirmation-modal .confirm-btn.danger {
+    background-color: var(--danger-color); /* Warna merah */
+  }
+  .confirmation-modal .confirm-btn.danger:hover:not(:disabled) {
+    background-color: var(--danger-hover-color);
+  }
+
+  /* Tombol Batal/Tutup */
+  .confirmation-modal .cancel-btn {
+    background-color: #e5e7eb; /* Warna abu-abu muda */
+    color: var(--text-secondary-color);
+  }
+  .confirmation-modal .cancel-btn:hover:not(:disabled) {
+    background-color: #d1d5db; /* Sedikit lebih gelap saat hover */
+    color: var(--text-primary-color);
+    box-shadow: none; /* Hilangkan shadow bawaan */
+    transform: none; /* Hilangkan efek angkat */
+  }
 </style>
