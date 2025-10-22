@@ -83,9 +83,22 @@
                       <span class="summary-label">Ceklok</span>
                   </div>
               </div>
-               <button onclick="showAllTeacherSummary()" id="view-all-summary-button" class="action-button secondary" style="margin-top: 15px;">
+              <button onclick="showAllTeacherSummary()" id="view-all-summary-button" class="action-button secondary" style="margin-top: 15px;">
                 <i class="fa-solid fa-users"></i> <span>Lihat Ringkasan Kehadiran Sekolah</span>
               </button>
+
+              <h4 style="margin-top: 25px; margin-bottom: 15px; border-top: 1px solid var(--border-color); padding-top: 20px; text-align: left;">Kalender Visual</h4>
+              
+              <p id="calendar-loading-message" class="message" style="text-align: center; display: none;">Memuat kalender...</p>
+
+              <div id="calendar-view-container">
+                </div>
+              <div id="calendar-legend" style="font-size: 12px; display: flex; flex-wrap: wrap; gap: 10px 15px; justify-content: center; margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border-color);">
+                  <div style="display: flex; align-items: center; gap: 5px;"><span class="calendar-legend-box" style="background-color: var(--success-color);"></span> Hadir</div>
+                  <div style="display: flex; align-items: center; gap: 5px;"><span class="calendar-legend-box" style="background-color: var(--danger-color);"></span> Alpa</div>
+                  <div style="display: flex; align-items: center; gap: 5px;"><span class="calendar-legend-box" style="background-color: var(--warning-color);"></span> Tanpa Jadwal</div>
+                  <div style="display: flex; align-items: center; gap: 5px;"><span class="calendar-legend-box" style="background-color: #D1D5DB;"></span> Libur Nasional</div>
+              </div>
           </div>
           <hr style="margin: 25px 0;">
 
@@ -524,6 +537,14 @@
             }, 10000);
           }
         }
+      }
+
+      // --- TAMBAHAN BARU: Helper JS untuk format tanggal ---
+      function jsFormatDate(dateObj) {
+          const year = dateObj.getFullYear();
+          const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+          const day = String(dateObj.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
       }
 
       function showSptjmSettingsPage() {
@@ -2061,9 +2082,6 @@
           .processChangeRequest(currentUser.email, requestIds, 'reject', reason);
       }
 
-      // --- AKHIR FUNGSI BARU ---
-
-
       function loadAndRenderSummary() {
           const summaryMonthInput = document.getElementById('summary-month-input');
 
@@ -2080,24 +2098,61 @@
           // Tampilkan loading di ringkasan
           summaryValues.forEach(el => {
               el.innerHTML = '...';
-              el.classList.add('loading-dots'); // <-- TAMBAHKAN BARIS INI
+              el.classList.add('loading-dots');
           });
+          
+          // --- PERBAIKAN: Logika Loading Kalender ---
+          const calendarContainer = document.getElementById('calendar-view-container');
+          const calendarLoadingP = document.getElementById('calendar-loading-message');
+          
+          calendarLoadingP.innerText = 'Memuat kalender...';
+          calendarLoadingP.style.display = 'block'; // Tampilkan pesan loading
+          calendarLoadingP.style.color = 'var(--text-secondary-color)'; // Warna standar
+          calendarContainer.innerHTML = ''; // Kosongkan grid kalender lama
+          // --- AKHIR PERBAIKAN ---
 
           google.script.run
               .withSuccessHandler(response => {
                   if (response.success) {
                       renderSummary(response.summary);
+                      
+                      // --- PERBAIKAN: Sukses, sembunyikan pesan loading ---
+                      calendarLoadingP.style.display = 'none'; // Sembunyikan pesan
+                      
+                      renderCalendarView(
+                          targetYear, 
+                          targetMonth, 
+                          response.attendanceData, // <-- Data baru dari backend
+                          appSettings.holidays, 
+                          appSettings.teacherHolidays
+                      );
+                      // --- AKHIR PERBAIKAN ---
+                      
                   } else {
                       console.error("Gagal memuat ringkasan:", response.error);
                       summaryValues.forEach(el => el.innerText = '-');
+                      
+                      // --- PERBAIKAN: Gagal, tampilkan pesan error ---
+                      calendarLoadingP.innerText = 'Gagal memuat kalender.';
+                      calendarLoadingP.style.display = 'block';
+                      calendarLoadingP.style.color = 'var(--danger-color)'; // Warna error
+                      calendarContainer.innerHTML = ''; // Pastikan grid kosong
+                      // --- AKHIR PERBAIKAN ---
                   }
               })
               .withFailureHandler(error => {
                   console.error("Error server saat memuat ringkasan:", error.message);
                   summaryValues.forEach(el => {
-                      el.classList.remove('loading-dots'); // <-- TAMBAHKAN INI
+                      el.classList.remove('loading-dots');
                       el.innerText = '-';
                   });
+                  
+                  // --- PERBAIKAN: Gagal, tampilkan pesan error ---
+                  calendarLoadingP.innerText = 'Gagal memuat kalender: ' + error.message;
+                  calendarLoadingP.style.display = 'block';
+                  calendarLoadingP.style.color = 'var(--danger-color)'; // Warna error
+                  calendarContainer.innerHTML = ''; // Pastikan grid kosong
+                  // --- AKHIR PERBAIKAN ---
               })
               .getAttendanceSummary(currentUser.email, selectedSchool, targetYear, targetMonth);
       }
@@ -2165,6 +2220,93 @@
           persentaseEl.style.color = persentaseColor;
           ceklokEl.style.color = persentaseColor;
       }
+
+      // --- TAMBAHAN BARU: Fungsi untuk Render Kalender ---
+      function renderCalendarView(year, month, attendanceData, nationalHolidays, teacherHolidays) {
+          const container = document.getElementById('calendar-view-container');
+          attendanceData = attendanceData || {};
+          nationalHolidays = nationalHolidays || {};
+          teacherHolidays = teacherHolidays || [];
+          
+          const daysInMonth = new Date(year, month, 0).getDate();
+          const firstDayOfWeek = new Date(year, month - 1, 1).getDay(); // 0=Minggu, 1=Senin
+          
+          const today = new Date();
+          today.setHours(0, 0, 0, 0); // Set ke awal hari untuk perbandingan
+          const todayStr = jsFormatDate(today); // Format "YYYY-MM-DD"
+
+          let html = '<div class="calendar-grid">';
+          
+          // 1. Buat Header Nama Hari (Minggu, Senin, ...)
+          const dayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+          dayNames.forEach(name => {
+              html += `<div class="calendar-day-name">${name}</div>`;
+          });
+          
+          // 2. Buat Sel Kosong sebelum hari pertama
+          for (let i = 0; i < firstDayOfWeek; i++) {
+              html += '<div class="calendar-day day-not-in-month"></div>';
+          }
+          
+          // 3. Buat Sel untuk setiap hari di bulan
+          for (let day = 1; day <= daysInMonth; day++) {
+              const dateObj = new Date(year, month - 1, day); // Tanggal lokal
+              const dateStr = jsFormatDate(dateObj); // "YYYY-MM-DD"
+              const dayOfWeek = dateObj.getDay(); // 0=Minggu
+              
+              let dayClass = 'day-future'; // Default untuk hari biasa
+              
+              // Cek status hari
+              const isSunday = (dayOfWeek === 0);
+              const isNationalHoliday = !!nationalHolidays[dateStr];
+              // teacherHolidays indexnya 0=Senin, 1=Selasa...
+              const isTeacherHoliday = (dayOfWeek > 0 && teacherHolidays[dayOfWeek - 1]); 
+              
+              if (isSunday || isNationalHoliday || isTeacherHoliday) {
+                  dayClass = 'day-libur';
+              } else {
+                  // Jika bukan hari libur, cek data absensi
+                  const entry = attendanceData[dateStr];
+                  if (entry) {
+                      if (entry.reason) {
+                          dayClass = 'day-izin';
+                      } else if (entry.checkIn && entry.checkOut) {
+                          dayClass = 'day-hadir';
+                      } else {
+                          // Ada data tapi tidak lengkap (misal, hanya checkIn)
+                          dayClass = 'day-alpa'; 
+                      }
+                  } else {
+                      // Tidak ada data absensi
+                      // Hanya tandai alpa jika tanggalnya sudah lewat
+                      if (dateObj < today) {
+                           dayClass = 'day-alpa';
+                      } else {
+                           // Biarkan 'day-future' (untuk hari ini atau masa depan)
+                      }
+                  }
+              }
+              
+              // Tambahkan border khusus untuk hari ini
+              let contentStyle = '';
+              if (dateStr === todayStr) {
+                  // Tambahkan style inline untuk menandai hari ini
+                  contentStyle = 'border: 3px solid var(--primary-color); border-radius: 8px; box-shadow: 0 0 8px rgba(59, 130, 246, 0.5);';
+              }
+
+              html += `
+                  <div class="calendar-day ${dayClass}">
+                      <div class="calendar-day-content" style="${contentStyle}">
+                          ${day}
+                      </div>
+                  </div>
+              `;
+          }
+          
+          html += '</div>'; // Tutup .calendar-grid
+          container.innerHTML = html;
+      }
+      // --- AKHIR TAMBAHAN BARU ---
 
       function renderTeacherHolidaySwitches() {
           const container = document.getElementById('holiday-switches-container');
