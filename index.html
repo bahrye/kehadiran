@@ -367,6 +367,18 @@
                   <p id="holidays-message" class="message"></p>
 
                   <hr style="margin: 25px 0;">
+                  <h3>Pengaturan Jam Reguler</h3>
+                  <p style="font-size: 14px; margin-top: -10px; color: var(--text-secondary-color);">
+                    Atur jam masuk dan pulang reguler untuk 6 hari kerja. Ini akan menjadi acuan untuk perhitungan "Telat/Cepat" dan "Pulang Cepat" pada rekap detail harian.
+                  </p>
+                  <div id="jam-reguler-container">
+                    </div>
+                  <button onclick="handleSaveJamReguler()" id="save-jam-reguler-button" style="width: auto; margin-top: 20px;">
+                    <i class="fa-solid fa-floppy-disk"></i> <span>Simpan Jam Reguler</span>
+                  </button>
+                  <p id="jam-reguler-message" class="message"></p>
+
+                  <hr style="margin: 25px 0;">
                   <h3>Unduh Rekap Kehadiran</h3>
                   <div class="input-group">
                       <label for="rekap-school">Pilih Sekolah</label>
@@ -2959,6 +2971,10 @@
         // --- AKHIR PERUBAHAN ---
         displayMessage('holidays-message', 'Memuat...', { isProcessing: true });
 
+        // ===== TAMBAHKAN BARIS INI =====
+        loadJamRegulerSettings(); 
+        // ===============================
+
         google.script.run.withSuccessHandler(settings => {
           document.getElementById('locked-months').value = settings.lockedMonths.join(',');
           // --- AWAL PERUBAHAN ---
@@ -3024,6 +3040,71 @@
         displayMessage('announcements-message', 'Menyimpan...', { isProcessing: true });
         google.script.run.withSuccessHandler(r => displayMessage('announcements-message', r.message, { isSuccess: true })).saveAnnouncements(currentUser.email, text);
       }
+
+      function loadJamRegulerSettings() {
+        const container = document.getElementById('jam-reguler-container');
+        const button = document.getElementById('save-jam-reguler-button');
+        
+        container.innerHTML = `
+          <div class="loader-container" style="padding: 20px 0;">
+            <div class="loader"><div class="ball"></div><div class="ball"></div><div class="ball"></div></div>
+            <p>Memuat jam reguler...</p>
+          </div>`;
+        button.disabled = true;
+
+        google.script.run
+          .withSuccessHandler(settings => {
+            container.innerHTML = ''; // Hapus loader
+            if (settings && settings.length > 0) {
+              settings.forEach(setting => {
+                const row = document.createElement('div');
+                row.className = 'input-group';
+                row.innerHTML = `
+                  <label>${setting.hari}</label>
+                  <div style="display: flex; gap: 10px;">
+                    <input type="text" id="reg-masuk-${setting.hari}" placeholder="Jam Masuk (HH:MM)" value="${setting.masuk || ''}" oninput="handleTimeInput(event)">
+                    <input type="text" id="reg-pulang-${setting.hari}" placeholder="Jam Pulang (HH:MM)" value="${setting.pulang || ''}" oninput="handleTimeInput(event)">
+                  </div>
+                `;
+                container.appendChild(row);
+              });
+            } else {
+              container.innerHTML = `<p>Gagal memuat pengaturan jam reguler. Coba muat ulang.</p>`;
+            }
+            button.disabled = false;
+          })
+          .withFailureHandler(err => {
+            container.innerHTML = `<p style="color: var(--danger-color);">Error: ${err.message}</p>`;
+            button.disabled = false;
+          })
+          .getJamRegulerSettings(currentUser.email);
+      }
+      
+      function handleSaveJamReguler() {
+        const button = document.getElementById('save-jam-reguler-button');
+        const settings = [];
+        const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+        
+        days.forEach(hari => {
+          const masuk = document.getElementById(`reg-masuk-${hari}`).value;
+          const pulang = document.getElementById(`reg-pulang-${hari}`).value;
+          settings.push({ hari, masuk, pulang });
+        });
+        
+        button.disabled = true;
+        displayMessage('jam-reguler-message', 'Menyimpan...', { isProcessing: true });
+        
+        google.script.run
+          .withSuccessHandler(r => {
+            displayMessage('jam-reguler-message', r.message, { isSuccess: r.status === 'success' });
+            button.disabled = false;
+          })
+          .withFailureHandler(err => {
+            displayMessage('jam-reguler-message', `Error: ${err.message}`);
+            button.disabled = false;
+          })
+          .saveJamRegulerSettings(currentUser.email, settings);
+      }      
 
       function loadSchoolDropdown() {
         const select = document.getElementById('rekap-school');
