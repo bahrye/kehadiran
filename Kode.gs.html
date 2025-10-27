@@ -1310,7 +1310,6 @@ function generateRekapPDF_SingleUserDetail_(selectedMonthYear, selectedSchool, s
         }
       }
       
-      // --- PERUBAHAN: Tambahkan kutip (') di depan semua nilai waktu ---
       rekapData.push([
         dateStr_DDMMYYYY,
         jamRegulerMasuk ? "'" + jamRegulerMasuk : "",
@@ -1323,7 +1322,6 @@ function generateRekapPDF_SingleUserDetail_(selectedMonthYear, selectedSchool, s
         jmlHadir ? "'" + jmlHadir : "",
         pengecualian
       ]);
-      // --- AKHIR PERUBAHAN ---
     }
     
     // 5. Buat & Isi Temporary Sheet
@@ -1350,43 +1348,71 @@ function generateRekapPDF_SingleUserDetail_(selectedMonthYear, selectedSchool, s
       "Tanggal", "Jam Masuk", "Jam Pulang", "Scan Masuk", "Scan Keluar", 
       "Terlambat", "Plg Cpt", "Lembur", "Jml Hadir", "Pengecualian"
     ];
-    tempSheet.getRange(6, 1, 1, headers.length).setValues([headers])
-      .setFontWeight("bold").setBackground("#F0F0F0").setHorizontalAlignment("center");
+    
+    // --- AWAL PERUBAHAN (Problem 1: Teks Tertutup) ---
+    const headerRange = tempSheet.getRange(6, 1, 1, headers.length);
+    headerRange.setValues([headers])
+      .setFontWeight("bold")
+      .setBackground("#F0F0F0")
+      .setHorizontalAlignment("center")
+      .setVerticalAlignment("middle") // Pastikan Vertikal di Tengah
+      .setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP); // TAMBAH: Izinkan teks turun (wrap)
       
-    // --- PERUBAHAN: Tambah baris kosong & atur tinggi ---
+    // Tambah tinggi baris header (padding)
+    tempSheet.setRowHeight(6, 35); // NAIKKAN: dari 30 ke 35 untuk memberi ruang
+    // --- AKHIR PERUBAHAN (Problem 1) ---
+      
+    // --- Baris Pemisah (Row 7) ---
     tempSheet.insertRowAfter(6); // Sisipkan baris baru di row 7
     tempSheet.setRowHeight(7, 5); // Atur tinggi baris ke-7 menjadi 5 pixel
-    // --- AKHIR PERUBAHAN ---
+    
+    // --- AWAL PERUBAHAN (Problem 2: Garis Vertikal Pemisah) ---
+    // Dapatkan range untuk baris pemisah (baris 7)
+    const spacerRange = tempSheet.getRange(7, 1, 1, headers.length);
+    
+    // GABUNGKAN (MERGE) semua sel di baris pemisah menjadi satu
+    // Ini adalah cara paling ampuh untuk menghilangkan garis vertikal internal
+    spacerRange.merge(); 
+    
+    // Terapkan border HANYA di sisi luar sel yang sudah digabung
+    // setBorder(top, left, bottom, right, vertical, horizontal)
+    // top=false (karena nempel header), left=true, bottom=true, right=true, vertical=false, horizontal=false
+    spacerRange.setBorder(false, true, true, true, false, false, '#000000', SpreadsheetApp.BorderStyle.SOLID);
+    // --- AKHIR PERUBAHAN (Problem 2) ---
 
     // 6. Styling Lebar Kolom
-    tempSheet.setColumnWidths(1, 1, 90); // Tanggal (sedikit diperkecil)
-    tempSheet.setColumnWidths(2, 9, 70);  // Semua kolom jam (dipersempit & disamakan)
-    tempSheet.setColumnWidths(10, 1, 100); // Pengecualian (dipersempit)
+    tempSheet.setColumnWidths(1, 1, 90); // Tanggal
+    tempSheet.setColumnWidths(2, 9, 70);  // Semua kolom jam
+    tempSheet.setColumnWidths(10, 1, 100); // Pengecualian
     
     // Cek jika rekapData memiliki isi
-    const dataStartRow = 8; // <-- PERUBAHAN: Data mulai dari row 8
+    const dataStartRow = 8; // <-- Data mulai dari row 8
+    
+    // --- AWAL PERUBAHAN (Problem 2: Penerapan Border) ---
+    
+    // 1. Border untuk Header (Row 6) - LENGKAP
+    // (top, left, bottom, right, vertical, horizontal)
+    headerRange.setBorder(true, true, true, true, true, true, '#000000', SpreadsheetApp.BorderStyle.SOLID);
+    
     if (rekapData.length > 0) {
       // Isi data (mulai dari row 8)
-      tempSheet.getRange(dataStartRow, 1, rekapData.length, headers.length).setValues(rekapData)
+      const dataRange = tempSheet.getRange(dataStartRow, 1, rekapData.length, headers.length);
+      dataRange.setValues(rekapData)
         .setNumberFormat("@"); 
-
-      // Atur border untuk header (row 6), spasi (row 7), DAN data (mulai row 8)
-      const tableRange = tempSheet.getRange(6, 1, rekapData.length + 2, headers.length); // <-- PERUBAHAN: +2 rows
-      tableRange.setBorder(true, true, true, true, true, true, '#000000', SpreadsheetApp.BorderStyle.SOLID);
-      tableRange.setVerticalAlignment("middle");
       
-      // Ratakan data (mulai dari row 8)
-      tempSheet.getRange(dataStartRow, 1, rekapData.length, headers.length).setHorizontalAlignment("center");
-      // --- PERUBAHAN: Kolom 10 (Pengecualian) juga rata tengah ---
-      // tempSheet.getRange(dataStartRow, 10, rekapData.length, 1).setHorizontalAlignment("left"); // Baris lama
-      // --- AKHIR PERUBAHAN ---
+      // Ratakan data
+      dataRange.setVerticalAlignment("middle").setHorizontalAlignment("center");
+
+      // 2. Border untuk Data (Row 8+) - LENGKAP TAPI TANPA TOP
+      // setBorder(top, left, bottom, right, vertical, horizontal)
+      // top=false (karena nempel spacer), left=true, bottom=true, right=true, vertical=true, horizontal=true
+      dataRange.setBorder(false, true, true, true, true, true, '#000000', SpreadsheetApp.BorderStyle.SOLID);
       
     } else {
-      // Jika tidak ada data, HANYA atur border untuk header (row 6) & spasi (row 7)
-      const headerRange = tempSheet.getRange(6, 1, 2, headers.length); // <-- PERUBAHAN: 2 rows
-      headerRange.setBorder(true, true, true, true, true, true, '#000000', SpreadsheetApp.BorderStyle.SOLID);
-      headerRange.setVerticalAlignment("middle");
+      // Jika tidak ada data, kita tidak perlu melakukan apa-apa lagi
+      // Border header dan spacer sudah diatur di atas.
     }
+    // --- AKHIR PERUBAHAN (Problem 2) ---
     
     SpreadsheetApp.flush();
     
@@ -1398,7 +1424,7 @@ function generateRekapPDF_SingleUserDetail_(selectedMonthYear, selectedSchool, s
     
     const margin = 0.2; // Sekitar 0.5cm
     const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=pdf&gid=${sheetId}` +
-      `&size=A4&portrait=true&fitw=true&sheetnames=false&printtitle=false&pagenumbers=false` + // <-- Tetap fitw=true
+      `&size=A4&portrait=true&fitw=true&sheetnames=false&printtitle=false&pagenumbers=false` + 
       `&gridlines=false&horizontal_alignment=CENTER&vertical_alignment=TOP` +
       `&top_margin=${margin}&bottom_margin=${margin}&left_margin=${margin}&right_margin=${margin}`;
       
