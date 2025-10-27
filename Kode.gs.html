@@ -1211,6 +1211,7 @@ function formatToHHMM_(timeStr) {
 /**
  * FUNGSI UTAMA PDF: Membuat PDF rekap detail harian per-guru.
  * (VERSI PERBAIKAN FINAL - PENYESUAIAN FORMAT JAM, LEBAR KOLOM, ALIGNMENT, SPACING)
+ * (PERUBAHAN 27-10-2025 v5: Reset warna spacer & Vertical Align Header)
  */
 function generateRekapPDF_SingleUserDetail_(selectedMonthYear, selectedSchool, singleUserEmail) {
   let tempSheet;
@@ -1327,21 +1328,28 @@ function generateRekapPDF_SingleUserDetail_(selectedMonthYear, selectedSchool, s
     // 5. Buat & Isi Temporary Sheet
     tempSheet = ss.insertSheet(`RekapDetail_${new Date().getTime()}`);
     
+    // --- AWAL PERUBAHAN (Vertical Align Headers) ---
     // Header Info
     tempSheet.getRange("A1:J1").merge().setValue("Laporan Detail Harian")
-      .setFontWeight("bold").setFontSize(14).setHorizontalAlignment("center");
+      .setFontWeight("bold").setFontSize(14).setHorizontalAlignment("center")
+      .setVerticalAlignment("middle"); // <-- TAMBAHAN
       
     tempSheet.getRange("A3").setValue("No. ID");
     tempSheet.getRange("B3").setValue(userId).setHorizontalAlignment("left");
     tempSheet.getRange("A4").setValue("Nama");
     tempSheet.getRange("B4").setValue(userName).setHorizontalAlignment("left");
+    // Set vertical align untuk info kiri
+    tempSheet.getRange("A3:B4").setVerticalAlignment("middle");
     
     const tglAwal = Utilities.formatDate(new Date(yyyy, mm - 1, 1), TIMEZONE, "dd-MM-yyyy");
     const tglAkhir = Utilities.formatDate(new Date(yyyy, mm, 0), TIMEZONE, "dd-MM-yyyy");
     
-    tempSheet.getRange("H3:J3").merge().setValue("Periode Waktu").setHorizontalAlignment("center");
+    tempSheet.getRange("H3:J3").merge().setValue("Periode Waktu").setHorizontalAlignment("center")
+      .setVerticalAlignment("middle"); // <-- TAMBAHAN
     tempSheet.getRange("H4").setValue(`Dari ${tglAwal} s/d ${tglAkhir}`);
-    tempSheet.getRange("H4:J4").merge().setHorizontalAlignment("center");
+    tempSheet.getRange("H4:J4").merge().setHorizontalAlignment("center")
+      .setVerticalAlignment("middle"); // <-- TAMBAHAN
+    // --- AKHIR PERUBAHAN ---
       
     // Table Headers (Row 6)
     const headers = [
@@ -1349,49 +1357,38 @@ function generateRekapPDF_SingleUserDetail_(selectedMonthYear, selectedSchool, s
       "Terlambat", "Plg Cpt", "Lembur", "Jml Hadir", "Pengecualian"
     ];
     
-    // --- AWAL PERUBAHAN (Problem 1: Teks Tertutup) ---
     const headerRange = tempSheet.getRange(6, 1, 1, headers.length);
     headerRange.setValues([headers])
       .setFontWeight("bold")
       .setBackground("#F0F0F0")
       .setHorizontalAlignment("center")
-      .setVerticalAlignment("middle") // Pastikan Vertikal di Tengah
-      .setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP); // TAMBAH: Izinkan teks turun (wrap)
+      .setVerticalAlignment("middle") // (Sudah ada, dikonfirmasi)
+      .setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP); 
       
-    // Tambah tinggi baris header (padding)
-    tempSheet.setRowHeight(6, 35); // NAIKKAN: dari 30 ke 35 untuk memberi ruang
-    // --- AKHIR PERUBAHAN (Problem 1) ---
+    tempSheet.setRowHeight(6, 35); 
       
-    // --- Baris Pemisah (Row 7) ---
+    // --- AWAL PERUBAHAN (Baris Pemisah) ---
     tempSheet.insertRowAfter(6); // Sisipkan baris baru di row 7
     tempSheet.setRowHeight(7, 5); // Atur tinggi baris ke-7 menjadi 5 pixel
     
-    // --- AWAL PERUBAHAN (Problem 2: Garis Vertikal Pemisah) ---
     // Dapatkan range untuk baris pemisah (baris 7)
     const spacerRange = tempSheet.getRange(7, 1, 1, headers.length);
     
-    // GABUNGKAN (MERGE) semua sel di baris pemisah menjadi satu
-    // Ini adalah cara paling ampuh untuk menghilangkan garis vertikal internal
-    spacerRange.merge(); 
+    spacerRange.merge()
+      .setBackground(null); // <-- TAMBAHAN: Reset warna background
     
-    // Terapkan border HANYA di sisi luar sel yang sudah digabung
-    // setBorder(top, left, bottom, right, vertical, horizontal)
-    // top=false (karena nempel header), left=true, bottom=true, right=true, vertical=false, horizontal=false
-    spacerRange.setBorder(false, true, true, true, false, false, '#000000', SpreadsheetApp.BorderStyle.SOLID);
-    // --- AKHIR PERUBAHAN (Problem 2) ---
+    // HAPUS SEMUA BORDER (set ke null) agar transparan/putih
+    spacerRange.setBorder(null, null, null, null, null, null);
+    // --- AKHIR PERUBAHAN ---
 
     // 6. Styling Lebar Kolom
     tempSheet.setColumnWidths(1, 1, 90); // Tanggal
     tempSheet.setColumnWidths(2, 9, 70);  // Semua kolom jam
     tempSheet.setColumnWidths(10, 1, 100); // Pengecualian
     
-    // Cek jika rekapData memiliki isi
     const dataStartRow = 8; // <-- Data mulai dari row 8
     
-    // --- AWAL PERUBAHAN (Problem 2: Penerapan Border) ---
-    
     // 1. Border untuk Header (Row 6) - LENGKAP
-    // (top, left, bottom, right, vertical, horizontal)
     headerRange.setBorder(true, true, true, true, true, true, '#000000', SpreadsheetApp.BorderStyle.SOLID);
     
     if (rekapData.length > 0) {
@@ -1403,16 +1400,10 @@ function generateRekapPDF_SingleUserDetail_(selectedMonthYear, selectedSchool, s
       // Ratakan data
       dataRange.setVerticalAlignment("middle").setHorizontalAlignment("center");
 
-      // 2. Border untuk Data (Row 8+) - LENGKAP TAPI TANPA TOP
-      // setBorder(top, left, bottom, right, vertical, horizontal)
-      // top=false (karena nempel spacer), left=true, bottom=true, right=true, vertical=true, horizontal=true
-      dataRange.setBorder(false, true, true, true, true, true, '#000000', SpreadsheetApp.BorderStyle.SOLID);
+      // 2. Border untuk Data (Row 8+) - LENGKAP DENGAN TOP
+      dataRange.setBorder(true, true, true, true, true, true, '#000000', SpreadsheetApp.BorderStyle.SOLID);
       
-    } else {
-      // Jika tidak ada data, kita tidak perlu melakukan apa-apa lagi
-      // Border header dan spacer sudah diatur di atas.
     }
-    // --- AKHIR PERUBAHAN (Problem 2) ---
     
     SpreadsheetApp.flush();
     
