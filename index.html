@@ -6,7 +6,7 @@
     <?!= include('style'); ?>
   </head>
   <body>
-    <div id="toast-container"></div> <div class="container">
+    <div id="toast-container"></div>
     <div class="container">
 
       <div id="login-container">
@@ -532,6 +532,104 @@
       // Variabel global untuk melacak toast "processing"
       let processingToastId = null;
 
+      // --- TAMBAHAN BARU: Fungsi untuk membuat toast swipeable ---
+      function makeToastDismissable(toast) {
+        let isDragging = false, startX = 0;
+        let toastWidth = 0;
+        let animationFrameId = null;
+
+        // Helper untuk menghapus toast
+        const removeToast = (direction = 'right') => {
+          if (toast.autoDismissTimer) clearTimeout(toast.autoDismissTimer); // Batalkan timer otomatis
+          toast.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
+          toast.style.opacity = '0';
+          toast.style.transform = `translateX(${direction === 'left' ? '-100%' : '100%'})`;
+          
+          // Hapus elemen dari DOM setelah animasi selesai
+          setTimeout(() => toast.remove(), 300);
+        };
+
+        const onDragStart = (e) => {
+          isDragging = true;
+          // Dapatkan posisi awal sentuhan atau klik mouse
+          startX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
+          toastWidth = toast.offsetWidth;
+          toast.style.transition = 'none'; // Matikan transisi agar bisa di-drag
+          toast.classList.add('is-grabbing');
+          
+          // Batalkan timer otomatis saat mulai menggeser
+          if (toast.autoDismissTimer) clearTimeout(toast.autoDismissTimer);
+          if (animationFrameId) cancelAnimationFrame(animationFrameId);
+        };
+
+        const onDragMove = (e) => {
+          if (!isDragging) return;
+          // Mencegah scroll di ponsel saat menggeser toast
+          e.preventDefault();
+          
+          const currentX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
+          const deltaX = currentX - startX;
+          
+          // Gunakan requestAnimationFrame agar animasi geser lebih mulus
+          animationFrameId = requestAnimationFrame(() => {
+            toast.style.transform = `translateX(${deltaX}px)`;
+          });
+        };
+
+        const onDragEnd = (e) => {
+          if (!isDragging) return;
+          isDragging = false;
+          toast.classList.remove('is-grabbing');
+          if (animationFrameId) cancelAnimationFrame(animationFrameId);
+          
+          // Dapatkan posisi akhir geseran
+          const currentX = e.type === 'touchend' ? e.changedTouches[0].clientX : e.clientX;
+          const deltaX = (currentX || startX) - startX;
+          const swipeThreshold = toastWidth * 0.4; // Minimal geser 40%
+
+          // Jika digeser cukup jauh, hapus toast
+          if (Math.abs(deltaX) > swipeThreshold) {
+            removeToast(deltaX > 0 ? 'right' : 'left');
+          } 
+          // Jika tidak, kembalikan ke posisi semula
+          else {
+            toast.style.transition = 'transform 0.3s ease';
+            toast.style.transform = 'translateX(0px)';
+            
+            // Set ulang timer otomatis (HANYA jika bukan toast "processing")
+            if (!toast.classList.contains('processing')) {
+              toast.autoDismissTimer = setTimeout(() => {
+                toast.classList.add('toast-fade-out');
+                setTimeout(() => toast.remove(), 400);
+              }, 4000); // Set ulang timer ke 4 detik
+            }
+          }
+          
+          // Hapus listener global agar tidak menumpuk
+          document.removeEventListener('mousemove', onDragMove);
+          document.removeEventListener('mouseup', onDragEnd);
+          document.removeEventListener('touchmove', onDragMove);
+          document.removeEventListener('touchend', onDragEnd);
+        };
+
+        // Pasang listener awal (mousedown untuk desktop)
+        toast.addEventListener('mousedown', (e) => {
+          onDragStart(e);
+          // Pasang listener global HANYA saat mouse ditekan
+          document.addEventListener('mousemove', onDragMove);
+          document.addEventListener('mouseup', onDragEnd);
+        });
+        
+        // Pasang listener awal (touchstart untuk mobile)
+        toast.addEventListener('touchstart', (e) => {
+          onDragStart(e);
+          // Pasang listener global HANYA saat disentuh
+          document.addEventListener('touchmove', onDragMove, { passive: false });
+          document.addEventListener('touchend', onDragEnd);
+        }, { passive: true });
+      }
+      // --- AKHIR FUNGSI BARU ---
+
       // --- FUNGSI displayMessage SEKARANG DIPERBARUI ---
       function displayMessage(elementId, text, options = {}) {
         // elementId sekarang diabaikan, kita gunakan global toast container
@@ -574,6 +672,10 @@
           toast.className = `toast-message ${statusClass}`;
           toast.innerHTML = `${iconHtml} <span>${text}</span>`;
           toastContainer.appendChild(toast);
+          
+          // --- TAMBAHAN BARU ---
+          makeToastDismissable(toast); // Buat toast "processing" bisa di-swipe
+          // --- AKHIR TAMBAHAN ---
         } 
         // 3. Jika ini pesan "success" atau "error"
         else {
@@ -584,17 +686,22 @@
             if (processingToast) {
               processingToast.className = `toast-message ${statusClass}`;
               processingToast.innerHTML = `${iconHtml} <span>${text}</span>`;
-              // Hapus ID-nya agar tidak dianggap "processing" lagi
               processingToast.id = '';
               
               // Set timeout untuk menghilangkannya
-              setTimeout(() => {
+              // --- PERUBAHAN: Simpan timer di elemen ---
+              const newTimer = setTimeout(() => {
                 processingToast.classList.add('toast-fade-out');
-                // Hapus elemen dari DOM setelah animasi selesai
                 setTimeout(() => processingToast.remove(), 400); // 0.4s (sesuai transisi CSS)
               }, 4000); // 4 detik
+              processingToast.autoDismissTimer = newTimer; // Simpan timer di elemen
+              // --- AKHIR PERUBAHAN ---
               
               processingToastId = null; // Kosongkan pelacak
+              
+              // --- TAMBAHAN BARU ---
+              makeToastDismissable(processingToast); // Buat toast yang baru diganti ini bisa di-swipe
+              // --- AKHIR TAMBAHAN ---
             }
           } else {
             // Jika tidak ada toast processing, buat toast baru
@@ -604,10 +711,17 @@
             toastContainer.appendChild(toast);
             
             // Set timeout untuk menghilangkannya
-            setTimeout(() => {
+            // --- PERUBAHAN: Simpan timer di elemen ---
+            const newTimer = setTimeout(() => {
               toast.classList.add('toast-fade-out');
               setTimeout(() => toast.remove(), 400);
             }, 4000); // 4 detik
+            toast.autoDismissTimer = newTimer; // Simpan timer di elemen
+            // --- AKHIR PERUBAHAN ---
+
+            // --- TAMBAHAN BARU ---
+            makeToastDismissable(toast); // Buat toast baru ini bisa di-swipe
+            // --- AKHIR TAMBAHAN ---
           }
         }
       }
@@ -717,12 +831,20 @@
           
           // Jika input bulan di halaman SPTJM belum diisi...
           if (!sptjmMonthInput.value) {
-              // Selalu default ke BULAN LALU
+              // --- PERUBAHAN: Logika default bulan berdasarkan tanggal ---
               const today = new Date();
-              today.setMonth(today.getMonth() - 1); // Mundur 1 bulan
-              const year = today.getFullYear();
-              const month = String(today.getMonth() + 1).padStart(2, '0'); // +1 karena 0-indexed
+              const targetDate = new Date(); // Salin tanggal hari ini
+              
+              if (today.getDate() < 6) {
+                  // Jika tanggal 1-5, set ke bulan lalu
+                  targetDate.setMonth(targetDate.getMonth() - 1);
+              }
+              // Jika tanggal 6+, targetDate adalah bulan ini (default)
+              
+              const year = targetDate.getFullYear();
+              const month = String(targetDate.getMonth() + 1).padStart(2, '0');
               sptjmMonthInput.value = `${year}-${month}`;
+              // --- AKHIR PERUBAHAN ---
           }
           
           // Ambil nilai yang sudah pasti terisi
@@ -775,12 +897,19 @@
                   if (settingsComplete) {
                       // 5. Jika lengkap: Aktifkan tombol dan hapus pesan
                       downloadButton.disabled = false;
-                      messageElement.innerHTML = ''; // Hapus pesan loading/error
+                      messageElement.innerHTML = ''; // Hapus pesan <p> lama
+                      // Kirim toast sukses untuk membersihkan toast "Memuat..."
+                      displayMessage('sptjm-download-message', 'Pratinjau siap. Klik untuk mengunduh.', { isSuccess: true });
                   } else {
                       // 6. Jika tidak lengkap: Tombol tetap nonaktif dan tampilkan pesan permanen
                       downloadButton.disabled = true;
                       messageElement.innerHTML = 'Tombol Unduh PDF akan aktif setelah Pengaturan Cetak LKH/SPTJM dilengkapi. <a href="#" onclick="event.preventDefault(); showSptjmSettingsPage();">Lengkapi Sekarang</a>';
                       messageElement.style.color = 'var(--text-secondary-color)'; // Atur warna pesan
+                      
+                      // --- TAMBAHKAN BARIS INI ---
+                      // Kirim toast sukses untuk membersihkan toast "Memuat..."
+                      displayMessage('sptjm-download-message', 'Pratinjau dimuat, pengaturan belum lengkap.', { isSuccess: true });
+                      // --- AKHIR TAMBAHAN ---
                   }
                   // --- AKHIR PERUBAHAN LOGIKA ---
               })
@@ -3430,11 +3559,18 @@
         document.getElementById("lkh-container").style.display = "block";
         const lkhMonthInput = document.getElementById('lkh-month-input');
         if (!lkhMonthInput.value) {
-          // --- PERUBAHAN: Default ke bulan lalu ---
+          // --- PERUBAHAN: Logika default bulan berdasarkan tanggal ---
           const today = new Date();
-          today.setMonth(today.getMonth() - 1); // Mundur 1 bulan
-          const year = today.getFullYear();
-          const month = String(today.getMonth() + 1).padStart(2, '0'); // +1 karena 0-indexed
+          const targetDate = new Date(); // Salin tanggal hari ini
+          
+          if (today.getDate() < 6) {
+              // Jika tanggal 1-5, set ke bulan lalu
+              targetDate.setMonth(targetDate.getMonth() - 1);
+          }
+          // Jika tanggal 6+, targetDate adalah bulan ini (default)
+          
+          const year = targetDate.getFullYear();
+          const month = String(targetDate.getMonth() + 1).padStart(2, '0');
           lkhMonthInput.value = `${year}-${month}`;
           // --- AKHIR PERUBAHAN ---
         }
@@ -3542,6 +3678,12 @@
             if(response.status === 'success') {
               displayMessage('lkh-message', response.message, { isSuccess: true });
 
+              // --- PERBAIKAN DIMULAI DI SINI ---
+              // Kembalikan tombol ke keadaan normal SETELAH sukses
+              button.disabled = false;
+              button.querySelector('span').textContent = "Simpan LKH";
+              // --- AKHIR PERBAIKAN ---
+
               // --- AWAL PERBAIKAN ---
               // Panggil fungsi yang memuat ulang data dari server.
               // Ini akan menyinkronkan klien dengan data terbaru setelah menyimpan.
@@ -3581,12 +3723,20 @@
           
           // Jika input bulan di halaman LKH belum diisi...
           if (!lkhMonthInput.value) {
-              // Selalu default ke BULAN LALU
+              // --- PERUBAHAN: Logika default bulan berdasarkan tanggal ---
               const today = new Date();
-              today.setMonth(today.getMonth() - 1); // Mundur 1 bulan
-              const year = today.getFullYear();
-              const month = String(today.getMonth() + 1).padStart(2, '0'); // +1 karena 0-indexed
+              const targetDate = new Date(); // Salin tanggal hari ini
+              
+              if (today.getDate() < 6) {
+                  // Jika tanggal 1-5, set ke bulan lalu
+                  targetDate.setMonth(targetDate.getMonth() - 1);
+              }
+              // Jika tanggal 6+, targetDate adalah bulan ini (default)
+              
+              const year = targetDate.getFullYear();
+              const month = String(targetDate.getMonth() + 1).padStart(2, '0');
               lkhMonthInput.value = `${year}-${month}`;
+              // --- AKHIR PERUBAHAN ---
           }
           
           // Ambil nilai yang sudah pasti terisi
@@ -3638,12 +3788,18 @@
                       if (settingsComplete) {
                           // 5. Jika lengkap: Aktifkan tombol dan tampilkan pesan sukses
                           downloadButton.disabled = false;
+                          // Ini SUDAH BENAR, akan menggantikan toast "Memuat..."
                           displayMessage('lkh-download-message', 'Pratinjau siap. Klik untuk mengunduh.', { isSuccess: true });
                       } else {
                           // 6. Jika tidak lengkap: Tombol tetap nonaktif dan tampilkan pesan permanen
                           downloadButton.disabled = true;
                           messageElement.innerHTML = 'Tombol Unduh PDF akan aktif setelah Pengaturan Cetak LKH/SPTJM dilengkapi. <a href="#" onclick="event.preventDefault(); showSptjmSettingsPage();">Lengkapi Sekarang</a>';
                           messageElement.style.color = 'var(--text-secondary-color)'; // Atur warna pesan
+                          
+                          // --- TAMBAHKAN BARIS INI ---
+                          // Kirim toast sukses untuk membersihkan toast "Memuat..."
+                          displayMessage('lkh-download-message', 'Pratinjau dimuat, pengaturan belum lengkap.', { isSuccess: true });
+                          // --- AKHIR TAMBAHAN ---
                       }
                       // --- AKHIR PERUBAHAN LOGIKA ---
 
