@@ -1210,13 +1210,12 @@ function formatToHHMM_(timeStr) {
 
 /**
  * FUNGSI UTAMA PDF: Membuat PDF rekap detail harian per-guru.
- * (VERSI PERBAIKAN FINAL - PENYESUAIAN FORMAT JAM, LEBAR KOLOM, ALIGNMENT, SPACING)
- * (PERUBAHAN 27-10-2025 v5: Reset warna spacer & Vertical Align Header)
+ * (VERSI DIPERBARUI DENGAN LOGIKA LEMBUR BARU)
  */
 function generateRekapPDF_SingleUserDetail_(selectedMonthYear, selectedSchool, singleUserEmail) {
   let tempSheet;
   try {
-    // 1. Validasi Input
+    // 1. Validasi Input (Tidak Berubah)
     if (!selectedMonthYear || !/^\d{4}-\d{2}$/.test(selectedMonthYear)) throw new Error("Format Bulan/Tahun tidak valid.");
     if (!singleUserEmail) throw new Error("Email guru tidak ditemukan.");
     if (!selectedSchool) throw new Error("Informasi sekolah tidak ditemukan.");
@@ -1226,7 +1225,7 @@ function generateRekapPDF_SingleUserDetail_(selectedMonthYear, selectedSchool, s
     const mm = parseInt(mmStr, 10);
     const TIMEZONE = "Asia/Makassar";
     
-    // 2. Dapatkan Data Guru (Nama & No. ID)
+    // 2. Dapatkan Data Guru (Tidak Berubah)
     const allUsers = usersSheet.getDataRange().getValues();
     let userName = singleUserEmail;
     let userId = "-";
@@ -1238,8 +1237,8 @@ function generateRekapPDF_SingleUserDetail_(selectedMonthYear, selectedSchool, s
       }
     }
     
-    // 3. Dapatkan Data Pendukung
-    const jamRegulerMap = getJamRegulerMap_();
+    // 3. Dapatkan Data Pendukung (Tidak Berubah)
+    const jamRegulerMap = getJamRegulerMap_(); // Ini sekarang berisi data lembur
     const attendanceData = getMonthlyAttendance(singleUserEmail, selectedSchool, yyyy, mm);
     const holidaysData = holidaysSheet.getDataRange().getValues().slice(1);
     const nationalHolidays = {};
@@ -1260,7 +1259,14 @@ function generateRekapPDF_SingleUserDetail_(selectedMonthYear, selectedSchool, s
       const dateStr_DDMMYYYY = Utilities.formatDate(dateObj, TIMEZONE, "dd/MM/yyyy");
       const dayName = namaHari[dateObj.getUTCDay()];
       
-      const jamReguler = jamRegulerMap.get(dayName) || { masuk: "", pulang: "" };
+      // Ambil data jam reguler (termasuk default jika tidak diset)
+      const jamReguler = jamRegulerMap.get(dayName) || { 
+        masuk: "", 
+        pulang: "", 
+        waktuLembur: 30,  // Default grace 30 menit
+        maksimalLembur: 90 // Default max 90 menit
+      };
+      
       const dailyData = attendanceData[dateStr_YYYYMMDD] || {};
       
       const scanMasuk = formatToHHMM_(dailyData.checkIn);
@@ -1268,6 +1274,10 @@ function generateRekapPDF_SingleUserDetail_(selectedMonthYear, selectedSchool, s
       const jamRegulerMasuk = formatToHHMM_(jamReguler.masuk);
       const jamRegulerPulang = formatToHHMM_(jamReguler.pulang);
       
+      // Ambil pengaturan lembur (pastikan itu angka)
+      const waktuLemburGraceMins = parseInt(jamReguler.waktuLembur, 10) || 0;
+      const maksimalLemburCapMins = parseInt(jamReguler.maksimalLembur, 10) || 0; // 0 berarti tanpa batas
+
       const keterangan = dailyData.reason || "";
       
       let terlambat = "";
@@ -1294,6 +1304,7 @@ function generateRekapPDF_SingleUserDetail_(selectedMonthYear, selectedSchool, s
         const scanMasukMins = parseTimeToMinutes_(scanMasuk);
         const scanKeluarMins = parseTimeToMinutes_(scanKeluar);
         
+        // Logika Terlambat (Tidak Berubah)
         if (regMasukMins !== null && scanMasukMins !== null) {
           const diffMasuk = scanMasukMins - regMasukMins;
           if (diffMasuk > 0) {
@@ -1301,14 +1312,38 @@ function generateRekapPDF_SingleUserDetail_(selectedMonthYear, selectedSchool, s
           }
         }
         
+        // --- AWAL LOGIKA LEMBUR & PULANG CEPAT YANG BARU ---
         if (regPulangMins !== null && scanKeluarMins !== null) {
-          const diffPulang = scanKeluarMins - regPulangMins;
+          const diffPulang = scanKeluarMins - regPulangMins; // Selisih dari jam pulang reguler
+
+          // 1. Hitung Pulang Cepat
           if (diffPulang < 0) {
             plgCpt = formatMinutesToHHMM_(Math.abs(diffPulang));
-          } else if (diffPulang > 0) {
-            lembur = formatMinutesToHHMM_(diffPulang);
+          }
+          
+          // 2. Hitung Lembur (sesuai aturan baru)
+          // Tentukan titik awal lembur (Jam Pulang + Grace Period)
+          const overtimeStartMins = regPulangMins + waktuLemburGraceMins;
+
+          // Cek apakah guru pulang SETELAH jam mulai lembur
+          if (scanKeluarMins > overtimeStartMins) {
+            
+            // Hitung durasi lembur mentah (dari TITIK AWAL LEMBUR)
+            let rawOvertimeMins = scanKeluarMins - overtimeStartMins;
+            
+            // Terapkan batas MAKSIMAL LEMBUR
+            // (Hanya jika MaksimalLembur diset > 0)
+            if (maksimalLemburCapMins > 0) {
+              if (rawOvertimeMins > maksimalLemburCapMins) {
+                rawOvertimeMins = maksimalLemburCapMins; // Pangkas lemburnya
+              }
+            }
+            
+            // Format hasil akhir
+            lembur = formatMinutesToHHMM_(rawOvertimeMins);
           }
         }
+        // --- AKHIR LOGIKA LEMBUR & PULANG CEPAT YANG BARU ---
       }
       
       rekapData.push([
@@ -1319,39 +1354,34 @@ function generateRekapPDF_SingleUserDetail_(selectedMonthYear, selectedSchool, s
         scanKeluar ? "'" + scanKeluar : "",
         terlambat ? "'" + terlambat : "",
         plgCpt ? "'" + plgCpt : "",
-        lembur ? "'" + lembur : "",
+        lembur ? "'" + lembur : "", // Kolom lembur yang sudah dihitung ulang
         jmlHadir ? "'" + jmlHadir : "",
         pengecualian
       ]);
     }
     
-    // 5. Buat & Isi Temporary Sheet
+    // 5. Buat & Isi Temporary Sheet (Tidak Berubah)
     tempSheet = ss.insertSheet(`RekapDetail_${new Date().getTime()}`);
     
-    // --- AWAL PERUBAHAN (Vertical Align Headers) ---
-    // Header Info
     tempSheet.getRange("A1:J1").merge().setValue("Laporan Detail Harian")
       .setFontWeight("bold").setFontSize(14).setHorizontalAlignment("center")
-      .setVerticalAlignment("middle"); // <-- TAMBAHAN
+      .setVerticalAlignment("middle");
       
     tempSheet.getRange("A3").setValue("No. ID");
     tempSheet.getRange("B3").setValue(userId).setHorizontalAlignment("left");
     tempSheet.getRange("A4").setValue("Nama");
     tempSheet.getRange("B4").setValue(userName).setHorizontalAlignment("left");
-    // Set vertical align untuk info kiri
     tempSheet.getRange("A3:B4").setVerticalAlignment("middle");
     
     const tglAwal = Utilities.formatDate(new Date(yyyy, mm - 1, 1), TIMEZONE, "dd-MM-yyyy");
     const tglAkhir = Utilities.formatDate(new Date(yyyy, mm, 0), TIMEZONE, "dd-MM-yyyy");
     
     tempSheet.getRange("H3:J3").merge().setValue("Periode Waktu").setHorizontalAlignment("center")
-      .setVerticalAlignment("middle"); // <-- TAMBAHAN
+      .setVerticalAlignment("middle"); 
     tempSheet.getRange("H4").setValue(`Dari ${tglAwal} s/d ${tglAkhir}`);
     tempSheet.getRange("H4:J4").merge().setHorizontalAlignment("center")
-      .setVerticalAlignment("middle"); // <-- TAMBAHAN
-    // --- AKHIR PERUBAHAN ---
+      .setVerticalAlignment("middle");
       
-    // Table Headers (Row 6)
     const headers = [
       "Tanggal", "Jam Masuk", "Jam Pulang", "Scan Masuk", "Scan Keluar", 
       "Terlambat", "Plg Cpt", "Lembur", "Jml Hadir", "Pengecualian"
@@ -1362,58 +1392,41 @@ function generateRekapPDF_SingleUserDetail_(selectedMonthYear, selectedSchool, s
       .setFontWeight("bold")
       .setBackground("#F0F0F0")
       .setHorizontalAlignment("center")
-      .setVerticalAlignment("middle") // (Sudah ada, dikonfirmasi)
+      .setVerticalAlignment("middle")
       .setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP); 
       
     tempSheet.setRowHeight(6, 35); 
-      
-    // --- AWAL PERUBAHAN (Baris Pemisah) ---
-    tempSheet.insertRowAfter(6); // Sisipkan baris baru di row 7
-    tempSheet.setRowHeight(7, 5); // Atur tinggi baris ke-7 menjadi 5 pixel
-    
-    // Dapatkan range untuk baris pemisah (baris 7)
+    tempSheet.insertRowAfter(6);
+    tempSheet.setRowHeight(7, 5);
     const spacerRange = tempSheet.getRange(7, 1, 1, headers.length);
-    
-    spacerRange.merge()
-      .setBackground(null); // <-- TAMBAHAN: Reset warna background
-    
-    // HAPUS SEMUA BORDER (set ke null) agar transparan/putih
+    spacerRange.merge().setBackground(null);
     spacerRange.setBorder(null, null, null, null, null, null);
-    // --- AKHIR PERUBAHAN ---
 
-    // 6. Styling Lebar Kolom
+    // 6. Styling Lebar Kolom (Tidak Berubah)
     tempSheet.setColumnWidths(1, 1, 90); // Tanggal
     tempSheet.setColumnWidths(2, 9, 70);  // Semua kolom jam
     tempSheet.setColumnWidths(10, 1, 100); // Pengecualian
     
-    const dataStartRow = 8; // <-- Data mulai dari row 8
-    
-    // 1. Border untuk Header (Row 6) - LENGKAP
+    const dataStartRow = 8;
     headerRange.setBorder(true, true, true, true, true, true, '#000000', SpreadsheetApp.BorderStyle.SOLID);
     
     if (rekapData.length > 0) {
-      // Isi data (mulai dari row 8)
       const dataRange = tempSheet.getRange(dataStartRow, 1, rekapData.length, headers.length);
       dataRange.setValues(rekapData)
         .setNumberFormat("@"); 
-      
-      // Ratakan data
       dataRange.setVerticalAlignment("middle").setHorizontalAlignment("center");
-
-      // 2. Border untuk Data (Row 8+) - LENGKAP DENGAN TOP
       dataRange.setBorder(true, true, true, true, true, true, '#000000', SpreadsheetApp.BorderStyle.SOLID);
-      
     }
     
     SpreadsheetApp.flush();
     
-    // 7. Ekspor ke PDF
+    // 7. Ekspor ke PDF (Tidak Berubah)
     const spreadsheetId = ss.getId();
     const sheetId = tempSheet.getSheetId();
     const bulanNama = new Date(yyyy, mm - 1, 1).toLocaleString('id-ID', { month: 'long' });
     const fileName = `Laporan_Detail_${userName.replace(/\s/g, '_')}_${bulanNama}_${yyyy}.pdf`;
     
-    const margin = 0.2; // Sekitar 0.5cm
+    const margin = 0.2; 
     const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=pdf&gid=${sheetId}` +
       `&size=A4&portrait=true&fitw=true&sheetnames=false&printtitle=false&pagenumbers=false` + 
       `&gridlines=false&horizontal_alignment=CENTER&vertical_alignment=TOP` +
@@ -2999,51 +3012,63 @@ function formatTimeFromValue_(timeValue, timezone) {
 
 /**
  * HELPER: Mendapatkan atau membuat sheet untuk Jam Reguler.
+ * (VERSI DIPERBARUI)
  */
 function getJamRegulerSheet_() {
   let sheet = ss.getSheetByName("JamReguler");
   if (!sheet) {
     sheet = ss.insertSheet("JamReguler");
-    const headers = ["Hari", "JamMasuk", "JamPulang"];
+    // TAMBAHKAN HEADER BARU: WaktuLembur (grace period), MaksimalLembur (cap)
+    const headers = ["Hari", "JamMasuk", "JamPulang", "WaktuLembur", "MaksimalLembur"];
     sheet.appendRow(headers);
     sheet.setFrozenRows(1);
     // Isi data default
     const defaultData = [
-      ["Senin", "08:00", "17:00"],
-      ["Selasa", "08:00", "17:00"],
-      ["Rabu", "08:00", "17:00"],
-      ["Kamis", "08:00", "17:00"],
-      ["Jumat", "08:00", "17:00"],
-      ["Sabtu", "08:00", "17:00"]
+      // Format: Hari, Masuk, Pulang, Grace (menit), Max (menit)
+      ["Senin", "08:00", "17:00", 30, 90],
+      ["Selasa", "08:00", "17:00", 30, 90],
+      ["Rabu", "08:00", "17:00", 30, 90],
+      ["Kamis", "08:00", "17:00", 30, 90],
+      ["Jumat", "08:00", "17:00", 30, 90],
+      ["Sabtu", "08:00", "17:00", 30, 90]
     ];
-    sheet.getRange(2, 1, defaultData.length, 3).setValues(defaultData);
+    // Perbarui jangkauan (range) menjadi 5 kolom
+    sheet.getRange(2, 1, defaultData.length, 5).setValues(defaultData);
     sheet.getRange("B:C").setNumberFormat("@");
+    sheet.getRange("D:E").setNumberFormat("0"); // Format sebagai angka
   }
   return sheet;
 }
 
 /**
  * HELPER: Membaca sheet JamReguler dan mengembalikannya sebagai Map.
- * @return {Map<string, {masuk: string, pulang: string}>}
- * (VERSI PERBAIKAN)
+ * @return {Map<string, {masuk: string, pulang: string, waktuLembur: number, maksimalLembur: number}>}
+ * (VERSI DIPERBARUI)
  */
 function getJamRegulerMap_() {
   const sheet = getJamRegulerSheet_();
-  // --- START PERBAIKAN ---
-  // Cek jika sheet hanya punya header (lastRow = 1) atau kosong
   if (sheet.getLastRow() < 2) {
     Logger.log("Sheet JamReguler kosong, mengembalikan Map kosong.");
-    return new Map(); // Kembalikan Map kosong jika tidak ada data
+    return new Map(); 
   }
-  // --- AKHIR PERBAIKAN ---
-  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 3).getValues();
+  // Baca 5 kolom
+  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 5).getValues();
   const jamRegulerMap = new Map();
   data.forEach(row => {
     const hari = row[0]; // "Senin", "Selasa", dst.
     const masuk = (row[1] || "").toString().replace(/^'/, "");
     const pulang = (row[2] || "").toString().replace(/^'/, "");
+    // Baca data baru dan ubah ke angka (integer)
+    const waktuLembur = parseInt(row[3], 10) || 0; // Default 0 jika tidak valid
+    const maksimalLembur = parseInt(row[4], 10) || 0; // Default 0 jika tidak valid (0 berarti tanpa batas)
+    
     if (hari) {
-      jamRegulerMap.set(hari, { masuk: masuk, pulang: pulang });
+      jamRegulerMap.set(hari, { 
+        masuk: masuk, 
+        pulang: pulang, 
+        waktuLembur: waktuLembur, 
+        maksimalLembur: maksimalLembur 
+      });
     }
   });
   return jamRegulerMap;
@@ -3051,31 +3076,45 @@ function getJamRegulerMap_() {
 
 /**
  * (ADMIN) Dipanggil oleh client untuk memuat pengaturan Jam Reguler.
- * (VERSI PERBAIKAN)
+ * (VERSI DIPERBARUI)
  */
 function getJamRegulerSettings(adminEmail) {
   if (!checkIfAdmin(adminEmail)) throw new Error("Akses ditolak.");
   const sheet = getJamRegulerSheet_();
-  // --- START PERBAIKAN ---
   const lastRow = sheet.getLastRow();
-  if (lastRow < 2) return []; // Tidak ada data
-  // Baca hanya data yang ada, maksimal 6 baris (Senin-Sabtu)
+  if (lastRow < 2) return []; 
   const numRowsToRead = Math.min(6, lastRow - 1); 
   if (numRowsToRead <= 0) return [];
-  const data = sheet.getRange(2, 1, numRowsToRead, 3).getValues(); 
-  // --- AKHIR PERBAIKAN ---
-  return data.map(row => ({ hari: row[0], masuk: row[1], pulang: row[2] }));
+  // Baca 5 kolom
+  const data = sheet.getRange(2, 1, numRowsToRead, 5).getValues(); 
+  // Kembalikan objek dengan data baru
+  return data.map(row => ({ 
+    hari: row[0], 
+    masuk: row[1], 
+    pulang: row[2], 
+    waktuLembur: row[3], // Kirim data apa adanya
+    maksimalLembur: row[4] // Kirim data apa adanya
+  }));
 }
 
 /**
  * (ADMIN) Dipanggil oleh client untuk menyimpan pengaturan Jam Reguler.
+ * (VERSI DIPERBARUI)
  */
 function saveJamRegulerSettings(adminEmail, settings) {
   if (!checkIfAdmin(adminEmail)) throw new Error("Akses ditolak.");
   try {
     const sheet = getJamRegulerSheet_();
-    const dataToSave = settings.map(s => [s.hari, `'${s.masuk}`, `'${s.pulang}`]);
-    sheet.getRange(2, 1, dataToSave.length, 3).setValues(dataToSave);
+    // Buat data untuk 5 kolom
+    const dataToSave = settings.map(s => [
+      s.hari, 
+      `'${s.masuk}`, 
+      `'${s.pulang}`,
+      parseInt(s.waktuLembur, 10) || 0,  // Pastikan data disimpan sebagai angka
+      parseInt(s.maksimalLembur, 10) || 0 // Pastikan data disimpan sebagai angka
+    ]);
+    // Tulis data ke 5 kolom
+    sheet.getRange(2, 1, dataToSave.length, 5).setValues(dataToSave);
     return { status: "success", message: "Jam reguler berhasil disimpan." };
   } catch (e) {
     Logger.log(`Error di saveJamRegulerSettings: ${e.message}`);
