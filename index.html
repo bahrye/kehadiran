@@ -545,6 +545,15 @@
           toast.style.opacity = '0';
           toast.style.transform = `translateX(${direction === 'left' ? '-100%' : '100%'})`;
           
+          // --- AWAL PERUBAHAN ---
+          // Cek apakah toast yang dihapus ini adalah toast processing yang aktif
+          // Jika ya, bersihkan ID globalnya agar toast sukses/gagal berikutnya
+          // tahu bahwa ia harus membuat elemen baru.
+          if (toast.id && toast.id === processingToastId) {
+            processingToastId = null;
+          }
+          // --- AKHIR PERUBAHAN ---
+
           // Hapus elemen dari DOM setelah animasi selesai
           setTimeout(() => toast.remove(), 300);
         };
@@ -600,8 +609,8 @@
             if (!toast.classList.contains('processing')) {
               toast.autoDismissTimer = setTimeout(() => {
                 toast.classList.add('toast-fade-out');
-                setTimeout(() => toast.remove(), 400);
-              }, 4000); // Set ulang timer ke 4 detik
+                setTimeout(() => toast.remove(), 400); // Set ulang timer ke 4 detik
+              }, 4000);
             }
           }
           
@@ -747,6 +756,19 @@
           const saveButton = document.getElementById('save-sptjm-settings-button');
           saveButton.disabled = true; // Nonaktifkan tombol saat halaman dibuka
 
+          // --- AWAL PERUBAHAN ---
+          // 1. Tampilkan pesan memuat
+          displayMessage('sptjm-settings-message', 'Memuat pengaturan...', { isProcessing: true });
+
+          // 2. Dapatkan semua input di dalam container
+          const container = document.getElementById('sptjm-settings-container');
+          // (Memilih input berdasarkan tipe agar lebih spesifik)
+          const inputs = container.querySelectorAll('input[type="text"], input[type="date"]');
+
+          // 3. Nonaktifkan semua input
+          inputs.forEach(input => input.disabled = true);
+          // --- AKHIR PERUBAHAN ---
+
           google.script.run
             .withSuccessHandler(settings => {
               if (settings) {
@@ -759,11 +781,23 @@
                 document.getElementById('sptjm-nip-kepala').value = settings.nipKepala || '';
               }
               saveButton.disabled = false; // Aktifkan tombol setelah data dimuat
+              
+              // --- AWAL PERUBAHAN ---
+              // 4. Aktifkan kembali semua input
+              inputs.forEach(input => input.disabled = false);
+              // 5. Tampilkan pesan sukses
+              displayMessage('sptjm-settings-message', 'Pengaturan cetak berhasil dimuat.', { isSuccess: true });
+              // --- AKHIR PERUBAHAN ---
             })
             .withFailureHandler(error => {
                 displayMessage('sptjm-settings-message', error.message);
                 console.error('Error saat memuat pengaturan:', error);
                 // Tombol tetap nonaktif jika gagal
+
+                // --- AWAL PERUBAHAN ---
+                // 6. Aktifkan kembali input jika gagal agar tidak terkunci
+                inputs.forEach(input => input.disabled = false);
+                // --- AKHIR PERUBAHAN ---
             })
             .getSptjmSettings(currentUser.email);
       }
@@ -2709,6 +2743,13 @@
         button.querySelector('span').textContent = 'Memuat...';
         displayMessage('teacher-holidays-message', 'Memuat pengaturan...', { isProcessing: true });
 
+        // --- AWAL PERUBAHAN ---
+        // 1. Pilih semua saklar/checkbox
+        const switches = document.querySelectorAll('#holiday-switches-container input[type="checkbox"]');
+        // 2. Nonaktifkan semua saklar saat memuat
+        switches.forEach(sw => sw.disabled = true);
+        // --- AKHIR PERUBAHAN ---
+
         google.script.run
             .withSuccessHandler(settings => {
                 if (settings && settings.length === 6) {
@@ -2719,12 +2760,23 @@
                 }
                 button.disabled = false;
                 button.querySelector('span').textContent = 'Simpan Pengaturan';
-                displayMessage('teacher-holidays-message', ''); // Hapus pesan loading
+                
+                // --- AWAL PERUBAHAN ---
+                // 3. Tampilkan pesan sukses
+                displayMessage('teacher-holidays-message', 'Pengaturan hari libur berhasil dimuat.', { isSuccess: true });
+                // 4. Aktifkan kembali semua saklar
+                switches.forEach(sw => sw.disabled = false);
+                // --- AKHIR PERUBAHAN ---
             })
             .withFailureHandler(err => {
                 displayMessage('teacher-holidays-message', 'Gagal memuat pengaturan: ' + err.message);
                 button.disabled = false;
                 button.querySelector('span').textContent = 'Simpan Pengaturan';
+                
+                // --- AWAL PERUBAHAN ---
+                // 5. Aktifkan juga saklar jika gagal, agar tidak terkunci
+                switches.forEach(sw => sw.disabled = false);
+                // --- AKHIR PERUBAHAN ---
             })
             .getTeacherHolidays(currentUser.email);
       }
