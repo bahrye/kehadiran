@@ -2438,8 +2438,9 @@ function saveLKHWeeklyData(email, school, lkhWeeklyData) {
 // ===================================================================
 
 /**
- * Helper: Menghapus request 'pending' atau 'rejected' sebelumnya untuk user/bulan/sekolah.
+ * Helper: Menghapus request 'pending' sebelumnya untuk user/bulan/sekolah.
  * Ini dipanggil saat guru membuat pengajuan baru ATAU membatalkan.
+ * PERUBAHAN: Data 'rejected' tidak lagi dihapus agar riwayat penolakan tetap ada.
  */
 function clearPreviousRequests_(email, school, year, month) {
   const reqSheet = getChangeRequestsSheet_();
@@ -2456,7 +2457,7 @@ function clearPreviousRequests_(email, school, year, month) {
         row[3] === school && 
         parseInt(row[4]) === year && 
         parseInt(row[5]) === month &&
-        (row[13] === 'pending' || row[13] === 'rejected')) // Hapus pending/rejected lama
+        (row[13] === 'pending')) // HANYA Hapus 'pending' lama
     {
       rowsToDelete.push(i + 1); // Catat nomor baris (1-based index)
     }
