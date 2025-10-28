@@ -838,6 +838,13 @@
       white-space: nowrap; /* Mencegah teks header membungkus ke bawah */
     }
 
+    /* --- TAMBAHAN BARU UNTUK MEMPERBAIKI TABEL DITOLAK --- */
+    .rejection-table th,
+    .rejection-table td {
+      white-space: normal; /* Izinkan teks di tabel ini untuk wrap */
+    }
+    /* --- AKHIR TAMBAHAN --- */
+
     /* Membuat tabel akun admin dapat digulir secara horizontal */
     #user-table-container {
         overflow-x: auto;
@@ -1419,7 +1426,6 @@
     line-height: 1.5;
   }
   .rejection-table {
-    width: 100%;
     border-collapse: collapse;
     background-color: #FFFFFF;
     border: 1px solid #F87171; /* Border merah */
