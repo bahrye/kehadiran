@@ -1498,7 +1498,7 @@
           // Tampilkan tabel penolakan JIKA ada item yang ditolak
           // DAN TIDAK ADA item lain yang sedang pending
           // (Menggunakan 'isRequestPending' yang sudah dideklarasikan di atas)
-          if (isReqMonth && rejectedItems.length > 0 && !isRequestPending) {
+          if (isReqMonth && rejectedItems.length > 0) {
               
               const formatData = (data) => {
                 if (data.reason) return `<strong>Alasan:</strong> ${data.reason}`;
