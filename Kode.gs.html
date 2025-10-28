@@ -2465,9 +2465,8 @@ function saveLKHWeeklyData(email, school, lkhWeeklyData) {
 // ===================================================================
 
 /**
- * Helper: Menghapus request 'pending' sebelumnya untuk user/bulan/sekolah.
- * Ini dipanggil saat guru membuat pengajuan baru ATAU membatalkan.
- * PERUBAHAN: Data 'rejected' tidak lagi dihapus agar riwayat penolakan tetap ada.
+ * Helper: Menghapus request 'pending' DAN 'rejected' sebelumnya untuk user/bulan/sekolah.
+ * Ini dipanggil saat guru membuat pengajuan baru ("membersihkan" catatan lama).
  */
 function clearPreviousRequests_(email, school, year, month) {
   const reqSheet = getChangeRequestsSheet_();
@@ -2475,7 +2474,7 @@ function clearPreviousRequests_(email, school, year, month) {
 
   const data = reqSheet.getDataRange().getValues();
   const rowsToDelete = [];
-  
+
   // Loop dari baris ke-2 (index 1)
   for(let i = 1; i < data.length; i++) {
     const row = data[i];
@@ -2484,14 +2483,43 @@ function clearPreviousRequests_(email, school, year, month) {
         row[3] === school && 
         parseInt(row[4]) === year && 
         parseInt(row[5]) === month &&
-        (row[13] === 'pending')) // HANYA Hapus 'pending' lama
+        (row[13] === 'pending' || row[13] === 'rejected')) // PERUBAHAN: Hapus pending DAN rejected
     {
       rowsToDelete.push(i + 1); // Catat nomor baris (1-based index)
     }
   }
-  
+
   if (rowsToDelete.length > 0) {
      // Hapus dari bawah ke atas agar index tidak bergeser
+     rowsToDelete.sort((a, b) => b - a).forEach(rowIndex => reqSheet.deleteRow(rowIndex));
+  }
+}
+
+// --- FUNGSI BARU ---
+/**
+ * Helper: Menghapus HANYA request 'pending' sebelumnya.
+ * Ini dipanggil saat guru membatalkan ajuan.
+ */
+function clearPendingRequests_(email, school, year, month) {
+  const reqSheet = getChangeRequestsSheet_();
+  if (reqSheet.getLastRow() < 2) return; 
+
+  const data = reqSheet.getDataRange().getValues();
+  const rowsToDelete = [];
+
+  for(let i = 1; i < data.length; i++) {
+    const row = data[i];
+    if (row[2].toLowerCase() === email.toLowerCase() && 
+        row[3] === school && 
+        parseInt(row[4]) === year && 
+        parseInt(row[5]) === month &&
+        (row[13] === 'pending')) // HANYA Hapus 'pending'
+    {
+      rowsToDelete.push(i + 1); 
+    }
+  }
+
+  if (rowsToDelete.length > 0) {
      rowsToDelete.sort((a, b) => b - a).forEach(rowIndex => reqSheet.deleteRow(rowIndex));
   }
 }
@@ -2782,9 +2810,11 @@ function submitChangeRequest(email, school, year, month, changes) {
 function cancelChangeRequest(email, school, year, month) {
   try {
     if (!email || !school) throw new Error("Sesi tidak valid.");
-    
-    // Cukup panggil helper clear
-    clearPreviousRequests_(email, school, year, month); 
+
+    // --- AWAL PERUBAHAN ---
+    // Panggil helper yang HANYA menghapus 'pending'
+    clearPendingRequests_(email, school, year, month); 
+    // --- AKHIR PERUBAHAN ---
 
     return { status: "success", message: "Pengajuan berhasil dibatalkan." };
   } catch (e) {
