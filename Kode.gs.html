@@ -343,6 +343,10 @@ function getAttendancePageData(email, school, year, month, token) {
 
     const teacherHolidays = getTeacherHolidays(email);
 
+    // --- TAMBAHKAN BARIS INI ---
+    const announcements = getAnnouncements();
+    // --- AKHIR TAMBAHAN ---
+
     const daysInMonth = new Date(year, month, 0).getDate();
     const currentYear = today.getFullYear();
     const currentMonth = today.getMonth() + 1;
@@ -467,7 +471,8 @@ function getAttendancePageData(email, school, year, month, token) {
       isRequestableMonth: isRequestableMonth,
       pendingChanges: pendingChanges,
       rejectionInfo: rejectionInfo,
-      rejectedChanges: rejectedChanges
+      rejectedChanges: rejectedChanges,
+      announcements: announcements
     };
   } catch (error) {
      Logger.log(`CRITICAL ERROR in getAttendancePageData for ${email}, ${school}, ${year}-${month}: ${error.toString()} \nStack: ${error.stack}`);
