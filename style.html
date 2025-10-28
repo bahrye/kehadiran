@@ -1492,4 +1492,126 @@
     font-weight: 600;
   }
   /* --- AKHIR TAMBAHAN --- */
+
+  /* --- AWAL PERUBAHAN: Global Toast Notification (Versi 2) --- */
+  
+  #toast-container {
+    position: fixed;
+    top: 20px;
+    /* PERUBAHAN: Pindah dari kanan ke tengah */
+    left: 50%;
+    transform: translateX(-50%);
+    /* AKHIR PERUBAHAN */
+
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    
+    /* PERUBAHAN: Perkecil lebar maksimum */
+    width: 280px; 
+    max-width: 90%; 
+    /* AKHIR PERUBAHAN */
+  }
+  
+  .toast-message {
+    background-color: var(--card-bg-color);
+    color: var(--text-primary-color);
+    
+    /* PERUBAHAN: Perkecil padding */
+    padding: 12px 16px;
+    /* AKHIR PERUBAHAN */
+
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    border: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    
+    /* PERUBAHAN: Perkecil jarak ikon & teks */
+    gap: 10px;
+    /* AKHIR PERUBAHAN */
+
+    font-size: 14px;
+    font-weight: 500;
+    
+    /* PERUBAHAN: Animasi masuk baru (slide dari atas) */
+    animation: toast-slide-in 0.3s ease-out;
+    /* AKHIR PERUBAHAN */
+
+    opacity: 1;
+    transition: opacity 0.4s ease, transform 0.4s ease;
+    word-break: break-word; 
+  }
+
+  .toast-message i {
+    /* PERUBAHAN: Perkecil ikon */
+    font-size: 16px;
+    /* AKHIR PERUBAHAN */
+    flex-shrink: 0; 
+  }
+
+  /* Varian Status (Tidak berubah, hanya styling) */
+  .toast-message.success {
+    background-color: #F0FDF4;
+    border-color: var(--success-color);
+    color: #14532D; 
+  }
+  .toast-message.success i { color: var(--success-color); }
+
+  .toast-message.error {
+    background-color: #FEF2F2;
+    border-color: var(--danger-color);
+    color: #7F1D1D; 
+  }
+  .toast-message.error i { color: var(--danger-color); }
+  
+  .toast-message.processing {
+    background-color: #EFF6FF;
+    border-color: var(--primary-color);
+    color: #1E3A8A; 
+  }
+  
+  /* Ikon untuk processing (spinner) */
+  .toast-message.processing .toast-loader {
+    /* PERUBAHAN: Perkecil spinner */
+    width: 16px;
+    height: 16px;
+    /* AKHIR PERUBAHAN */
+    flex-shrink: 0; 
+    border: 3px solid rgba(59, 130, 246, 0.3);
+    border-top-color: var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  /* Animasi untuk keluar */
+  .toast-message.toast-fade-out {
+    opacity: 0;
+    /* PERUBAHAN: Animasi keluar (naik ke atas) */
+    transform: translateY(-100%); 
+    /* AKHIR PERUBAHAN */
+  }
+  
+  /* PERUBAHAN: Keyframe animasi baru */
+  @keyframes toast-slide-in {
+    from {
+      opacity: 0;
+      transform: translateY(-100%); /* Mulai dari atas layar */
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  /* AKHIR PERUBAHAN */
+  
+  /* Animasi spin (sudah ada) */
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  /* --- AKHIR PERUBAHAN: Global Toast Notification (Versi 2) --- */
+
 </style>
