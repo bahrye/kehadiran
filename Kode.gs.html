@@ -380,6 +380,7 @@ function getAttendancePageData(email, school, year, month, token) {
 
     let pendingChanges = {};
     let rejectionInfo = null;
+    let rejectedChanges = [];
 
     if (isRequestableMonth) {
       const reqSheet = getChangeRequestsSheet_();
@@ -435,12 +436,23 @@ function getAttendancePageData(email, school, year, month, token) {
                newCheckOut: (row[11] || "").toString().replace(/^'/, ""), // Tambah safety check
                newReason: row[12] || "" // Tambah safety check
              };
-          } else if (reqStatus === 'rejected' && !rejectionInfo) {
-              rejectionInfo = {
-                date: reqDateStr,
-                reason: row[15] || "" // Tambah safety check
-              };
-              // Tidak perlu break, mungkin masih ada pending change di tanggal lain
+          } else if (reqStatus === 'rejected') {
+              
+              // 1. Logic Baru: Kumpulkan SEMUA penolakan ke dalam array
+              rejectedChanges.push({
+                date: reqDateStr, // Tanggal (yyyy-mm-dd)
+                oldData: { checkIn: (row[7] || "").toString().replace(/^'/, ""), checkOut: (row[8] || "").toString().replace(/^'/, ""), reason: row[9] || "" },
+                newData: { checkIn: (row[10] || "").toString().replace(/^'/, ""), checkOut: (row[11] || "").toString().replace(/^'/, ""), reason: row[12] || "" },
+                reason: row[15] || "" // Alasan penolakan
+              });
+
+              // 2. Logic Lama (Tetap simpan): Ambil satu alasan untuk pesan global
+              if (!rejectionInfo) {
+                  rejectionInfo = {
+                    date: reqDateStr,
+                    reason: row[15] || "" // Tambah safety check
+                  };
+              }
           }
         }
       }
@@ -454,7 +466,8 @@ function getAttendancePageData(email, school, year, month, token) {
       token: token, // Pastikan token selalu ada di return object
       isRequestableMonth: isRequestableMonth,
       pendingChanges: pendingChanges,
-      rejectionInfo: rejectionInfo
+      rejectionInfo: rejectionInfo,
+      rejectedChanges: rejectedChanges
     };
   } catch (error) {
      Logger.log(`CRITICAL ERROR in getAttendancePageData for ${email}, ${school}, ${year}-${month}: ${error.toString()} \nStack: ${error.stack}`);
@@ -464,7 +477,8 @@ function getAttendancePageData(email, school, year, month, token) {
         error: `Terjadi kesalahan saat memuat data absensi (${error.message}). Coba muat ulang halaman.`,
         token: token, // Sertakan token dummy agar pengecekan awal lolos
         attendance: {}, lockedMonths:[], holidays:{}, teacherHolidays: [],
-        isRequestableMonth: false, pendingChanges: {}, rejectionInfo: null
+        isRequestableMonth: false, pendingChanges: {}, rejectionInfo: null,
+        rejectedChanges: [] // <-- TAMBAKAN KEY BARU INI
      };
   }
 }
