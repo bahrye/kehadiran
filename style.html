@@ -421,6 +421,29 @@
     box-shadow: none;
   }
 
+  /* === AWAL PERUBAHAN === */
+  /* Style khusus untuk tombol di LKH (Ambil Data & Bersihkan)
+     agar lebih kecil dan responsif */
+  .lkh-actions-container .action-button {
+      padding: 10px 12px;  /* Padding dikecilkan */
+      font-size: 14px;     /* Font dikecilkan */
+      gap: 8px;            /* Jarak ikon & teks */
+      margin-bottom: 0; 
+      
+      /* 1. Izinkan teks di dalam tombol untuk wrap (turun baris) */
+      white-space: normal; /* DIUBAH DARI nowrap */
+      
+      /* 2. Buat teks rata tengah saat turun baris */
+      text-align: center;
+      
+      /* 3. Pastikan kata yang sangat panjang bisa patah */
+      word-break: break-word; 
+      
+      /* 4. Pastikan ikon dan teks tetap di tengah */
+      justify-content: center;
+  }
+  /* === AKHIR PERUBAHAN === */
+
   .back-button {
     width: auto;
     position: absolute;
@@ -711,7 +734,7 @@
   /* --- AWAL PERUBAHAN: Penyesuaian Lebar Kolom LKH --- */
   /* Atur lebar kolom secara spesifik */
   #lkh-table-container th:nth-child(1),
-  #lkh-table-container td:nth-child(1) { width: 30%; } /* Kolom Tanggal (DIPERBESAR) */
+  #lkh-table-container td:nth-child(1) { width: 25%; } /* Kolom Tanggal (DIPERBESAR) */
   
   #lkh-table-container th:nth-child(2),
   #lkh-table-container td:nth-child(2) { width: 32.5%; } /* Kolom Uraian (DIKECLKAN) */
@@ -837,6 +860,17 @@
       padding: 12px 8px; /* Sesuaikan padding agar tidak terlalu sempit */
       white-space: nowrap; /* Mencegah teks header membungkus ke bawah */
     }
+
+    /* === AWAL TAMBAHAN BARU === */
+    /* PERBAIKAN: 
+      Izinkan kolom HARI/TANGGAL di tabel LKH untuk wrap 
+      agar tag <br> berfungsi di mode ponsel.
+    */
+    #lkh-table-container td:first-child,
+    #lkh-view-container #lkh-view-table td:nth-child(2) {
+        white-space: normal; /* Mengembalikan ke default (mengizinkan wrap) */
+    }
+    /* === AKHIR TAMBAHAN BARU === */
 
     /* --- TAMBAHAN BARU UNTUK MEMPERBAIKI TABEL DITOLAK --- */
     .rejection-table th,
