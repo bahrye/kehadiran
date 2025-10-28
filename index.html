@@ -268,6 +268,7 @@
 
             <button id="save-button" onclick="handleSave()" disabled><i class="fa-solid fa-floppy-disk"></i> <span>Simpan Semua Perubahan</span></button>
             <button id="request-change-button" onclick="handleRequestChange()" style="display: none;"><i class="fa-solid fa-paper-plane"></i> <span>Ajukan Perubahan</span></button>
+            <div id="rejection-details-wrapper"></div>
             <p id="save-message" class="message"></p>
           </div>
       </div>
@@ -1489,9 +1490,12 @@
             saveButton.disabled = isDisabled;
           }
 
-          // --- BLOK BARU UNTUK MENAMPILKAN TABEL PENOLAKAN ---
+          // --- BLOK BARU UNTUK MENAMPILKAN TABEL PENOLAKAN (SESUAI PERBAIKAN) ---
           const messageElement = document.getElementById('save-message');
+          const rejectionWrapper = document.getElementById('rejection-details-wrapper'); // 1. Ambil wrapper baru
+
           messageElement.innerHTML = ''; // Selalu bersihkan pesan lama
+          rejectionWrapper.innerHTML = ''; // 2. Bersihkan wrapper tabel
 
           const rejectedItems = appSettings.rejectedChanges || [];
           
@@ -1542,7 +1546,7 @@
               
               // TUTUP WRAPPER DAN CONTAINER
               rejectionHtml += `</tbody></table></div></div>`; 
-              messageElement.innerHTML = rejectionHtml;
+              rejectionWrapper.innerHTML = rejectionHtml; // 3. Masukkan HTML ke wrapper
               // --- PERUBAHAN SELESAI DI SINI ---
           }
           // --- AKHIR BLOK BARU ---
