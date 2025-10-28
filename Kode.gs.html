@@ -2068,11 +2068,37 @@ function getLKHSheetForUser_(userName) {
   return sheet;
 }
 
+/**
+ * (FUNGSI HELPER BARU YANG JAUH LEBIH CEPAT)
+ * Mendapatkan sheet LKH yang spesifik untuk user DAN bulan/tahun.
+ * Format Nama: LKH_email@gmail.com_2025_10
+ * PERUBAHAN: Menambahkan createIfNotExist.
+ */
+function getLKHSheetForUserAndMonth_(email, year, month, createIfNotExist = false) { // <-- Tambah parameter
+  const yearStr = String(year);
+  const monthStr = String(month).padStart(2, '0');
+  const sheetName = `LKH_${email}_${yearStr}_${monthStr}`;
+  
+  let sheet = ss.getSheetByName(sheetName);
+  
+  // Hanya buat jika tidak ada DAN diizinkan (createIfNotExist = true)
+  if (!sheet && createIfNotExist) { // <-- Logika diubah
+    sheet = ss.insertSheet(sheetName);
+    const headers = ["Tanggal", "Uraian Kegiatan", "Hasil/Output", "Vol"];
+    sheet.appendRow(headers);
+    sheet.getRange("A:A").setNumberFormat("yyyy-mm-dd");
+    sheet.setFrozenRows(1);
+  }
+  
+  return sheet; // Akan mengembalikan null jika sheet tidak ada & createIfNotExist = false
+}
+
 function getLKHData(email, school, year, month) {
   try {
     if (!checkIfLKHUser_(email)) {
       return { success: false, error: "Akses LKH ditolak." };
     }
+    // --- Bagian 1: Mendapatkan Hari Kerja (Ini sudah cepat, JANGAN DIUBAH) ---
     const holidaysData = holidaysSheet.getDataRange().getValues().slice(1);
     const nationalHolidays = {};
     holidaysData.forEach(row => {
@@ -2100,111 +2126,91 @@ function getLKHData(email, school, year, month) {
       }
     }
     
-    const users = usersSheet.getDataRange().getValues();
-    const userRow = users.find(u => u[0].toLowerCase() === email.toLowerCase());
-    const userName = userRow ? userRow[2] : email;
-    const lkhSheet = getLKHSheetForUser_(userName);
-    const lkhData = lkhSheet.getDataRange().getValues().slice(1);
-    const existingData = {};
-    const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+    // --- Bagian 2: Memuat data LKH (INI YANG DIPERBARUI) ---
     
-    lkhData.forEach(row => {
-      const rowDate = Utilities.formatDate(new Date(row[0]), "Asia/Makassar", "yyyy-MM-dd");
-      if(rowDate.startsWith(monthStr)) {
+    // PANGGIL HELPER BARU: (dengan createIfNotExist = false)
+    const lkhSheet = getLKHSheetForUserAndMonth_(email, year, month, false); // <-- Tambah 'false'
+    const existingData = {};
+
+    // Hanya baca data jika sheet-nya ADA (lkhSheet != null)
+    if (lkhSheet && lkhSheet.getLastRow() > 1) { // <-- Tambah cek 'lkhSheet &&'
+      // Baca 4 kolom data
+      const lkhData = lkhSheet.getRange(2, 1, lkhSheet.getLastRow() - 1, 4).getValues();
+    
+      lkhData.forEach(row => {
+        const rowDate = Utilities.formatDate(new Date(row[0]), "Asia/Makassar", "yyyy-MM-dd");
         existingData[rowDate] = {
           uraian: row[1] || "",
           hasil: row[2] || "",
           vol: row[3] || ""
         };
-      }
-    });
+      });
+    }
 
     return { success: true, workingDays, existingData };
   } catch (e) {
-    Logger.log("Error di getLKHData: " + e.message);
+    Logger.log("Error di getLKHData (Optimized): " + e.message + " \nStack: " + e.stack);
     return { success: false, error: "Gagal memuat data LKH." };
   }
 }
 
-/**
- * (VERSI OPTIMAL) Menyimpan data LKH bulanan.
- * Menggunakan strategi read-modify-write untuk performa tinggi,
- * menghindari sheet.deleteRow() di dalam loop.
- */
 function saveLKHData(email, school, year, month, lkhData) {
   try {
     if (!checkIfLKHUser_(email)) {
       return { status: "error", message: "Akses LKH ditolak." };
     }
-    const users = usersSheet.getDataRange().getValues();
-    const userRow = users.find(u => u[0].toLowerCase() === email.toLowerCase());
-    if (!userRow) throw new Error("User not found");
-    const userName = userRow[2];
     
-    const sheet = getLKHSheetForUser_(userName);
+    // --- STRATEGI PENYIMPANAN BARU (LEBIH EFISIEN) ---
     
-    // --- AWAL PERUBAHAN STRATEGI ---
-
-    const TIMEZONE = "Asia/Makassar";
-    const monthStr = `${year}-${String(month).padStart(2, '0')}`;
-
-    // 1. Baca SEMUA data yang ada di sheet
-    const allData = sheet.getDataRange().getValues();
-    const headers = allData[0]; // Simpan header
-    
-    // 2. Buat array baru, saring HANYA data dari BULAN LAIN
-    const otherMonthsData = allData.slice(1) // (slice(1) untuk lewati header)
-      .filter(row => {
-        if (!row[0]) return false; // Lewati baris kosong
-        try {
-          const rowDateStr = Utilities.formatDate(new Date(row[0]), TIMEZONE, "yyyy-MM-dd");
-          return !rowDateStr.startsWith(monthStr); // Kembalikan true HANYA jika BUKAN bulan ini
-        } catch (e) {
-          return false; // Abaikan baris dengan tanggal tidak valid
-        }
-      });
-
-    // 3. Buat array untuk data BARU di bulan ini (dari input pengguna)
-    const newMonthData = [];
+    // 1. Proses data input dari client TERLEBIH DAHULU
+    const dataToSave = [];
     for (const date in lkhData) {
       const entry = lkhData[date];
       // Hanya tambahkan jika ada isinya
       if (entry.uraian || entry.hasil || entry.vol) {
-        newMonthData.push([
-          new Date(date),
-          entry.uraian,
-          entry.hasil,
-          entry.vol,
-          school
+        dataToSave.push([
+          new Date(date), // Kolom A: Tanggal
+          entry.uraian,   // Kolom B: Uraian
+          entry.hasil,    // Kolom C: Hasil
+          entry.vol       // Kolom D: Vol
         ]);
       }
     }
-
-    // 4. Gabungkan semua data: Header + Data Bulan Lain + Data Bulan Baru
-    const finalData = [headers, ...otherMonthsData, ...newMonthData];
-
-    // 5. Hapus SEMUA konten lama dari sheet (super cepat)
-    // Kita mulai dari baris 1 (termasuk header)
-    sheet.getRange(1, 1, sheet.getMaxRows(), sheet.getMaxColumns()).clearContent();
-
-    // 6. Tulis data yang sudah digabung kembali ke sheet (super cepat)
-    if (finalData.length > 0) {
-      sheet.getRange(1, 1, finalData.length, headers.length).setValues(finalData);
-    }
     
-    // 7. (OPSIONAL TAPI DIREKOMENDASIKAN) Urutkan kembali sheet berdasarkan tanggal
-    // Ini memastikan data LKH tetap rapi terlepas dari urutan penyimpanan
-    if (finalData.length > 1) { // Hanya urutkan jika ada data (lebih dari 1 baris header)
-      const dataRange = sheet.getRange(2, 1, finalData.length - 1, headers.length);
-      dataRange.sort({column: 1, ascending: true}); // Urutkan berdasarkan kolom A (Tanggal)
-    }
+    // 2. Tentukan sheet (JANGAN buat dulu)
+    let sheet;
 
-    // --- AKHIR PERUBAHAN STRATEGI ---
+    // 3. Jika ada data untuk disimpan
+    if (dataToSave.length > 0) {
+      // PANGGIL HELPER DENGAN 'true': Buat sheet jika belum ada
+      sheet = getLKHSheetForUserAndMonth_(email, year, month, true);
+      
+      // Hapus data lama (jika ada)
+      if (sheet.getLastRow() > 1) {
+        sheet.getRange(2, 1, sheet.getLastRow() - 1, 4).clearContent();
+      }
+      
+      // Tulis data baru
+      dataToSave.sort((a, b) => a[0] - b[0]);
+      sheet.getRange(2, 1, dataToSave.length, 4).setValues(dataToSave);
+      
+    } 
+    // 4. Jika TIDAK ADA data (user mengosongkan form)
+    else {
+      // PANGGIL HELPER DENGAN 'false': Cek apakah sheet-nya sudah ada
+      sheet = getLKHSheetForUserAndMonth_(email, year, month, false);
+      
+      // Jika sheet-nya ada (bukan null), berarti user mau menghapus data
+      if (sheet && sheet.getLastRow() > 1) {
+        sheet.getRange(2, 1, sheet.getLastRow() - 1, 4).clearContent();
+      }
+      // Jika sheet-nya null, tidak terjadi apa-apa (sheet tidak dibuat)
+    }
+    // --- AKHIR STRATEGI PENYIMPANAN BARU ---
 
     return { status: "success", message: "LKH berhasil disimpan." };
   
   } catch (e) {
-    // Tambahkan .stack untuk debugging yang lebih mudah
     Logger.log(`Error in saveLKHData (Optimized): ${e.message} \nStack: ${e.stack}`);
     return { status: "error", message: "Gagal menyimpan LKH. Terjadi kesalahan server." };
   }
