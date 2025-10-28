@@ -6,6 +6,7 @@
     <?!= include('style'); ?>
   </head>
   <body>
+    <div id="toast-container"></div> <div class="container">
     <div class="container">
 
       <div id="login-container">
@@ -528,41 +529,85 @@
       let latestRequestToken = 0;
       const SPREADSHEET_ID = "1EIQY1DeGcwhEaYojbGMah-S5HbtsrON5YRy37bl_vLg";
 
+      // Variabel global untuk melacak toast "processing"
+      let processingToastId = null;
+
       // --- FUNGSI displayMessage SEKARANG DIPERBARUI ---
       function displayMessage(elementId, text, options = {}) {
+        // elementId sekarang diabaikan, kita gunakan global toast container
         const { isSuccess = false, isProcessing = false } = options;
-        const msgElem = document.getElementById(elementId);
-        if (msgElem) {
+        const toastContainer = document.getElementById('toast-container');
+        if (!toastContainer) return; // Keluar jika container tidak ada
+        
+        // 1. Tentukan status (class) dan ikon
+        let statusClass = '';
+        let iconHtml = '';
+        
+        if (isProcessing) {
+          statusClass = 'processing';
+          iconHtml = '<div class="toast-loader"></div>'; // Spinner
+        } else if (isSuccess) {
+          statusClass = 'success';
+          iconHtml = '<i class="fa-solid fa-circle-check"></i>';
+        } else {
+          // Default adalah error (merah)
+          statusClass = 'error';
+          iconHtml = '<i class="fa-solid fa-circle-exclamation"></i>';
+        }
 
-          // --- PERUBAHAN DIMULAI DI SINI ---
-          if (isProcessing) {
-            // Tampilkan loader dan teks
-            msgElem.innerHTML = `
-              <div class="message-with-loader">
-                <div class="message-loader"></div>
-                <span>${text}</span>
-              </div>
-            `;
-            msgElem.style.color = 'var(--text-secondary-color)';
-          } else {
-            // Tampilkan teks biasa (untuk sukses atau error)
-            msgElem.innerHTML = `<span>${text}</span>`; // Bungkus dengan span
-
-            if (isSuccess) {
-              msgElem.style.color = 'var(--success-color)';
-            } else { // isError
-              msgElem.style.color = 'var(--danger-color)';
+        // 2. Jika ini pesan "processing" BARU
+        if (isProcessing) {
+          // Hapus dulu toast processing lama jika ada
+          if (processingToastId) {
+            const oldToast = document.getElementById(processingToastId);
+            if (oldToast) {
+              // Langsung ganti teksnya jika sudah ada
+              oldToast.querySelector('span').textContent = text;
+              return; // Tidak perlu buat toast baru
             }
           }
-          // --- PERUBAHAN SELESAI ---
-
-          if (!isProcessing) {
+          
+          // Buat toast processing baru
+          const toast = document.createElement('div');
+          processingToastId = 'toast-' + new Date().getTime(); // Buat ID unik
+          toast.id = processingToastId;
+          toast.className = `toast-message ${statusClass}`;
+          toast.innerHTML = `${iconHtml} <span>${text}</span>`;
+          toastContainer.appendChild(toast);
+        } 
+        // 3. Jika ini pesan "success" atau "error"
+        else {
+          // Cek apakah ada toast processing yang aktif
+          if (processingToastId) {
+            // Jika ada, GANTI toast processing itu
+            const processingToast = document.getElementById(processingToastId);
+            if (processingToast) {
+              processingToast.className = `toast-message ${statusClass}`;
+              processingToast.innerHTML = `${iconHtml} <span>${text}</span>`;
+              // Hapus ID-nya agar tidak dianggap "processing" lagi
+              processingToast.id = '';
+              
+              // Set timeout untuk menghilangkannya
+              setTimeout(() => {
+                processingToast.classList.add('toast-fade-out');
+                // Hapus elemen dari DOM setelah animasi selesai
+                setTimeout(() => processingToast.remove(), 400); // 0.4s (sesuai transisi CSS)
+              }, 4000); // 4 detik
+              
+              processingToastId = null; // Kosongkan pelacak
+            }
+          } else {
+            // Jika tidak ada toast processing, buat toast baru
+            const toast = document.createElement('div');
+            toast.className = `toast-message ${statusClass}`;
+            toast.innerHTML = `${iconHtml} <span>${text}</span>`;
+            toastContainer.appendChild(toast);
+            
+            // Set timeout untuk menghilangkannya
             setTimeout(() => {
-              // Cek menggunakan textContent yang akan mengambil teks di dalam span
-              if (msgElem.textContent === text) {
-                msgElem.innerHTML = ''; // Hapus loader/pesan
-              }
-            }, 10000);
+              toast.classList.add('toast-fade-out');
+              setTimeout(() => toast.remove(), 400);
+            }, 4000); // 4 detik
           }
         }
       }
@@ -3411,10 +3456,6 @@
           // === AWAL PERUBAHAN ===
           const applyWeeklyButton = document.getElementById('apply-weekly-data-button');
           const clearButton = document.getElementById('clear-lkh-data-button'); // Ambil tombol baru
-
-          // === TAMBAHKAN BARIS INI ===
-          displayMessage('lkh-action-message', ''); // Bersihkan pesan aksi sebelumnya
-          // === AKHIR TAMBAHAN ===
 
           applyWeeklyButton.disabled = true; // Pindahkan ini ke atas
           clearButton.disabled = true;     // Nonaktifkan tombol baru saat loading
