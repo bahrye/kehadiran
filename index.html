@@ -1506,20 +1506,23 @@
                 return `<strong>M:</strong> ${data.checkIn || '-'} | <strong>P:</strong> ${data.checkOut || '-'}`;
               };
 
+              // --- PERUBAHAN DIMULAI DI SINI ---
               let rejectionHtml = `
                 <div class="rejection-details-container">
                   <h4 class="rejection-title">Detail Pengajuan Ditolak</h4>
                   <p class="rejection-subtitle">Data berikut telah ditolak oleh Staff. Anda dapat mengubah dan mengajukannya kembali.</p>
-                  <table class="rejection-table">
-                    <thead>
-                      <tr>
-                        <th>Tgl</th>
-                        <th>Data Lama</th>
-                        <th>Ajuan Ditolak</th>
-                        <th>Alasan Penolakan</th>
-                      </tr>
-                    </thead>
-                    <tbody>
+                  
+                  <div class="table-scroll-wrapper"> 
+                    <table class="rejection-table">
+                      <thead>
+                        <tr>
+                          <th>Tgl</th>
+                          <th>Data Lama</th>
+                          <th>Ajuan Ditolak</th>
+                          <th>Alasan Penolakan</th>
+                        </tr>
+                      </thead>
+                      <tbody>
               `;
               
               const formatDateTgl = (dateStr) => {
@@ -1537,11 +1540,12 @@
                  `;
               });
               
-              rejectionHtml += `</tbody></table></div>`;
+              // TUTUP WRAPPER DAN CONTAINER
+              rejectionHtml += `</tbody></table></div></div>`; 
               messageElement.innerHTML = rejectionHtml;
+              // --- PERUBAHAN SELESAI DI SINI ---
           }
           // --- AKHIR BLOK BARU ---
-
 
           let tableHTML = '<div class="table-scroll-wrapper"><table><thead><tr><th>Tanggal</th><th>Jam Masuk</th><th>Jam Pulang</th><th>Keterangan</th><th>Aksi</th></tr></thead><tbody>';
 
