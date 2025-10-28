@@ -3061,9 +3061,10 @@
                 row.className = 'input-group';
                 row.innerHTML = `
                   <label>${setting.hari}</label>
-                  <div style="display: flex; gap: 10px;">
-                    <input type="text" id="reg-masuk-${setting.hari}" placeholder="Jam Masuk (HH:MM)" value="${setting.masuk || ''}" oninput="handleTimeInput(event)">
-                    <input type="text" id="reg-pulang-${setting.hari}" placeholder="Jam Pulang (HH:MM)" value="${setting.pulang || ''}" oninput="handleTimeInput(event)">
+                  <div style="display: flex; gap: 10px; flex-wrap: wrap;"> <input type="text" id="reg-masuk-${setting.hari}" placeholder="Jam Masuk (HH:MM)" value="${setting.masuk || ''}" oninput="handleTimeInput(event)" style="flex: 1 1 100px;">
+                    <input type="text" id="reg-pulang-${setting.hari}" placeholder="Jam Pulang (HH:MM)" value="${setting.pulang || ''}" oninput="handleTimeInput(event)" style="flex: 1 1 100px;">
+                    <input type="number" id="reg-waktu-lembur-${setting.hari}" placeholder="Grace Lembur (menit)" value="${setting.waktuLembur || '30'}" style="flex: 1 1 140px;" title="Waktu tunggu (menit) setelah jam pulang sebelum lembur dihitung.">
+                    <input type="number" id="reg-maks-lembur-${setting.hari}" placeholder="Maks Lembur (menit)" value="${setting.maksimalLembur || '90'}" style="flex: 1 1 140px;" title="Batas maksimal lembur (menit) yang dihitung. Isi 0 untuk tanpa batas.">
                   </div>
                 `;
                 container.appendChild(row);
@@ -3088,7 +3089,12 @@
         days.forEach(hari => {
           const masuk = document.getElementById(`reg-masuk-${hari}`).value;
           const pulang = document.getElementById(`reg-pulang-${hari}`).value;
-          settings.push({ hari, masuk, pulang });
+          // Ambil nilai dari input baru
+          const waktuLembur = document.getElementById(`reg-waktu-lembur-${hari}`).value;
+          const maksimalLembur = document.getElementById(`reg-maks-lembur-${hari}`).value;
+          
+          // Kirim semua data ke server
+          settings.push({ hari, masuk, pulang, waktuLembur, maksimalLembur });
         });
         
         button.disabled = true;
