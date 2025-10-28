@@ -1979,21 +1979,19 @@ function generateSptjmPdf(userEmail, school, selectedMonthYear) {
     const user = serverData.user || {};
     const settings = serverData.settings || {};
 
-    const templateIds = {
-      'MTS TANUNTUNG': '1cSPnqi9sfgoVXh-V9ePLNbdrMgP3D4AeU7kokHhYxro',
-      'MIS BUTUNG': '1TEw6NM4lXD-2dDBk3wL3ihuLYvuiwofvahAMhMm19yo'
-    };
+    // 3. Ambil peta pengaturan sekolah dari cache/sheet
+    const settingsMap = getSchoolSettingsMap_();
     
-    // 3. Gunakan data server (user.school)
-    const schoolName = Object.keys(templateIds).find(name => (user.school || "").includes(name));
-    const templateId = schoolName ? templateIds[schoolName] : null;
+    // 4. Cari pengaturan untuk sekolah pengguna
+    const schoolSetting = settingsMap.get(user.school);
+    const templateId = schoolSetting ? schoolSetting.sptjmId : null;
 
-    if (!templateId) {
+    if (!templateId || templateId.trim() === "") {
       return { success: false, error: `Template untuk sekolah "${user.school}" tidak ditemukan.` };
     }
 
     const originalFile = DriveApp.getFileById(templateId);
-    // 4. Gunakan data server (user.name)
+    // 5. Gunakan data server (user.name)
     const newFileName = `SPTJM_${user.name.replace(/\s/g, '_')}_${new Date().getTime()}`;
     const tempFile = originalFile.makeCopy(newFileName);
     tempFileId = tempFile.getId();
@@ -2013,14 +2011,14 @@ function generateSptjmPdf(userEmail, school, selectedMonthYear) {
     }
     // --- AKHIR TAMBAHAN DINAMIS ---
 
-    // 5. Rekonstruksi 'placeDate' dari data server yang andal
+    // 6. Rekonstruksi 'placeDate' dari data server yang andal
     // (Menggunakan perbaikan Timezone "Asia/Makassar" dari langkah sebelumnya)
     const signatureDate = settings.tanggal 
       ? new Date(settings.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'Asia/Makassar' }) 
       : '[Tanggal]';
     const placeDate = `${settings.tempat || '[Tempat]'}, ${signatureDate}`;
 
-    // 6. Ganti semua placeholder menggunakan data 'user' dan 'settings'
+    // 7. Ganti semua placeholder menggunakan data 'user' dan 'settings'
     body.replaceText('{{NAMA}}', user.name || '-');
     body.replaceText('{{NIP}}', settings.nip || '-');
     body.replaceText('{{JABATAN}}', settings.jabatan || '-');
@@ -2035,7 +2033,7 @@ function generateSptjmPdf(userEmail, school, selectedMonthYear) {
     doc.saveAndClose();
     const pdfBlob = tempFile.getAs('application/pdf');
     const pdfData = Utilities.base64Encode(pdfBlob.getBytes());
-    // 7. Gunakan data server (user.name) untuk nama file
+    // 8. Gunakan data server (user.name) untuk nama file
     const finalFileName = `SPTJM_${user.name.replace(/\s/g, '_')}.pdf`;
 
     return { success: true, pdfData: pdfData, fileName: finalFileName };
@@ -2123,6 +2121,11 @@ function getLKHData(email, school, year, month) {
   }
 }
 
+/**
+ * (VERSI OPTIMAL) Menyimpan data LKH bulanan.
+ * Menggunakan strategi read-modify-write untuk performa tinggi,
+ * menghindari sheet.deleteRow() di dalam loop.
+ */
 function saveLKHData(email, school, year, month, lkhData) {
   try {
     if (!checkIfLKHUser_(email)) {
@@ -2134,27 +2137,35 @@ function saveLKHData(email, school, year, month, lkhData) {
     const userName = userRow[2];
     
     const sheet = getLKHSheetForUser_(userName);
-    const allData = sheet.getDataRange().getValues();
     
-    const monthStr = `${year}-${String(month).padStart(2, '0')}`;
-    const rowsToDelete = [];
-    
-    for (let i = 1; i < allData.length; i++) {
-      const rowDate = Utilities.formatDate(new Date(allData[i][0]), "Asia/Makassar", "yyyy-MM-dd");
-      if (rowDate.startsWith(monthStr)) {
-        rowsToDelete.push(i + 1);
-      }
-    }
+    // --- AWAL PERUBAHAN STRATEGI ---
 
-    if (rowsToDelete.length > 0) {
-      rowsToDelete.sort((a, b) => b - a).forEach(rowIndex => sheet.deleteRow(rowIndex));
-    }
+    const TIMEZONE = "Asia/Makassar";
+    const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+
+    // 1. Baca SEMUA data yang ada di sheet
+    const allData = sheet.getDataRange().getValues();
+    const headers = allData[0]; // Simpan header
     
-    const rowsToInsert = [];
+    // 2. Buat array baru, saring HANYA data dari BULAN LAIN
+    const otherMonthsData = allData.slice(1) // (slice(1) untuk lewati header)
+      .filter(row => {
+        if (!row[0]) return false; // Lewati baris kosong
+        try {
+          const rowDateStr = Utilities.formatDate(new Date(row[0]), TIMEZONE, "yyyy-MM-dd");
+          return !rowDateStr.startsWith(monthStr); // Kembalikan true HANYA jika BUKAN bulan ini
+        } catch (e) {
+          return false; // Abaikan baris dengan tanggal tidak valid
+        }
+      });
+
+    // 3. Buat array untuk data BARU di bulan ini (dari input pengguna)
+    const newMonthData = [];
     for (const date in lkhData) {
       const entry = lkhData[date];
+      // Hanya tambahkan jika ada isinya
       if (entry.uraian || entry.hasil || entry.vol) {
-        rowsToInsert.push([
+        newMonthData.push([
           new Date(date),
           entry.uraian,
           entry.hasil,
@@ -2163,14 +2174,33 @@ function saveLKHData(email, school, year, month, lkhData) {
         ]);
       }
     }
+
+    // 4. Gabungkan semua data: Header + Data Bulan Lain + Data Bulan Baru
+    const finalData = [headers, ...otherMonthsData, ...newMonthData];
+
+    // 5. Hapus SEMUA konten lama dari sheet (super cepat)
+    // Kita mulai dari baris 1 (termasuk header)
+    sheet.getRange(1, 1, sheet.getMaxRows(), sheet.getMaxColumns()).clearContent();
+
+    // 6. Tulis data yang sudah digabung kembali ke sheet (super cepat)
+    if (finalData.length > 0) {
+      sheet.getRange(1, 1, finalData.length, headers.length).setValues(finalData);
+    }
     
-    if (rowsToInsert.length > 0) {
-      sheet.getRange(sheet.getLastRow() + 1, 1, rowsToInsert.length, 5).setValues(rowsToInsert);
+    // 7. (OPSIONAL TAPI DIREKOMENDASIKAN) Urutkan kembali sheet berdasarkan tanggal
+    // Ini memastikan data LKH tetap rapi terlepas dari urutan penyimpanan
+    if (finalData.length > 1) { // Hanya urutkan jika ada data (lebih dari 1 baris header)
+      const dataRange = sheet.getRange(2, 1, finalData.length - 1, headers.length);
+      dataRange.sort({column: 1, ascending: true}); // Urutkan berdasarkan kolom A (Tanggal)
     }
 
+    // --- AKHIR PERUBAHAN STRATEGI ---
+
     return { status: "success", message: "LKH berhasil disimpan." };
+  
   } catch (e) {
-    Logger.log(`Error in saveLKHData: ${e.message}`);
+    // Tambahkan .stack untuk debugging yang lebih mudah
+    Logger.log(`Error in saveLKHData (Optimized): ${e.message} \nStack: ${e.stack}`);
     return { status: "error", message: "Gagal menyimpan LKH. Terjadi kesalahan server." };
   }
 }
@@ -2185,7 +2215,6 @@ function getLkhViewData(email, school, year, month) {
     if (!userRow) throw new Error("Pengguna tidak ditemukan.");
     
     const lkhSettings = getSptjmSettings(email);
-    lkhSettings.schoolAddress = 'Alamat: Lingkungan Butung Kel. Bontokamase Kec. Herlang Kab. Bulukumba (92573)';
     
     const lkhDataResult = getLKHData(email, school, year, month);
     if (!lkhDataResult.success) throw new Error(lkhDataResult.error);
@@ -2287,13 +2316,14 @@ function generateLkhPdf(email, school, selectedMonthYear) {
       timeZone: 'Asia/Makassar'
     });
     
-    const templateIds = {
-      'MTS TANUNTUNG': '1aqlTVbB-lc4V7FG2bKqaIeZWptVathW9a-mbErNiY4U',
-      'MIS BUTUNG': '1tJ5DcKcy1P3G5RAAfBDGb6pIy4nUXrrahJeZO2R7RAU'
-    };
+    // Ambil peta pengaturan sekolah dari cache/sheet
+    const settingsMap = getSchoolSettingsMap_();
     
-    const templateId = templateIds[school];
-    if (!templateId) {
+    // Cari pengaturan untuk sekolah pengguna
+    const schoolSetting = settingsMap.get(school); // 'school' adalah parameter fungsi ini
+    const templateId = schoolSetting ? schoolSetting.lkhId : null;
+
+    if (!templateId || templateId.trim() === "") {
       return { success: false, error: `Template LKH untuk sekolah "${school}" tidak ditemukan.` };
     }
 
@@ -2402,8 +2432,14 @@ function getLKHWeeklyData(email) {
   }
 }
 
+/**
+ * (VERSI OPTIMAL) Menyimpan data LKH mingguan untuk satu pengguna.
+ * Menggunakan strategi read-modify-write untuk menggabungkan semua
+ * pembaruan dan penambahan data ke dalam satu panggilan API.
+ */
 function saveLKHWeeklyData(email, school, lkhWeeklyData) {
   try {
+    // 1. Dapatkan info pengguna (Tidak berubah)
     if (!checkIfLKHUser_(email)) {
       return { status: "error", message: "Akses LKH ditolak." };
     }
@@ -2413,49 +2449,58 @@ function saveLKHWeeklyData(email, school, lkhWeeklyData) {
     const userName = userRow[2];
     
     const sheet = getLKHWeeklySheet_();
-    const allData = sheet.getDataRange().getValues();
     
-    const existingDataMap = {};
-    for (let i = 1; i < allData.length; i++) {
-      const rowEmail = allData[i][0];
-      const day = allData[i][3];
-      if (rowEmail.toLowerCase() === email.toLowerCase()) {
-        existingDataMap[day] = { rowIndex: i + 1 };
-      }
-    }
-    
-    const rowsToUpdate = [];
-    const rowsToInsert = [];
-    const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    // --- AWAL OPTIMASI ---
 
+    // 2. Baca SEMUA data dari sheet
+    const allData = sheet.getDataRange().getValues();
+    const headers = allData[0]; // Simpan header ["Email", "Nama", "Sekolah", ...]
+
+    // 3. Modifikasi (Filter): Buat array baru HANYA berisi data PENGGUNA LAIN
+    const otherUsersData = allData.slice(1) // (slice(1) untuk lewati header)
+      .filter(row => {
+        // Cek jika baris valid dan emailnya BUKAN email pengguna saat ini
+        if (!row[0]) return false; // Lewati baris kosong
+        return row[0].toLowerCase() !== email.toLowerCase(); 
+      });
+
+    // 4. Modifikasi (Tambah): Buat 6 baris data baru untuk PENGGUNA SAAT INI
+    const currentUserNewData = [];
+    const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    
     days.forEach(day => {
       const entry = lkhWeeklyData[day] || {};
-      const newRowData = [email, userName, school, day, entry.uraian || "", entry.hasil || "", entry.vol || ""];
-
-      if (existingDataMap[day]) {
-        const rowIndex = existingDataMap[day].rowIndex;
-        rowsToUpdate.push({
-          range: sheet.getRange(rowIndex, 1, 1, 7),
-          values: [newRowData]
-        });
-      } else {
-        rowsToInsert.push(newRowData);
-      }
+      // Kita simpan semua 6 hari, bahkan jika kosong,
+      // untuk memastikan data lama terhapus dan terganti.
+      currentUserNewData.push([
+        email, 
+        userName, 
+        school, 
+        day, 
+        entry.uraian || "", 
+        entry.hasil || "", 
+        entry.vol || ""
+      ]);
     });
 
-    if (rowsToUpdate.length > 0) {
-      rowsToUpdate.forEach(update => {
-        update.range.setValues(update.values);
-      });
-    }
+    // 5. Gabungkan semua data: Header + Data Pengguna Lain + Data Baru Pengguna Ini
+    const finalData = [headers, ...otherUsersData, ...currentUserNewData];
 
-    if (rowsToInsert.length > 0) {
-      sheet.getRange(sheet.getLastRow() + 1, 1, rowsToInsert.length, 7).setValues(rowsToInsert);
+    // 6. Tulis (Clear dan Set): Hapus total dan tulis ulang semua dalam 2 panggilan
+    sheet.getRange(1, 1, sheet.getMaxRows(), sheet.getMaxColumns()).clearContent();
+    
+    if (finalData.length > 0) {
+      // Pastikan headers.length sesuai (7 kolom)
+      sheet.getRange(1, 1, finalData.length, headers.length).setValues(finalData);
     }
+    
+    // --- AKHIR OPTIMASI ---
 
     return { status: "success", message: "LKH mingguan berhasil diperbarui." };
+  
   } catch (e) {
-    Logger.log(`Error in saveLKHWeeklyData (optimized): ${e.message}`);
+    // Tambahkan .stack untuk debugging
+    Logger.log(`Error in saveLKHWeeklyData (Optimized): ${e.message} \nStack: ${e.stack}`);
     return { status: "error", message: "Gagal menyimpan LKH mingguan. Terjadi kesalahan server." };
   }
 }
@@ -3218,3 +3263,68 @@ function calculateTimeDifference_(startStr, endStr) {
 // ===================================================================
 // --- AKHIR BLOK REKAP DETAIL HARIAN ---
 // ===================================================================
+
+/**
+ * HELPER: Mendapatkan atau membuat sheet untuk SchoolSettings.
+ */
+function getSchoolSettingsSheet_() {
+  let sheet = ss.getSheetByName("SchoolSettings");
+  if (!sheet) {
+    sheet = ss.insertSheet("SchoolSettings");
+    // (Anda tidak perlu alamat, jadi kita hapus kolom itu)
+    const headers = ["NamaSekolah", "SptjmTemplateId", "LkhTemplateId"];
+    sheet.appendRow(headers);
+    sheet.setFrozenRows(1);
+    // Tambahkan data contoh
+    const exampleData = [
+      ["MTS TANUNTUNG", "ID_TEMPLATE_SPTJM_MTS_DISINI", "ID_TEMPLATE_LKH_MTS_DISINI"],
+      ["MIS BUTUNG", "ID_TEMPLATE_SPTJM_MIS_DISINI", "ID_TEMPLATE_LKH_MIS_DISINI"]
+    ];
+    sheet.getRange(2, 1, 2, 3).setValues(exampleData);
+    sheet.getRange("A:C").setNumberFormat("@");
+  }
+  return sheet;
+}
+
+/**
+ * HELPER: Membaca sheet SchoolSettings dan mengembalikannya sebagai Map.
+ * Data di-cache untuk performa tinggi.
+ * @return {Map<string, {sptjmId: string, lkhId: string}>}
+ */
+function getSchoolSettingsMap_() {
+  const cache = CacheService.getScriptCache();
+  const CACHE_KEY = "school_settings_map";
+  
+  const cached = cache.get(CACHE_KEY);
+  if (cached) {
+    // Kembalikan dari cache jika ada
+    return new Map(JSON.parse(cached));
+  }
+
+  const sheet = getSchoolSettingsSheet_();
+  if (sheet.getLastRow() < 2) {
+    return new Map(); // Kosong jika tidak ada data
+  }
+  
+  // Baca data (mulai dari baris 2, ambil 3 kolom)
+  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 3).getValues();
+  const settingsMap = new Map();
+  
+  data.forEach(row => {
+    const schoolName = row[0]; // NamaSekolah
+    const sptjmId = row[1];  // SptjmTemplateId
+    const lkhId = row[2];    // LkhTemplateId
+    
+    if (schoolName) {
+      settingsMap.set(schoolName, { 
+        sptjmId: sptjmId, 
+        lkhId: lkhId 
+      });
+    }
+  });
+  
+  // Simpan ke cache selama 6 jam
+  cache.put(CACHE_KEY, JSON.stringify(Array.from(settingsMap.entries())), 21600);
+  
+  return settingsMap;
+}
