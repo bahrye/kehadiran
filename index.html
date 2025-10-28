@@ -490,6 +490,18 @@
       </div>
     </div>
 
+    <div id="clear-lkh-modal" class="modal confirmation-modal">
+      <div class="modal-content">
+        <span class="close-btn" onclick="closeClearLkhModal()">&times;</span>
+        <h3>Konfirmasi Pembersihan</h3>
+        <p>Apakah Anda yakin ingin membersihkan semua isian LKH di halaman ini? Tindakan ini tidak dapat dibatalkan.</p>
+        <div class="modal-actions">
+            <button class="cancel-btn" onclick="closeClearLkhModal()">Batal</button>
+            <button class="confirm-btn danger" onclick="confirmClearLkhData()">Ya, Bersihkan Data</button>
+        </div>
+      </div>
+    </div>
+
     <script>
       // ===================================================================
       // VARIABEL GLOBAL & FUNGSI UTILITAS
@@ -3392,7 +3404,18 @@
       function generateLkhForm(year, month) {
           const container = document.getElementById('lkh-table-container');
           const saveButton = document.getElementById('save-lkh-button');
-          const applyWeeklyButton = document.getElementById('apply-weekly-data-button'); // 1. Ambil elemen tombol
+
+          // === AWAL PERUBAHAN ===
+          const applyWeeklyButton = document.getElementById('apply-weekly-data-button');
+          const clearButton = document.getElementById('clear-lkh-data-button'); // Ambil tombol baru
+
+          // === TAMBAHKAN BARIS INI ===
+          displayMessage('lkh-action-message', ''); // Bersihkan pesan aksi sebelumnya
+          // === AKHIR TAMBAHAN ===
+
+          applyWeeklyButton.disabled = true; // Pindahkan ini ke atas
+          clearButton.disabled = true;     // Nonaktifkan tombol baru saat loading
+          // === AKHIR PERUBAHAN ===
 
           // Tampilkan loading
           container.innerHTML = `
@@ -3430,10 +3453,11 @@
             const data = existingData[day.date] || {};
             tableHTML += `
               <tr data-date="${day.date}">
-                <td>${day.dayName}, ${day.formattedDate}</td>
-                <td><textarea rows="3" id="uraian-${day.date}">${data.uraian || ''}</textarea></td>
-                <td><textarea rows="3" id="hasil-${day.date}">${data.hasil || ''}</textarea></td>
-                <td><textarea id="vol-${day.date}">${data.vol || ''}</textarea></td>
+                
+                <td>${day.dayName},<br>${day.formattedDate}</td>
+                <td><textarea rows="3" id="uraian-${day.date}" oninput="updateClearLkhButtonStatus()">${data.uraian || ''}</textarea></td>
+                <td><textarea rows="3" id="hasil-${day.date}" oninput="updateClearLkhButtonStatus()">${data.hasil || ''}</textarea></td>
+                <td><textarea id="vol-${day.date}" oninput="updateClearLkhButtonStatus()">${data.vol || ''}</textarea></td>
                 <td><button class="clear-btn" onclick="handleClearLkhRow(event)">Hapus</button></td>
               </tr>
             `;
@@ -3444,6 +3468,8 @@
         }
         tableHTML += '</tbody></table>';
         container.innerHTML = tableHTML;
+        
+        updateClearLkhButtonStatus(); // Memeriksa status tombol saat tabel pertama kali dimuat
       }
 
       function handleSaveLKH() {
@@ -3539,7 +3565,8 @@
                               const row = `
                                   <tr>
                                       <td style="border: 1px solid black; padding: 8px; text-align: center;">${index + 1}</td>
-                                      <td style="border: 1px solid black; padding: 8px;">${item.dayName}, ${item.formattedDate}</td>
+                                      
+                                      <td style="border: 1px solid black; padding: 8px;">${item.dayName},<br>${item.formattedDate}</td>
                                       <td style="border: 1px solid black; padding: 8px; white-space: pre-wrap;">${item.uraian}</td>
                                       <td style="border: 1px solid black; padding: 8px; white-space: pre-wrap;">${item.hasil}</td>
                                       <td style="border: 1px solid black; padding: 8px; text-align: center;">${item.vol}</td>
@@ -3623,10 +3650,17 @@
 
       function handleApplyWeeklyData() {
         const button = document.getElementById('apply-weekly-data-button');
+
+        // === AWAL PERUBAHAN ===
+        const clearButton = document.getElementById('clear-lkh-data-button');
+        
         button.disabled = true;
+        clearButton.disabled = true; // Nonaktifkan tombol Bersihkan Data
+        
         button.querySelector('span').textContent = 'Mengambil data...';
-        // Mengarahkan pesan ke elemen baru di sebelah tombol
-        displayMessage('apply-weekly-data-message', 'Mengambil data mingguan...', { isProcessing: true });
+        // Ganti ID pesan ke ID yang baru
+        displayMessage('lkh-action-message', 'Mengambil data mingguan...', { isProcessing: true });
+        // === AKHIR PERUBAHAN ===
 
         google.script.run
           .withSuccessHandler(response => {
@@ -3667,28 +3701,138 @@
               });
 
               if (fieldsApplied > 0) {
-                 // Menampilkan pesan sukses di sebelah tombol
-                 displayMessage('apply-weekly-data-message', `Data mingguan berhasil diterapkan.`, { isSuccess: true });
+                 // Ganti ID pesan
+                 displayMessage('lkh-action-message', `Data mingguan berhasil diterapkan.`, { isSuccess: true });
               } else {
-                 // Menampilkan pesan "semua terisi" di sebelah tombol
-                 displayMessage('apply-weekly-data-message', 'Semua isian sudah terisi.', { isSuccess: true });
+                 // Ganti ID pesan
+                 displayMessage('lkh-action-message', 'Semua isian sudah terisi.', { isSuccess: true });
               }
 
+              // === TAMBAHKAN BARIS INI ===
+              updateClearLkhButtonStatus(); // Perbarui status tombol setelah data diterapkan
+
             } else {
-              // Menampilkan pesan gagal di sebelah tombol
-              displayMessage('apply-weekly-data-message', 'Gagal mengambil data mingguan atau tidak ada data tersimpan.');
+              // Ganti ID pesan
+              displayMessage('lkh-action-message', 'Gagal mengambil data mingguan atau tidak ada data tersimpan.');
             }
             button.disabled = false;
             button.querySelector('span').textContent = 'Ambil Data Mingguan';
+            
+            // === AWAL PERUBAHAN ===
+            // Panggil update status untuk meng-evaluasi ulang tombol Bersihkan Data
+            updateClearLkhButtonStatus(); 
+            // === AKHIR PERUBAHAN ===
           })
           .withFailureHandler(error => {
-            // Menampilkan pesan error di sebelah tombol
-            displayMessage('apply-weekly-data-message', 'Error: ' + error.message);
+            // Ganti ID pesan
+            displayMessage('lkh-action-message', 'Error: ' + error.message);
             button.disabled = false;
             button.querySelector('span').textContent = 'Ambil Data Mingguan';
+
+            // === AWAL PERUBAHAN ===
+            // Panggil update status untuk meng-evaluasi ulang tombol Bersihkan Data
+            updateClearLkhButtonStatus();
+            // === AKHIR PERUBAHAN ===
           })
           .getLKHWeeklyData(currentUser.email);
       }
+
+      // === AWAL FUNGSI BARU UNTUK TOMBOL BERSIHKAN LKH ===
+
+      /**
+       * (BARU) Memeriksa apakah ada data di formulir LKH dan
+       * memperbarui status (gaya dan disabled) tombol 'Bersihkan Data'.
+       */
+      function updateClearLkhButtonStatus() {
+        const clearButton = document.getElementById('clear-lkh-data-button');
+        if (!clearButton) return; // Keluar jika elemen tidak ditemukan
+
+        const rows = document.querySelectorAll('#lkh-table-container tbody tr');
+        let hasData = false;
+        
+        // Cek apakah ada data di textarea manapun
+        // Gunakan 'for...of' agar bisa 'break' lebih awal
+        for (const row of rows) {
+          const textareas = row.querySelectorAll('textarea');
+          for (const textarea of textareas) {
+            if (textarea.value.trim() !== '') {
+              hasData = true;
+              break; // Keluar dari loop textarea
+            }
+          }
+          if (hasData) break; // Keluar dari loop baris
+        }
+
+        if (hasData) {
+          // Ada data: Buat tombol ORANGE dan AKTIF
+          clearButton.disabled = false;
+          clearButton.classList.remove('secondary'); // Hapus kelas abu-abu
+          clearButton.classList.add('warning');    // Tambah kelas orange
+        } else {
+          // Tidak ada data: Buat tombol ABU-ABU dan NONAKTIF
+          clearButton.disabled = true;
+          clearButton.classList.remove('warning');    // Hapus kelas orange
+          clearButton.classList.add('secondary'); // Tambah kelas abu-abu
+        }
+      }
+
+      /**
+       * (BARU) Dijalankan saat tombol 'Bersihkan Data' diklik.
+       * Membersihkan semua textarea di LKH.
+       */
+      function handleClearLkhData() {
+        openClearLkhModal();
+      }
+
+      // === AWAL FUNGSI BARU ===
+
+      /**
+       * (BARU) Membuka modal konfirmasi 'Bersihkan LKH'.
+       */
+      function openClearLkhModal() {
+        document.getElementById('clear-lkh-modal').style.display = 'block';
+      }
+
+      /**
+       * (BARU) Menutup modal konfirmasi 'Bersihkan LKH'.
+       */
+      function closeClearLkhModal() {
+        document.getElementById('clear-lkh-modal').style.display = 'none';
+      }
+
+      /**
+       * (BARU) Logika inti yang dijalankan setelah modal dikonfirmasi "Ya".
+       */
+      function confirmClearLkhData() {
+        closeClearLkhModal(); // 1. Tutup modalnya
+        
+        // 2. Jalankan logika pembersihan (kode ini dipindah dari handleClearLkhData)
+        const rows = document.querySelectorAll('#lkh-table-container tbody tr');
+        let fieldsCleared = 0;
+
+        rows.forEach(row => {
+          const textareas = row.querySelectorAll('textarea');
+          textareas.forEach(textarea => {
+            if (textarea.value !== '') {
+              textarea.value = '';
+              fieldsCleared++;
+            }
+          });
+        });
+
+        if (fieldsCleared > 0) {
+          // === GANTI ID PESAN DI SINI ===
+          displayMessage('lkh-action-message', 'Semua data berhasil dibersihkan.', { isSuccess: true });
+        } else {
+          // === GANTI ID PESAN DI SINI ===
+          displayMessage('lkh-action-message', 'Formulir sudah bersih.');
+        }
+
+        // 3. Perbarui status tombol
+        updateClearLkhButtonStatus();
+      }
+      
+      // === AKHIR FUNGSI BARU ===
 
       function handleClearLkhRow(event) {
         // Mencegah perilaku default dari tombol
@@ -3701,6 +3845,7 @@
         textareas.forEach(textarea => {
           textarea.value = '';
         });
+        updateClearLkhButtonStatus();
       }
 
       // --- FUNGSI BARU UNTUK RELOAD RINGKASAN ---
