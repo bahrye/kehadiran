@@ -505,7 +505,8 @@
         // Data baru untuk fitur pengajuan
         isRequestableMonth: false,
         pendingChanges: {},
-        rejectionInfo: null
+        rejectionInfo: null,
+        rejectedChanges: []
       };
       // --- AKHIR PERUBAHAN ---
 
@@ -1056,7 +1057,7 @@
         // --- AWAL PERUBAHAN: Reset appSettings ---
         appSettings = {
           lockedMonths: [], holidays: {}, announcements: "", teacherHolidays: [],
-          isRequestableMonth: false, pendingChanges: {}, rejectionInfo: null
+          isRequestableMonth: false, pendingChanges: {}, rejectionInfo: null, rejectedChanges: []
         };
         // --- AKHIR PERUBAHAN ---
 
@@ -1345,6 +1346,7 @@
               appSettings.isRequestableMonth = response.isRequestableMonth;
               appSettings.pendingChanges = response.pendingChanges;
               appSettings.rejectionInfo = response.rejectionInfo;
+              appSettings.rejectedChanges = response.rejectedChanges || [];
               // --- AKHIR PERUBAHAN ---
 
               generateMonthTable(year, month, response.attendance);
@@ -1436,20 +1438,23 @@
           const currentMonth = today.getMonth() + 1;
           const isFutureMonth = year > currentYear || (year === currentYear && month > currentMonth);
 
-          // --- AWAL PERUBAHAN: Logika Baru untuk Pengajuan ---
+          // --- AWAL LOGIKA PENGAJUAN ---
           const isReqMonth = appSettings.isRequestableMonth;
           const pendingData = appSettings.pendingChanges;
-          const isRequestPending = Object.keys(pendingData).length > 0;
-          // Tentukan apakah input dinonaktifkan secara umum
+          
+          // *** Ini adalah SATU-SATUNYA deklarasi untuk isRequestPending ***
+          const isRequestPending = Object.keys(pendingData).length > 0; 
+          
           const isDisabled = (isMonthLocked && !isReqMonth) || isFutureMonth;
-          // --- AKHIR PERUBAHAN ---
+          // --- AKHIR LOGIKA PENGAJUAN ---
 
           let lockMessage = "";
           if(isReqMonth) {
             if (isRequestPending) {
               lockMessage = 'Pengajuan Anda sedang ditinjau oleh Staff.';
             } else if (appSettings.rejectionInfo) {
-              lockMessage = 'Pengajuan Anda ditolak. Lihat pesan di bawah.';
+              // Pesan ini akan ditimpa oleh tabel detail di bawah jika ada
+              lockMessage = 'Beberapa pengajuan Anda ditolak. Lihat detail di bawah.';
             } else {
               lockMessage = 'Bulan ini terkunci. Klik "Ubah" pada baris untuk mengajukan perubahan.';
             }
@@ -1461,36 +1466,81 @@
 
           document.getElementById('global-lock-message').innerText = lockMessage;
 
-          // --- AWAL PERUBAHAN: Logika Tombol Utama ---
+          // --- LOGIKA TOMBOL UTAMA ---
           const saveButton = document.getElementById('save-button');
           const requestButton = document.getElementById('request-change-button');
 
           if (isReqMonth) {
             saveButton.style.display = 'none';
             requestButton.style.display = 'inline-flex';
-            requestButton.disabled = false; // Aktifkan tombol pengajuan
+            requestButton.disabled = false;
             if (isRequestPending) {
               requestButton.innerHTML = '<i class="fa-solid fa-ban"></i> <span>Batalkan Ajuan</span>';
-              requestButton.className = 'action-button cancel-request'; // Ganti warna jadi merah
-              requestButton.onclick = handleCancelRequest; // <<< Pastikan ini benar
+              requestButton.className = 'action-button cancel-request';
+              requestButton.onclick = handleCancelRequest;
             } else {
               requestButton.innerHTML = '<i class="fa-solid fa-paper-plane"></i> <span>Ajukan Perubahan</span>';
-              requestButton.className = 'action-button'; // Warna kuning default (dari style)
+              requestButton.className = 'action-button';
               requestButton.onclick = handleRequestChange;
             }
           } else {
             saveButton.style.display = 'inline-flex';
             requestButton.style.display = 'none';
-            saveButton.disabled = isDisabled; // Nonaktifkan tombol simpan jika bulan dikunci/masa depan
+            saveButton.disabled = isDisabled;
           }
 
-          // Tampilkan pesan penolakan jika ada
-          if (isReqMonth && !isRequestPending && appSettings.rejectionInfo) {
-             displayMessage('save-message', `Pengajuan ditolak: ${appSettings.rejectionInfo.reason}`);
-          } else {
-             displayMessage('save-message', ''); // Hapus pesan lama
+          // --- BLOK BARU UNTUK MENAMPILKAN TABEL PENOLAKAN ---
+          const messageElement = document.getElementById('save-message');
+          messageElement.innerHTML = ''; // Selalu bersihkan pesan lama
+
+          const rejectedItems = appSettings.rejectedChanges || [];
+          
+          // Tampilkan tabel penolakan JIKA ada item yang ditolak
+          // DAN TIDAK ADA item lain yang sedang pending
+          // (Menggunakan 'isRequestPending' yang sudah dideklarasikan di atas)
+          if (isReqMonth && rejectedItems.length > 0 && !isRequestPending) {
+              
+              const formatData = (data) => {
+                if (data.reason) return `<strong>Alasan:</strong> ${data.reason}`;
+                if (!data.checkIn && !data.checkOut) return `<em>(Kosong)</em>`;
+                return `<strong>M:</strong> ${data.checkIn || '-'} | <strong>P:</strong> ${data.checkOut || '-'}`;
+              };
+
+              let rejectionHtml = `
+                <div class="rejection-details-container">
+                  <h4 class="rejection-title">Detail Pengajuan Ditolak</h4>
+                  <p class="rejection-subtitle">Data berikut telah ditolak oleh Staff. Anda dapat mengubah dan mengajukannya kembali.</p>
+                  <table class="rejection-table">
+                    <thead>
+                      <tr>
+                        <th>Tgl</th>
+                        <th>Data Lama</th>
+                        <th>Ajuan Ditolak</th>
+                        <th>Alasan Penolakan</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+              `;
+              
+              const formatDateTgl = (dateStr) => {
+                  try { return dateStr.split('-')[2]; } catch(e) { return '?'; }
+              }
+
+              rejectedItems.forEach(item => {
+                 rejectionHtml += `
+                    <tr>
+                      <td>${formatDateTgl(item.date)}</td>
+                      <td>${formatData(item.oldData)}</td>
+                      <td>${formatData(item.newData)}</td>
+                      <td>${item.reason || '-'}</td>
+                    </tr>
+                 `;
+              });
+              
+              rejectionHtml += `</tbody></table></div>`;
+              messageElement.innerHTML = rejectionHtml;
           }
-          // --- AKHIR PERUBAHAN ---
+          // --- AKHIR BLOK BARU ---
 
 
           let tableHTML = '<div class="table-scroll-wrapper"><table><thead><tr><th>Tanggal</th><th>Jam Masuk</th><th>Jam Pulang</th><th>Keterangan</th><th>Aksi</th></tr></thead><tbody>';
@@ -1504,42 +1554,30 @@
             const isHoliday = !!appSettings.holidays[dateStr];
             const existingData = attendanceData[dateStr];
 
-            // --- AWAL PERUBAHAN: Logika Aksi & Status Baris ---
             let rowClass = '';
             let aksiButton = '';
-            // Tentukan status baris (pending, ditolak, dll)
+            
             if (isReqMonth && pendingData[dateStr]) {
-              rowClass = 'pending-row'; // Oranye
+              rowClass = 'pending-row';
             } else if (isSunday) {
               rowClass = 'sunday-row';
             } else if (isHoliday) {
               rowClass = 'holiday-row';
             }
 
-            // --- AWAL PERBAIKAN: Perbaiki logika tombol aksi ---
-            // Tentukan tombol aksi
             if (isSunday || isHoliday) {
-              // Tidak ada aksi untuk hari libur/minggu
+              // Tidak ada aksi
             } else if (isReqMonth) {
-              // Jika bulan ini bisa diajukan
               if (isRequestPending) {
-                // Jika ada pengajuan PENDING, tombol dinonaktifkan
                 aksiButton = `<button class="action-btn warning edit-btn" disabled>Menunggu</button>`;
               } else {
-                // Jika TIDAK PENDING (kondisi awal atau setelah ditolak), tampilkan tombol "Ubah"
                 aksiButton = `<button class="action-btn warning edit-btn" onclick="handleEnableEdit(event)">Ubah</button>`;
               }
             } else {
-              // Bulan normal (bukan pengajuan), tampilkan tombol "Hapus"
               aksiButton = `<button class="clear-btn" onclick="handleClearRow(event)" ${isDisabled ? 'disabled' : ''}>Hapus</button>`;
             }
-            // --- AKHIR PERBAIKAN ---
 
-            // Tentukan apakah input di baris ini harus nonaktif
-            // Nonaktif jika: (Bulan dikunci/masa depan DAN BUKAN bulan pengajuan) ATAU (Bulan pengajuan TAPI BELUM klik Ubah)
-            // Kita sederhanakan: selalu nonaktif jika isRowDisabled true. Pengaktifan saat klik Ubah.
             const isRowDisabled = isDisabled || isReqMonth;
-            // --- AKHIR PERUBAHAN ---
 
             if (isHoliday) {
               tableHTML += `<tr id="row-${dateStr}" class="${rowClass}"><td>${day} <small>(${dayName})</small></td><td colspan="3">${appSettings.holidays[dateStr]}</td><td>${aksiButton}</td></tr>`;
@@ -1924,6 +1962,7 @@
 
       /**
        * (STAFF) Merender daftar pengajuan di halaman staff.
+       * --- FUNGSI INI DIMODIFIKASI UNTUK FITUR GRANULAR ---
        */
       function renderChangeRequestList(requests) {
         const container = document.getElementById('request-list-container');
@@ -1934,12 +1973,17 @@
 
         let html = '';
         requests.forEach(guruRequest => {
-          const requestIds = guruRequest.changes.map(c => c.requestId);
-          const requestIdsJson = JSON.stringify(requestIds).replace(/"/g, "'");
+          // Buat ID unik untuk grup ini
+          const groupId = `request-group-${guruRequest.email}-${guruRequest.year}-${guruRequest.month}`;
 
           html += `
-            <div class="request-group">
+            <div class="request-group" id="${groupId}">
               <div class="request-group-header">
+                
+                <div class="select-all-container">
+                  <input type="checkbox" id="select-all-${groupId}" onchange="toggleSelectAll(this, '${groupId}')" title="Pilih Semua">
+                  <label for="select-all-${groupId}">Pilih Semua</label>
+                </div>
                 <h3>${guruRequest.name}</h3>
                 <p>${guruRequest.school} - ${guruRequest.monthName}</p>
               </div>
@@ -1947,6 +1991,7 @@
                 <table class="request-table">
                   <thead>
                     <tr>
+                      <th style="width: 50px; text-align: center;"><i class="fa-solid fa-check"></i></th>
                       <th>Tanggal</th>
                       <th>Data Lama</th>
                       <th>Data Pengajuan (Baru)</th>
@@ -1957,7 +2002,9 @@
 
           guruRequest.changes.forEach(change => {
             html += `
-              <tr>
+              <tr data-request-id="${change.requestId}"> <td style="text-align: center; vertical-align: middle;">
+                  <input type="checkbox" class="request-checkbox" data-request-id="${change.requestId}">
+                </td>
                 <td>${change.date}</td>
                 <td>
                   <span class="data-label">Masuk:</span> <span class="data-old">${change.oldData.checkIn || '-'}</span><br>
@@ -1978,11 +2025,11 @@
                 </table>
               </div>
               <div class="request-group-actions">
-                 <button class="action-button" onclick="handleApproveRequest(${requestIdsJson}, event)">
-                  <i class="fa-solid fa-check"></i> <span>Setujui (${guruRequest.changes.length})</span>
+                 <button class="action-button" onclick="handleApproveRequest('${groupId}', event)">
+                  <i class="fa-solid fa-check"></i> <span>Setujui Pilihan</span>
                 </button>
-                <button class="action-button reject-btn" onclick="openRejectionModal(${requestIdsJson})">
-                  <i class="fa-solid fa-times"></i> <span>Tolak (${guruRequest.changes.length})</span>
+                <button class="action-button reject-btn" onclick="openRejectionModal('${groupId}')">
+                  <i class="fa-solid fa-times"></i> <span>Tolak Pilihan</span>
                 </button>
               </div>
             </div>
@@ -1992,14 +2039,55 @@
         container.innerHTML = html;
       }
 
-      // --- PERBAIKAN DI SINI ---
+      // --- TAMBAHAN FUNGSI BARU ---
+      /**
+       * (STAFF) Helper untuk mencentang/membatalkan semua checkbox dalam satu grup.
+       */
+      function toggleSelectAll(selectAllCheckbox, groupId) {
+          const groupElement = document.getElementById(groupId);
+          if (!groupElement) return;
+
+          const checkboxes = groupElement.querySelectorAll('.request-table tbody input[type="checkbox"]');
+          checkboxes.forEach(cb => {
+              cb.checked = selectAllCheckbox.checked;
+          });
+      }
+
+      // --- TAMBAHAN FUNGSI BARU ---
+      /**
+       * (STAFF) Helper untuk mengambil semua ID yang dicentang dalam satu grup.
+       */
+      function getSelectedRequestIds(groupId) {
+          const groupElement = document.getElementById(groupId);
+          if (!groupElement) return [];
+
+          const selectedCheckboxes = groupElement.querySelectorAll('.request-table tbody input[type="checkbox"]:checked');
+          
+          const ids = [];
+          selectedCheckboxes.forEach(cb => {
+              ids.push(cb.dataset.requestId);
+          });
+          return ids;
+      }
+
       /**
        * (STAFF) Dipanggil saat staff menekan 'Setujui'.
        * Membuka modal konfirmasi.
+       * --- FUNGSI INI DIMODIFIKASI ---
        */
-      function handleApproveRequest(requestIds, event) {
-        if (event) event.preventDefault(); // Mencegah aksi default tombol jika ada
-        openApproveRequestModal(requestIds);
+      function handleApproveRequest(groupId, event) {
+        if (event) event.preventDefault();
+        
+        // Dapatkan hanya ID yang dipilih
+        const selectedIds = getSelectedRequestIds(groupId);
+        
+        if (selectedIds.length === 0) {
+            displayMessage('request-list-message', 'Silakan pilih minimal satu baris pengajuan untuk disetujui.');
+            return;
+        }
+
+        // Panggil modal yang sudah ada dengan ID yang dipilih
+        openApproveRequestModal(selectedIds);
       }
 
       // Fungsi untuk membuka modal persetujuan
@@ -2045,9 +2133,18 @@
 
       /**
        * (STAFF) Membuka modal untuk alasan penolakan.
+       * --- FUNGSI INI DIMODIFIKASI ---
        */
-      function openRejectionModal(requestIds) {
-        document.getElementById('rejection-request-ids').value = JSON.stringify(requestIds);
+      function openRejectionModal(groupId) {
+        // Dapatkan hanya ID yang dipilih
+        const selectedIds = getSelectedRequestIds(groupId);
+
+        if (selectedIds.length === 0) {
+            displayMessage('request-list-message', 'Silakan pilih minimal satu baris pengajuan untuk ditolak.');
+            return;
+        }
+
+        document.getElementById('rejection-request-ids').value = JSON.stringify(selectedIds);
         document.getElementById('rejection-reason-input').value = '';
         document.getElementById('rejection-modal').style.display = 'block';
       }
