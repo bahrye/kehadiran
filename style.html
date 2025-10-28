@@ -1542,6 +1542,15 @@
     opacity: 1;
     transition: opacity 0.4s ease, transform 0.4s ease;
     word-break: break-word; 
+
+    /* Tambahkan 3 baris ini: */
+    touch-action: none; /* Mencegah scrolling halaman saat toast digeser */
+    user-select: none;  /* Mencegah teks terblok saat digeser */
+    cursor: grab;       /* Menandakan elemen bisa digeser */
+  }
+
+  .toast-message.is-grabbing {
+    cursor: grabbing; /* Tampilan kursor saat sedang digeser */
   }
 
   .toast-message i {
