@@ -1355,6 +1355,9 @@
               appSettings.lockedMonths = response.lockedMonths;
               appSettings.holidays = response.holidays;
               appSettings.teacherHolidays = response.teacherHolidays;
+
+              appSettings.announcements = response.announcements;
+
               // Data baru untuk pengajuan
               appSettings.isRequestableMonth = response.isRequestableMonth;
               appSettings.pendingChanges = response.pendingChanges;
@@ -3497,11 +3500,19 @@
           .withSuccessHandler(response => {
             if(response.status === 'success') {
               displayMessage('lkh-message', response.message, { isSuccess: true });
+
+              // --- AWAL PERBAIKAN ---
+              // Panggil fungsi yang memuat ulang data dari server.
+              // Ini akan menyinkronkan klien dengan data terbaru setelah menyimpan.
+              handleLkhMonthChange();
+              // --- AKHIR PERBAIKAN ---
+
             } else {
               displayMessage('lkh-message', response.message);
+              // Jika gagal, aktifkan kembali tombolnya secara manual
+              button.disabled = false;
+              button.querySelector('span').textContent = "Simpan LKH";
             }
-            button.disabled = false;
-            button.querySelector('span').textContent = "Simpan LKH";
           })
           .withFailureHandler(error => {
             displayMessage('lkh-message', 'Error: ' + error.message);
