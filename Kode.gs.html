@@ -54,27 +54,16 @@ function getUserDataByEmail_(email) {
       if (users[i][0].toLowerCase() === email.toLowerCase()) {
         const schoolString = users[i][3] || "";
         const schools = schoolString.split(',').map(s => s.trim()).filter(Boolean);
-        
-        // --- AWAL MODIFIKASI ---
-        const userRole = users[i][4]; // 'guru', 'staff', 'admin'
         const hasLKHFeature = checkIfLKHUser_(email);
         
-        let canBypassGeo = false;
-        if (userRole === 'staff') {
-          // Cek apakah staff ini punya hak bypass
-          canBypassGeo = checkStaffBypass_(email);
-        }
-        // --- AKHIR MODIFIKASI ---
-
         return { 
           status: "success", 
           user: { 
             email: users[i][0],
             name: users[i][2], 
             schools: schools,
-            role: userRole, // Menggunakan variabel yang sudah diambil
-            hasLKHFeature: hasLKHFeature,
-            canBypassGeo: canBypassGeo // <-- Properti baru ditambahkan di sini
+            role: users[i][4],
+            hasLKHFeature: hasLKHFeature
           }
         };
       }
@@ -2456,59 +2445,6 @@ function getLKHWeeklySheet_() {
   return sheet;
 }
 
-/**
- * HELPER BARU: Mendapatkan atau membuat sheet untuk StaffGeoBypass.
- */
-function getStaffBypassSheet_() {
-  let sheet = ss.getSheetByName("StaffGeoBypass");
-  if (!sheet) {
-    sheet = ss.insertSheet("StaffGeoBypass");
-    const headers = ["StaffEmail", "Keterangan (Contoh: Admin TU)"];
-    sheet.appendRow(headers);
-    sheet.setFrozenRows(1);
-    // Baris contoh agar admin tahu cara mengisinya
-    sheet.appendRow(["staff@email.com", "Hapus baris ini dan isi dengan email staff yang benar"]);
-    sheet.getRange("A:A").setNumberFormat("@");
-  }
-  return sheet;
-}
-
-/**
- * HELPER BARU: Memeriksa apakah seorang staff memiliki hak bypass Geo-lock.
- * Menggunakan cache untuk performa.
- */
-function checkStaffBypass_(staffEmail) {
-  if (!staffEmail) return false;
-
-  const cache = CacheService.getScriptCache();
-  const cacheKey = `bypass_${staffEmail.toLowerCase()}`;
-  const cached = cache.get(cacheKey);
-  
-  if (cached) {
-    return cached === 'true';
-  }
-
-  try {
-    // Panggil helper di atas untuk memastikan sheet ada
-    const sheet = getStaffBypassSheet_();
-    if (sheet.getLastRow() < 2) {
-      cache.put(cacheKey, 'false', 3600); // Cache 'false' selama 1 jam
-      return false;
-    }
-    
-    // Baca daftar email staff yang punya hak bypass
-    const emailList = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().flat();
-    const hasBypass = emailList.some(email => email.toLowerCase() === staffEmail.toLowerCase());
-    
-    // Simpan hasilnya di cache
-    cache.put(cacheKey, hasBypass ? 'true' : 'false', 3600); // Cache hasil selama 1 jam
-    return hasBypass;
-
-  } catch (e) {
-    Logger.log(`Error di checkStaffBypass_ for ${staffEmail}: ${e.message}`);
-    return false; // Default ke 'false' jika ada error
-  }
-}
 
 function getLKHWeeklyData(email) {
   try {
