@@ -39,11 +39,12 @@
     
     /* TAMBAHAN: Memastikan body tidak lebih lebar dari layar */
     width: 100%;
+    overflow-x: hidden; /* <-- TAMBAHKAN BARIS INI UNTUK MENGUNCI SCROLL KIRI/KANAN */
   }
 
   .container {
     width: 100%;
-    max-width: 650px; /* Lebarkan container untuk tabel staff */
+    /* max-width: 650px; /* Lebarkan container untuk tabel staff */
     padding: 20px;
     /* box-sizing: border-box; sudah di-handle oleh * selector di atas */
   }
@@ -56,6 +57,12 @@
     text-align: center;
     border: 1px solid var(--border-color);
     position: relative;
+
+    /* === AWAL TAMBAHAN BARU === */
+    max-width: 650px;  /* Atur max-width DEFAULT untuk SEMUA card */
+    margin-left: auto;   /* Pusatkan card */
+    margin-right: auto;  /* Pusatkan card */
+    /* === AKHIR TAMBAHAN BARU === */
   }
 
   h2 {
