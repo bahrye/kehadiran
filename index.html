@@ -53,6 +53,18 @@
             <p id="announcement-text">Tidak ada pengumuman saat ini.</p>
           </div>
 
+          <div id="geo-status-box" class="card-section processing">
+            <div id="geo-status-header">
+              <h3><i class="fa-solid fa-location-dot"></i> Status Lokasi</h3>
+              <button id="refresh-geo-button" onclick="runDashboardGeoCheck()">
+                <i class="fa-solid fa-rotate"></i>
+                <span>Refresh</span>
+              </button>
+            </div>
+            <h4 id="geo-status-message">Memuat...</h4>
+            <p id="geo-status-details">Mencari pengaturan sekolah...</p>
+          </div>
+
           <div id="summary-section">
               <div class="summary-title">
                   <h3>Ringkasan Bulanan</h3>
@@ -1399,9 +1411,7 @@
           document.getElementById("lkh-sptjm-dashboard-container").style.display = "none";
           document.getElementById("lkh-weekly-container").style.display = "none";
           document.getElementById("all-teachers-summary-container").style.display = "none";
-          // --- AWAL PERUBAHAN: Sembunyikan container baru ---
           document.getElementById("change-request-container").style.display = "none";
-          // --- AKHIR PERUBAHAN ---
           document.getElementById("guru-dashboard-container").style.display = "block";
 
           const welcomeH2 = document.getElementById('guru-welcome-message');
@@ -1424,10 +1434,30 @@
           // Tampilkan loading untuk pengumuman
           renderAnnouncements("Memuat pengumuman...", true);
 
-          google.script.run.withSuccessHandler(response => {
-              renderAnnouncements(response.announcements);
+          // Panggil getAttendancePageData untuk mendapatkan *semua* pengaturan (termasuk schoolSettings)
+          google.script.run
+            .withSuccessHandler(response => {
+              if (response && response.error) {
+                renderAnnouncements("Gagal memuat pengaturan.");
+                document.getElementById('geo-status-box').style.display = 'none'; // Sembunyikan jika gagal
+                return;
+              }
+              // Simpan semua pengaturan
               appSettings = response;
-          }).getAppSettingsForUser(currentUser.email, selectedSchool, currentDate.getFullYear(), currentDate.getMonth() + 1);
+              currentSchoolSettings = response.schoolSettings || {};
+              
+              // Render pengumuman
+              renderAnnouncements(response.announcements);
+              
+              // === LOGIKA BARU: Mulai verifikasi lokasi ===
+              runDashboardGeoCheck(); 
+              // ==========================================
+            })
+            .withFailureHandler(error => {
+               renderAnnouncements(`Gagal memuat pengaturan: ${error.message}`);
+               document.getElementById('geo-status-box').style.display = 'none'; // Sembunyikan jika gagal
+            })
+            .getAttendancePageData(currentUser.email, selectedSchool, currentDate.getFullYear(), currentDate.getMonth() + 1, 0); // Token 0 tidak masalah, hanya untuk ambil settings
 
           loadAndRenderSummary();
       }
@@ -1486,18 +1516,21 @@
         document.getElementById('ceklok-teacher-name').innerText = '';
         document.getElementById('ceklok-title').innerText = `Formulir Kehadiran - ${selectedSchool}`;
 
-        // --- AWAL PERUBAHAN ---
-        // 1. Reset status lokasi
-        isUserInLocation = false;
-        // 2. Nonaktifkan tombol simpan SEBELUM memuat data
-        const saveButton = document.getElementById('save-button');
-        if (saveButton) saveButton.disabled = true;
-        // 3. Sembunyikan pesan & tombol geo SEBELUM memuat data
+        // === LOGIKA BARU: Cek status global ===
+        const isGeoEnabled = currentSchoolSettings.geoEnabled === true;
         const geoMessage = document.getElementById('geo-lock-message');
-        const retryButton = document.getElementById('retry-geo-button');
-        if (geoMessage) geoMessage.style.display = 'none';
-        if (retryButton) retryButton.style.display = 'none';
-        // --- AKHIR PERUBAHAN ---
+        
+        if (isGeoEnabled && !isUserInLocation) {
+            // Jika geo aktif DAN status global "di luar lokasi"
+            geoMessage.innerText = "Anda berada di luar jangkauan lokasi. Input Ceklok hari ini dikunci.";
+            geoMessage.style.display = 'block';
+            geoMessage.style.color = 'var(--danger-color)';
+            geoMessage.style.backgroundColor = '#FEF2F2';
+        } else {
+            // Jika geo nonaktif ATAU pengguna di dalam lokasi
+            geoMessage.style.display = 'none';
+        }
+        // ====================================
 
         loadMonthData(currentDate);
       }
@@ -1544,9 +1577,6 @@
         loadMonthData(currentDate);
       }
 
-      // ===================================================================
-      // 2. GANTI FUNGSI LAMA (loadMonthData) DENGAN INI
-      // ===================================================================
       function loadMonthData(date){
           const year = date.getFullYear();
           const month = date.getMonth() + 1;
@@ -1570,8 +1600,8 @@
           saveButton.disabled = true;
           requestButton.disabled = true;
           
-          // Sembunyikan pesan geo-lock saat memuat
-          document.getElementById('geo-lock-message').style.display = 'none';
+          // Sembunyikan pesan geo-lock saat memuat (dihapus dari sini)
+          // document.getElementById('geo-lock-message').style.display = 'none';
 
           google.script.run
             .withSuccessHandler(response => {
@@ -1586,7 +1616,6 @@
                 return;
               }
               
-              // --- AWAL MODIFIKASI: Simpan SEMUA pengaturan ---
               appSettings.attendance = response.attendance;
               appSettings.lockedMonths = response.lockedMonths;
               appSettings.holidays = response.holidays;
@@ -1597,16 +1626,12 @@
               appSettings.rejectionInfo = response.rejectionInfo;
               appSettings.rejectedChanges = response.rejectedChanges || [];
               
-              // Simpan pengaturan sekolah (termasuk geo)
-              currentSchoolSettings = response.schoolSettings || {}; 
-              // --- AKHIR MODIFIKASI ---
+              // Tidak perlu set currentSchoolSettings lagi, sudah ada di dasbor
+              // currentSchoolSettings = response.schoolSettings || {}; 
 
               generateMonthTable(year, month, response.attendance);
               
-              // --- TAMBAHAN BARU: Panggil Pengecekan Geolocation ---
-              // Lakukan pengecekan lokasi SETELAH tabel dibuat
-              checkGeolocation();
-              // --- AKHIR TAMBAHAN ---
+              // Panggilan ke checkGeolocation() DIHAPUS DARI SINI
             })
             .withFailureHandler(error => {
                 document.getElementById('attendance-table-container').innerHTML = `<p style="color: var(--danger-color);">Gagal memuat data absensi: ${error.message}</p>`;
@@ -1662,12 +1687,10 @@
         input.value = value;
       }
 
-      // ===================================================================
-      // 3. GANTI FUNGSI LAMA (generateMonthTable) DENGAN INI
-      // ===================================================================
       function generateMonthTable(year, month, attendanceData) {
           const container = document.getElementById('attendance-table-container');
 
+          // Opsi alasan cuti/izin
           const reasonOptions = `
               <option value="">-- Pilih Alasan --</option>
               <option value="Hari Libur Sekolah">Hari Libur Sekolah</option>
@@ -1688,6 +1711,7 @@
               <option value="Dinas Luar">Dinas Luar</option>
           `;
 
+          // Variabel & Pengecekan Kondisi Bulan
           const daysInMonth = new Date(year, month, 0).getDate();
           const currentMonthStr = `${year}-${String(month).padStart(2, '0')}`;
           const isMonthLocked = appSettings.lockedMonths.includes(currentMonthStr);
@@ -1698,16 +1722,15 @@
 
           const isReqMonth = appSettings.isRequestableMonth;
           const pendingData = appSettings.pendingChanges;
-          const isRequestPending = Object.keys(pendingData).length > 0; 
-          
-          // --- AWAL PERUBAHAN: Logika Geo-lock ---
-          const isGeoEnabled = currentSchoolSettings.geoEnabled === true;
-          const todayStr = jsFormatDate(new Date()); // "YYYY-MM-DD"
-          // --- AKHIR PERUBAHAN ---
+          const isRequestPending = Object.keys(pendingData).length > 0;
 
+          const isGeoEnabled = currentSchoolSettings.geoEnabled === true;
+          const todayStr = jsFormatDate(new Date()); // Format "YYYY-MM-DD"
+
+          // Logika Pesan Penguncian Global
           let lockMessage = "";
           if (isGeoEnabled) {
-              lockMessage = 'Fitur Kunci Lokasi aktif. Anda hanya dapat mengisi absensi untuk hari ini dan harus berada di lokasi sekolah.';
+              lockMessage = ''; // Pesan geo ditangani oleh showCeklokPage
           } else if(isReqMonth) {
             if (isRequestPending) {
               lockMessage = 'Pengajuan Anda sedang ditinjau oleh Staff.';
@@ -1721,21 +1744,16 @@
           } else if (isFutureMonth) {
             lockMessage = 'Anda belum bisa mengisi absensi untuk bulan depan.';
           }
-
           document.getElementById('global-lock-message').innerText = lockMessage;
 
+          // Logika Tampilan Tombol Simpan/Ajukan
           const saveButton = document.getElementById('save-button');
           const requestButton = document.getElementById('request-change-button');
-
-          // --- AWAL PERUBAHAN: Logika Tombol dengan Geo-lock ---
           if (isGeoEnabled) {
-              // Jika geo-lock aktif, HANYA tombol Simpan yang muncul
               saveButton.style.display = 'inline-flex';
               requestButton.style.display = 'none';
-              // Tombol Simpan akan diaktifkan/dinonaktifkan oleh applyGeoLock()
-              saveButton.disabled = true; 
-          } else if (isReqMonth) {
-              // Logika pengajuan (jika geo-lock TIDAK aktif)
+              saveButton.disabled = !isUserInLocation; // Tombol simpan aktif jika di lokasi
+          } else if (isReqMonth) { // Logika tombol pengajuan
               saveButton.style.display = 'none';
               requestButton.style.display = 'inline-flex';
               requestButton.disabled = false;
@@ -1748,33 +1766,31 @@
                 requestButton.className = 'action-button';
                 requestButton.onclick = handleRequestChange;
               }
-          } else {
-              // Logika normal (bulan berjalan, tidak terkunci, tidak geo-lock)
+          } else { // Logika bulan normal/terkunci
               saveButton.style.display = 'inline-flex';
               requestButton.style.display = 'none';
-              const isDisabled = isMonthLocked || isFutureMonth;
-              saveButton.disabled = isDisabled;
+              saveButton.disabled = isMonthLocked || isFutureMonth;
           }
-          // --- AKHIR PERUBAHAN ---
 
+          // Logika Menampilkan Detail Penolakan (jika ada)
           const messageElement = document.getElementById('save-message');
           const rejectionWrapper = document.getElementById('rejection-details-wrapper');
           messageElement.innerHTML = '';
           rejectionWrapper.innerHTML = '';
           const rejectedItems = appSettings.rejectedChanges || [];
-          
           if (isReqMonth && rejectedItems.length > 0) {
-              // (Logika rejection-details-wrapper tetap sama, tidak perlu diubah)
+              // Fungsi helper untuk memformat data lama/baru
               const formatData = (data) => {
                 if (data.reason) return `<strong>Alasan:</strong> ${data.reason}`;
                 if (!data.checkIn && !data.checkOut) return `<em>(Kosong)</em>`;
                 return `<strong>M:</strong> ${data.checkIn || '-'} | <strong>P:</strong> ${data.checkOut || '-'}`;
               };
+              // Buat HTML tabel penolakan
               let rejectionHtml = `
                 <div class="rejection-details-container">
                   <h4 class="rejection-title">Detail Pengajuan Ditolak</h4>
                   <p class="rejection-subtitle">Data berikut telah ditolak oleh Staff. Anda dapat mengubah dan mengajukannya kembali.</p>
-                  <div class="table-scroll-wrapper"> 
+                  <div class="table-scroll-wrapper">
                     <table class="rejection-table">
                       <thead>
                         <tr>
@@ -1786,9 +1802,11 @@
                       </thead>
                       <tbody>
               `;
+              // Fungsi helper untuk format tanggal (hanya angka hari)
               const formatDateTgl = (dateStr) => {
                   try { return dateStr.split('-')[2]; } catch(e) { return '?'; }
-              }
+              };
+              // Isi tabel dengan data penolakan
               rejectedItems.forEach(item => {
                  rejectionHtml += `
                     <tr>
@@ -1799,76 +1817,94 @@
                     </tr>
                  `;
               });
-              rejectionHtml += `</tbody></table></div></div>`; 
-              rejectionWrapper.innerHTML = rejectionHtml;
+              rejectionHtml += `</tbody></table></div></div>`;
+              rejectionWrapper.innerHTML = rejectionHtml; // Tampilkan tabel
           }
 
+          // Mulai Membuat HTML Tabel Utama
           let tableHTML = '<div class="table-scroll-wrapper"><table><thead><tr><th>Tanggal</th><th>Jam Masuk</th><th>Jam Pulang</th><th>Keterangan</th><th>Aksi</th></tr></thead><tbody>';
 
+          // Loop untuk Setiap Hari dalam Bulan
           for (let day = 1; day <= daysInMonth; day++) {
             const dateStr = `${currentMonthStr}-${String(day).padStart(2, '0')}`;
             const dateObj = new Date(year, month - 1, day);
-            const dayOfWeek = dateObj.getDay();
+            const dayOfWeek = dateObj.getDay(); // 0 = Minggu
             const dayName = dateObj.toLocaleString('id-ID', { weekday: 'short' });
             const isSunday = dayOfWeek === 0;
-            const isHoliday = !!appSettings.holidays[dateStr];
-            const existingData = attendanceData[dateStr];
+            const isHoliday = !!appSettings.holidays[dateStr]; // Cek libur nasional
+            const existingData = attendanceData[dateStr]; // Data absensi dari server
 
-            let rowClass = '';
-            let aksiButton = '';
-            
-            if (isReqMonth && pendingData[dateStr]) {
-              rowClass = 'pending-row';
-            } else if (isSunday) {
-              rowClass = 'sunday-row';
-            } else if (isHoliday) {
-              rowClass = 'holiday-row';
+            let rowClassList = []; // Array untuk menampung kelas CSS baris
+            let aksiButton = '';   // HTML untuk tombol aksi
+
+            // Tentukan Kelas CSS Dasar (pending, libur, minggu)
+            if (isReqMonth && pendingData[dateStr]) { rowClassList.push('pending-row'); }
+            else if (isSunday) { rowClassList.push('sunday-row'); }
+            else if (isHoliday) { rowClassList.push('holiday-row'); }
+
+            // Tambahkan Kelas CSS Highlight untuk Hari Ini (jika Geo Aktif)
+            if (dateStr === todayStr && isGeoEnabled) {
+                if (isUserInLocation) {
+                    rowClassList.push('today-row-allowed'); // Kelas hijau
+                } else {
+                    rowClassList.push('today-row-denied');  // Kelas merah
+                }
             }
 
-            // --- AWAL PERUBAHAN: Logika Penguncian Baris (isRowDisabled) ---
-            let isRowDisabled = false;
-            
-            if (isGeoEnabled) {
-                // Jika geo-lock aktif, SEMUA baris dikunci KECUALI HARI INI.
-                // Status hari ini (terkunci/tidak) akan diatur oleh checkGeolocation() nanti.
-                isRowDisabled = (dateStr !== todayStr);
-            } else if (isReqMonth) {
-                // Jika bulan pengajuan, semua baris dikunci (perlu tombol 'Ubah')
-                isRowDisabled = true;
-            } else {
-                // Logika normal: kunci jika bulan terkunci atau bulan depan
-                isRowDisabled = (isMonthLocked && !isReqMonth) || isFutureMonth;
+            // Tentukan Status Disabled untuk Input Baris Ini
+            let isRowDisabled = (isMonthLocked && !isReqMonth) || isFutureMonth; // Kunci dasar (bulan terkunci/masa depan)
+            if (isGeoEnabled) { // Timpa jika Geo aktif
+                // Jika hari ini, status kunci tergantung status lokasi global. Jika bukan hari ini, kunci total.
+                isRowDisabled = (dateStr === todayStr) ? !isUserInLocation : true;
             }
-            // --- AKHIR PERUBAHAN ---
 
+            // Tentukan Tombol Aksi berdasarkan Kondisi
             if (isSunday || isHoliday) {
-              // Aksi untuk hari libur/minggu
-            } else if (isGeoEnabled) {
-                // Jika geo-lock aktif, tidak ada tombol aksi
-                aksiButton = '-';
-            } else if (isReqMonth) {
+                // Tidak ada tombol aksi untuk hari libur atau Minggu
+            } else if (isGeoEnabled) { // Jika Geo aktif, hanya tombol Hapus
+                aksiButton = `<button class="clear-btn" onclick="handleClearRow(event)" ${isRowDisabled ? 'disabled' : ''}>Hapus</button>`;
+            } else if (isReqMonth) { // Jika bulan pengajuan, tombol Ubah/Menunggu
               if (isRequestPending) {
                 aksiButton = `<button class="action-btn warning edit-btn" disabled>Menunggu</button>`;
               } else {
                 aksiButton = `<button class="action-btn warning edit-btn" onclick="handleEnableEdit(event)">Ubah</button>`;
               }
-            } else {
+            } else { // Bulan normal/terkunci (tanpa Geo), tombol Hapus
               aksiButton = `<button class="clear-btn" onclick="handleClearRow(event)" ${isRowDisabled ? 'disabled' : ''}>Hapus</button>`;
             }
 
-            if (isHoliday) {
+            // Gabungkan semua kelas CSS menjadi satu string, dipisahkan spasi
+            const rowClass = rowClassList.join(' ');
+
+            // Buat HTML untuk Baris (tr)
+            if (isHoliday) { // Baris untuk libur nasional
               tableHTML += `<tr id="row-${dateStr}" class="${rowClass}"><td>${day} <small>(${dayName})</small></td><td colspan="3">${appSettings.holidays[dateStr]}</td><td>${aksiButton}</td></tr>`;
-            } else if (isSunday) {
+            } else if (isSunday) { // Baris untuk hari Minggu
               tableHTML += `<tr id="row-${dateStr}" class="${rowClass}"><td>${day} <small>(${dayName})</small></td><td colspan="3">Hari Libur</td><td>${aksiButton}</td></tr>`;
-            }
-            else {
+            } else { // Baris untuk hari kerja
               tableHTML += `<tr id="row-${dateStr}" class="${rowClass}"><td>${day} <small>(${dayName})</small></td><td><input type="text" class="time-entry" id="in-${dateStr}" placeholder="HH:MM" maxlength="5" inputmode="numeric" oninput="handleTimeInput(event)" ${isRowDisabled ? 'disabled' : ''}></td><td><input type="text" class="time-entry" id="out-${dateStr}" placeholder="HH:MM" maxlength="5" inputmode="numeric" oninput="handleTimeInput(event)" ${isRowDisabled ? 'disabled' : ''}></td><td><select id="reason-${dateStr}" ${isRowDisabled ? 'disabled' : ''} onchange="handleReasonChange(event)">${reasonOptions}</select></td><td>${aksiButton}</td></tr>`;
             }
-          }
-          tableHTML += '</tbody></table></div>';
-          container.innerHTML = tableHTML;
+          } // Akhir loop hari
 
+          tableHTML += '</tbody></table></div>'; // Tutup tabel dan wrapper
+          container.innerHTML = tableHTML; // Tampilkan tabel ke halaman
+
+          // Isi data absensi ke input yang sudah dibuat
           populateAttendanceData(attendanceData);
+
+          // Scroll ke Baris Hari Ini (jika bulan berjalan)
+          const todayRowElement = document.getElementById(`row-${todayStr}`);
+          if (todayRowElement) {
+              // Cek apakah bulan yang ditampilkan adalah bulan saat ini
+              const isCurrentDisplayMonth = (year === currentYear && month === currentMonth);
+              if (isGeoEnabled && isCurrentDisplayMonth) {
+                  // Hanya scroll jika ini bulan berjalan
+                  todayRowElement.scrollIntoView({
+                      behavior: 'smooth', // Animasi halus
+                      block: 'center'    // Posisikan di tengah layar vertikal
+                  });
+              }
+          }
       }
 
       function populateAttendanceData(data) {
@@ -4204,126 +4240,9 @@
           })
           .clearSchoolSummaryCache(currentUser.email, selectedSchool, year, month);
       }
-
-      // ===================================================================
-      // 5. TAMBAHKAN SEMUA FUNGSI BARU DI BAWAH INI (BLOK GEOLOCATION)
-      // ===================================================================
       
       /**
-       * (BARU) Fungsi utama untuk memulai pengecekan geolokasi.
-       * (DIMODIFIKASI: Timeout diperpanjang)
-       */
-      function checkGeolocation() {
-        // --- AWAL PERUBAHAN ---
-        // Reset status dan nonaktifkan tombol SAAT MEMULAI verifikasi ulang
-        isUserInLocation = false;
-        const saveButton = document.getElementById('save-button');
-        if (saveButton) saveButton.disabled = true;
-        const retryButton = document.getElementById('retry-geo-button');
-        if (retryButton) retryButton.disabled = true; // Nonaktifkan tombol retry saat proses
-        // Kunci input hari ini SEBELUM verifikasi
-        applyGeoLock("Sedang memverifikasi lokasi Anda...");
-        // --- AKHIR PERUBAHAN ---
-
-        if (!currentSchoolSettings || currentSchoolSettings.geoEnabled !== true) {
-          isUserInLocation = true;
-          applyGeoLock(null);
-          // Aktifkan tombol retry lagi jika perlu (walaupun tidak ditampilkan)
-          if (retryButton) retryButton.disabled = false;
-          return;
-        }
-
-        if ("geolocation" in navigator) {
-          const geoMessage = document.getElementById('geo-lock-message');
-          geoMessage.innerText = "Sedang memverifikasi lokasi Anda...";
-          geoMessage.style.display = 'block';
-          geoMessage.style.color = 'var(--text-secondary-color)';
-          geoMessage.style.backgroundColor = '#EFF6FF';
-
-          navigator.geolocation.getCurrentPosition(
-            handleGeoSuccess,
-            handleGeoError,
-            {
-              enableHighAccuracy: true,
-              timeout: 30000, // Tetap 30 detik
-              maximumAge: 0 // **PENTING: Pastikan ini 0 untuk lokasi baru**
-            }
-          );
-        } else {
-          isUserInLocation = false;
-          applyGeoLock("Browser Anda tidak mendukung Geolocation. Ceklok tidak dapat dilakukan.");
-          // Aktifkan tombol retry lagi jika error
-          if (retryButton) retryButton.disabled = false;
-        }
-      }
-
-      // ===================================================================
-      // 4. GANTI FUNGSI LAMA (applyGeoLock) DENGAN INI
-      // ===================================================================
-      function applyGeoLock(errorMessage) {
-          const geoMessage = document.getElementById('geo-lock-message');
-          const retryButton = document.getElementById('retry-geo-button');
-          const saveButton = document.getElementById('save-button');
-          const todayStr = jsFormatDate(new Date());
-          const isGeoEnabled = currentSchoolSettings.geoEnabled === true;
-
-          // Target input HARI INI saja
-          const todayRow = document.getElementById(`row-${todayStr}`);
-          let todayInputs = [];
-          if (todayRow) {
-             todayInputs = todayRow.querySelectorAll('input.time-entry, select');
-          }
-
-          // Nonaktifkan tombol Simpan secara default jika geo aktif
-          if (isGeoEnabled && saveButton) {
-              saveButton.disabled = true;
-          }
-
-          if (isUserInLocation && isGeoEnabled) {
-              // PENGGUNA DI LOKASI & GEO AKTIF
-              geoMessage.style.display = 'none'; // Sembunyikan pesan
-              retryButton.style.display = 'none'; // Sembunyikan tombol Coba Lagi
-
-              // Aktifkan tombol Simpan
-              if (saveButton) saveButton.disabled = false;
-
-              // Aktifkan input HARI INI
-              todayInputs.forEach(input => input.disabled = false);
-
-              // Panggil handleReasonChange khusus untuk baris hari ini
-              // untuk memastikan input jam sesuai dengan pilihan alasan
-              const todayReasonSelect = document.getElementById(`reason-${todayStr}`);
-              if (todayReasonSelect) {
-                  handleReasonChange({ target: todayReasonSelect });
-              }
-
-          } else if (isGeoEnabled) {
-              // PENGGUNA DI LUAR LOKASI / ERROR & GEO AKTIF
-              geoMessage.innerText = errorMessage || "Anda berada di luar jangkauan lokasi sekolah.";
-              geoMessage.style.display = 'block';
-              geoMessage.style.color = 'var(--danger-color)';
-              geoMessage.style.backgroundColor = '#FEF2F2';
-
-              // Tampilkan & Aktifkan tombol Coba Lagi
-              retryButton.style.display = 'inline-flex';
-              retryButton.disabled = false;
-
-              // Tombol Simpan tetap nonaktif (sudah di set di awal)
-
-              // Nonaktifkan input HARI INI
-              todayInputs.forEach(input => input.disabled = true);
-
-          } else {
-              // FITUR GEO TIDAK AKTIF atau ERROR SEBELUMNYA
-              geoMessage.style.display = 'none'; // Sembunyikan pesan
-              retryButton.style.display = 'none'; // Sembunyikan tombol Coba Lagi
-              // Status tombol Simpan diatur oleh logika lain (bulan terkunci, dll)
-              // Status input diatur oleh generateMonthTable
-          }
-      }
-      
-      /**
-       * (BARU) Dipanggil jika geolocation BERHASIL.
+       * (MODIFIKASI) Dipanggil jika geolocation BERHASIL.
        */
       function handleGeoSuccess(position) {
         const userLat = position.coords.latitude;
@@ -4335,7 +4254,7 @@
         
         if (schoolLat == null || schoolLon == null) {
             isUserInLocation = false; // Anggap di luar lokasi jika data sekolah tidak lengkap
-            applyGeoLock("Pengaturan lokasi untuk sekolah ini belum lengkap. Hubungi Admin.");
+            updateGeoStatusUI(null, { message: "Pengaturan lokasi untuk sekolah ini belum lengkap." });
             return;
         }
 
@@ -4345,37 +4264,63 @@
         if (distance <= schoolRadius) {
             // Pengguna BERADA DI DALAM LOKASI
             isUserInLocation = true;
-            applyGeoLock(null); // null berarti tidak ada error
         } else {
             // Pengguna DI LUAR LOKASI
             isUserInLocation = false;
-            const distanceKm = (distance / 1000).toFixed(2);
-            applyGeoLock(`Anda berada ${distanceKm} km di luar jangkauan lokasi sekolah (${schoolRadius} m) yang diizinkan.`);
         }
+        updateGeoStatusUI(distance); // Kirim jarak untuk ditampilkan
       }
       
       /**
-       * (BARU) Dipanggil jika geolocation GAGAL.
+       * (MODIFIKASI) Dipanggil jika geolocation GAGAL.
        */
       function handleGeoError(error) {
-        isUserInLocation = false;
-        let message = "Gagal mendapatkan lokasi Anda. ";
-        
-        switch(error.code) {
-          case error.PERMISSION_DENIED:
-            message += "Izin lokasi ditolak. Silakan izinkan akses lokasi di browser Anda untuk dapat melakukan ceklok.";
-            break;
-          case error.POSITION_UNAVAILABLE:
-            message += "Informasi lokasi tidak tersedia saat ini.";
-            break;
-          case error.TIMEOUT:
-            message += "Waktu verifikasi lokasi habis. Coba muat ulang halaman.";
-            break;
-          default:
-            message += "Terjadi kesalahan tidak diketahui.";
-            break;
-        }
-        applyGeoLock(message);
+        isUserInLocation = false; // Selalu set 'false' jika error
+        updateGeoStatusUI(null, error); // Kirim error untuk ditampilkan
+      }
+
+      /**
+       * (BARU) Memperbarui kotak status lokasi di DASBOR.
+       */
+      function updateGeoStatusUI(distance, error) {
+          const statusBox = document.getElementById('geo-status-box');
+          if (!statusBox) return; // Keluar jika elemen tidak ada
+
+          const msgEl = document.getElementById('geo-status-message');
+          const detailsEl = document.getElementById('geo-status-details');
+          const refreshBtn = document.getElementById('refresh-geo-button');
+          
+          const radius = currentSchoolSettings.radius || 0;
+          
+          if (error) {
+              // Status GAGAL (Error teknis)
+              isUserInLocation = false;
+              statusBox.className = 'card-section danger';
+              msgEl.innerText = 'Lokasi Gagal Diverifikasi';
+              switch(error.code) {
+                  case error.PERMISSION_DENIED:
+                      detailsEl.innerText = "Izin lokasi ditolak. Aktifkan di setelan browser."; break;
+                  case error.POSITION_UNAVAILABLE:
+                      detailsEl.innerText = "Sinyal lokasi tidak tersedia. Coba lagi."; break;
+                  case error.TIMEOUT:
+                      detailsEl.innerText = "Waktu verifikasi habis. Coba lagi."; break;
+                  default:
+                      detailsEl.innerText = error.message || "Gagal mendapatkan lokasi.";
+              }
+          } else if (isUserInLocation) {
+              // Status SUKSES (Di dalam lokasi)
+              statusBox.className = 'card-section success';
+              msgEl.innerText = 'Anda Berada di Lokasi';
+              detailsEl.innerText = `Jarak: ${distance.toFixed(0)} m (Radius: ${radius} m). Ceklok hari ini dibuka.`;
+          } else {
+              // Status GAGAL (Di luar lokasi)
+              statusBox.className = 'card-section danger';
+              msgEl.innerText = 'Anda di Luar Jangkauan';
+              const distanceKm = (distance / 1000).toFixed(2);
+              detailsEl.innerText = `Jarak: ${distanceKm} km (Radius: ${radius} m). Ceklok hari ini dikunci.`;
+          }
+          
+          refreshBtn.disabled = false; // Aktifkan kembali tombol refresh
       }
 
       /**
@@ -4396,6 +4341,43 @@
 
           const d = R * c; // dalam meter
           return d;
+      }
+
+      /**
+       * (BARU) Fungsi utama untuk memulai pengecekan geolokasi di DASBOR.
+       */
+      function runDashboardGeoCheck() {
+          const statusBox = document.getElementById('geo-status-box');
+          if (!statusBox) return; // Keluar jika tidak di dasbor guru
+          
+          const isGeoEnabled = currentSchoolSettings.geoEnabled === true;
+          if (!isGeoEnabled) {
+              statusBox.style.display = 'none'; // Sembunyikan box jika geo tidak aktif
+              isUserInLocation = true; // Anggap di lokasi jika geo nonaktif
+              return;
+          }
+          
+          // Tampilkan box dan set ke status "memverifikasi"
+          statusBox.style.display = 'block';
+          statusBox.className = 'card-section processing';
+          document.getElementById('geo-status-message').innerText = 'Sedang memverifikasi lokasi Anda...';
+          document.getElementById('geo-status-details').innerText = 'Pastikan GPS dan izin lokasi aktif.';
+          document.getElementById('refresh-geo-button').disabled = true;
+
+          if ("geolocation" in navigator) {
+              navigator.geolocation.getCurrentPosition(
+                  handleGeoSuccess, // Panggil fungsi global
+                  handleGeoError,   // Panggil fungsi global
+                  {
+                      enableHighAccuracy: true,
+                      timeout: 10000, // 10 detik
+                      maximumAge: 0   // Lokasi baru
+                  }
+              );
+          } else {
+              // Kirim error buatan jika browser tidak support
+              handleGeoError({ code: -1, message: "Browser tidak mendukung Geolocation." });
+          }
       }
 
     </script>
