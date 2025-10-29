@@ -3245,40 +3245,18 @@
           document.getElementById('ceklok-title').innerText = `Formulir Kehadiran - ${selectedTeacherForStaff.school}`;
           document.getElementById('ceklok-teacher-name').innerText = `Untuk: ${selectedTeacherForStaff.name}`;
 
-          // --- AWAL PERBAIKAN: Logika Bypass Staff ---
-          const geoMessage = document.getElementById('geo-lock-message');
+          // --- AWAL PERUBAHAN ---
+          // 1. Reset status lokasi
+          isUserInLocation = false;
+          // 2. Nonaktifkan tombol simpan SEBELUM memuat data
           const saveButton = document.getElementById('save-button');
+          if (saveButton) saveButton.disabled = true;
+          // 3. Sembunyikan pesan & tombol geo SEBELUM memuat data
+          const geoMessage = document.getElementById('geo-lock-message');
           const retryButton = document.getElementById('retry-geo-button');
-
-          // Cek apakah staff yang sedang login punya hak bypass
-          if (currentUser.canBypassGeo === true) {
-              // 1. Staff ini punya hak bypass, anggap mereka di dalam lokasi
-              isUserInLocation = true;
-              
-              // 2. Tampilkan pesan info bypass
-              if (geoMessage) {
-                  geoMessage.innerText = "Anda login sebagai Staff dengan hak bypass lokasi. Ceklok hari ini dibuka.";
-                  geoMessage.style.display = 'block';
-                  geoMessage.style.color = 'var(--success-color)'; // Hijau
-                  geoMessage.style.backgroundColor = '#F0FDF4'; // Hijau muda
-              }
-              // 3. Aktifkan tombol simpan
-              if (saveButton) saveButton.disabled = false;
-
-          } else {
-              // 1. Staff ini TIDAK punya hak bypass, kunci geo-lock tetap berlaku
-              isUserInLocation = false;
-              
-              // 2. Sembunyikan pesan (akan di-handle oleh 'generateMonthTable' jika geo aktif)
-              if (geoMessage) geoMessage.style.display = 'none';
-              
-              // 3. Nonaktifkan tombol simpan
-              if (saveButton) saveButton.disabled = true;
-          }
-
-          // 4. Selalu sembunyikan tombol retry untuk staff
+          if (geoMessage) geoMessage.style.display = 'none';
           if (retryButton) retryButton.style.display = 'none';
-          // --- AKHIR PERBAIKAN ---
+          // --- AKHIR PERUBAHAN ---
 
           loadMonthData(currentDate);
       }
