@@ -126,12 +126,12 @@
           <button onclick="handleGuruDownloadRekap()" id="guru-download-rekap-button" class="action-button">
               <i class="fa-solid fa-file-pdf"></i> <span>Buat & Unduh Rekap Saya</span>
           </button>
-          <button onclick="handleGuruDownloadAllRekap()" id="guru-download-all-rekap-button" class="action-button secondary">
+          <button onclick="handleGuruDownloadAllRekap()" id="guru-download-all-rekap-button" class="action-button secondary" style="margin-bottom: 0;">
               <i class="fa-solid fa-file-zipper"></i> <span>Unduh Rekap Semua Guru (Satu Sekolah)</span>
           </button>
-
-          <p id="guru-rekap-message" class="message" style="margin-top: 5px;"></p>
-          <hr style="margin: 25px 0;">
+          <p id="guru-rekap-message" class="message" style="margin-top: 5px; margin-bottom: 0;"></p>
+          
+          <hr style="margin: 0 0 25px 0;">
 
           <h3>MENU UTAMA</h3>
           <div class="dashboard-actions" style="margin-top: 10px;">
@@ -1993,6 +1993,13 @@
 
       function handleSave() {
           const button = document.getElementById('save-button');
+          
+          // --- AWAL TAMBAHAN: Dapatkan Referensi Kontrol ---
+          const requestButton = document.getElementById('request-change-button');
+          const monthNavButtons = document.querySelectorAll('.month-navigator button');
+          const tableControls = document.querySelectorAll('#attendance-table-container input, #attendance-table-container select, #attendance-table-container button');
+          // --- AKHIR TAMBAHAN ---
+
           document.querySelectorAll('#attendance-table-container tr.invalid-row').forEach(row => {
               row.classList.remove('invalid-row');
           });
@@ -2014,19 +2021,12 @@
               const checkOutInput = row.querySelector(`#out-${date}`);
               const reasonSelect = row.querySelector('select');
 
-              // Jika tidak ada elemen input 'select' di baris ini,
-              // berarti ini baris info (spt "Hari Libur"), jadi lewati.
               if (!reasonSelect) return; 
 
               const checkIn = checkInInput.value;
               const checkOut = checkOutInput.value;
               const reason = reasonSelect.value;
 
-              // Validasi baru:
-              // Hanya lewati baris jika input jam-nya nonaktif (disabled)
-              // DAN alasan-nya juga kosong.
-              // Ini untuk mengabaikan baris di bulan terkunci, TAPI
-              // tetap memproses baris yang punya "Alasan" (seperti Cuti/Sakit).
               if (checkInInput.disabled && reason.trim() === "") return;
 
               const hasCheckIn = checkIn.trim() !== "";
@@ -2056,23 +2056,41 @@
               return;
           }
 
+          // --- AWAL PERUBAHAN: Nonaktifkan Semua Kontrol ---
           button.disabled = true;
           button.querySelector('span').textContent = "Menyimpan...";
+          if (requestButton) requestButton.disabled = true;
+          monthNavButtons.forEach(btn => btn.disabled = true);
+          tableControls.forEach(ctrl => ctrl.disabled = true);
+          // --- AKHIR PERUBAHAN ---
+
           displayMessage('save-message', 'Menyimpan data...', { isProcessing: true });
 
           google.script.run
               .withSuccessHandler(r => {
                   displayMessage('save-message', r.message, { isSuccess: true });
-                  button.disabled = false;
+                  
+                  // --- PERBAIKAN: Reset teks tombol ---
                   button.querySelector('span').textContent = "Simpan Semua Perubahan";
-                  loadMonthData(currentDate);
+                  // --- AKHIR PERBAIKAN ---
+
+                  loadMonthData(currentDate); 
+                  
+                  monthNavButtons.forEach(btn => btn.disabled = false);
+
                   if (currentUser.role === 'guru') loadAndRenderSummary();
                   else if (currentUser.role === 'staff') loadStaffSummary();
               })
               .withFailureHandler(e => {
                   displayMessage('save-message', "Error: " + e.message);
-                  button.disabled = false;
+                  
+                  // --- PERBAIKAN: Reset teks tombol ---
                   button.querySelector('span').textContent = "Simpan Semua Perubahan";
+                  // --- AKHIR PERBAIKAN ---
+                  
+                  loadMonthData(currentDate);
+                  
+                  monthNavButtons.forEach(btn => btn.disabled = false);
               })
               .saveMonthlyAttendance(payload);
       }
