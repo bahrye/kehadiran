@@ -15,6 +15,8 @@ const lkhUsersSheet = ss.getSheetByName("LKHUsers");
 const changeRequestsSheet = getChangeRequestsSheet_();
 // --- AKHIR TAMBAHAN ---
 
+const schoolSettingsSheet = getSchoolSettingsSheet_();
+
 
 // FUNGSI BARU: Untuk membuat token unik
 function generateToken_() {
@@ -299,9 +301,13 @@ function getAppSettingsForUser(email, school, year, month) {
   };
 }
 
-// --- FUNGSI INI YANG DIPERBAIKI ---
+/**
+ * ===================================================================
+ * D. GANTI FUNGSI LAMA (getAttendancePageData) DENGAN INI
+ * ===================================================================
+ */
 function getAttendancePageData(email, school, year, month, token) {
-  try { // Tambahkan try...catch di level atas fungsi
+  try {
     const attendanceData = getMonthlyAttendance(email, school, year, month);
     let lockedMonths = [];
     let requestDayLimit = 10;
@@ -342,10 +348,13 @@ function getAttendancePageData(email, school, year, month, token) {
     }
 
     const teacherHolidays = getTeacherHolidays(email);
-
-    // --- TAMBAHKAN BARIS INI ---
     const announcements = getAnnouncements();
+    
+    // --- AWAL TAMBAHAN: Geolocation Settings ---
+    const schoolSettingsMap = getSchoolSettingsMap_();
+    const schoolSettings = schoolSettingsMap.get(school) || {}; // Ambil data untuk sekolah ini
     // --- AKHIR TAMBAHAN ---
+
 
     const daysInMonth = new Date(year, month, 0).getDate();
     const currentYear = today.getFullYear();
@@ -380,52 +389,53 @@ function getAttendancePageData(email, school, year, month, token) {
     const isLastMonth = (currentMonthStr === lastMonthStr);
     const isLocked = lockedMonths.includes(currentMonthStr);
     const isWithinRequestPeriod = (currentDayOfMonth <= requestDayLimit);
-    const isRequestableMonth = isLastMonth && isLocked && isWithinRequestPeriod;
+    
+    // --- AWAL PERUBAHAN: Logika Pengajuan tidak berlaku jika Geo-lock aktif ---
+    const isGeoEnabled = schoolSettings.geoEnabled === true;
+    // Bulan hanya bisa diajukan jika:
+    // 1. Ini adalah bulan lalu
+    // 2. Bulan lalu itu terkunci
+    // 3. Masih dalam periode pengajuan (misal tgl 1-10)
+    // 4. Fitur Geolocation TIDAK aktif (karena geo-lock punya aturan sendiri)
+    const isRequestableMonth = isLastMonth && isLocked && isWithinRequestPeriod && !isGeoEnabled; 
+    // --- AKHIR PERUBAHAN ---
 
     let pendingChanges = {};
     let rejectionInfo = null;
     let rejectedChanges = [];
 
-    if (isRequestableMonth) {
+    if (isRequestableMonth) { // Hanya cek pengajuan jika bulan ini 'requestable'
       const reqSheet = getChangeRequestsSheet_();
       const reqData = reqSheet.getLastRow() > 1 ? reqSheet.getDataRange().getValues().slice(1) : [];
 
       for (let i = reqData.length - 1; i >= 0; i--) {
         const row = reqData[i];
-        // --- AWAL PERBAIKAN KRITIS ---
-        // Tambahkan pengecekan null/undefined sebelum mengakses properti row
         if (!row || row.length < 16) {
            Logger.log(`Skipping invalid row at index ${i+1} in ChangeRequests sheet.`);
-           continue; // Lewati baris yang tidak lengkap/valid
+           continue; 
         }
-        // --- AKHIR PERBAIKAN KRITIS ---
 
         const reqEmail = row[2];
         const reqSchool = row[3];
         const reqYear = row[4];
         const reqMonth = row[5];
-        const reqDateValue = row[6]; // Kolom Tanggal (bisa jadi Date object atau string)
+        const reqDateValue = row[6]; 
         const reqStatus = row[13];
 
-        // --- AWAL PERBAIKAN FORMAT TANGGAL ---
         let reqDateStr = null;
-        // --- INI PERUBAHANNYA: Gunakan "GMT+8" ---
-        const TIMEZONE = "Asia/Makassar"; // Gunakan timezone yang sama dengan getMonthlyAttendance
+        const TIMEZONE = "Asia/Makassar"; 
         try {
-          // Coba format tanggal, tangani jika reqDateValue tidak valid
           if (reqDateValue instanceof Date && !isNaN(reqDateValue)) {
             reqDateStr = Utilities.formatDate(reqDateValue, TIMEZONE, "yyyy-MM-dd");
           } else if (typeof reqDateValue === 'string' && reqDateValue.length > 0) {
-            // Jika string, coba parse (misal jika formatnya sudah benar)
              reqDateStr = Utilities.formatDate(new Date(reqDateValue), TIMEZONE, "yyyy-MM-dd");
           }
         } catch(dateError) {
            Logger.log(`Error formatting date for row ${i+1} in ChangeRequests: ${dateError.message}. Value: ${reqDateValue}`);
-           continue; // Lewati baris ini jika tanggal bermasalah
+           continue; 
         }
 
-        if (!reqDateStr) continue; // Lewati jika tidak dapat memformat tanggal
-        // --- AKHIR PERBAIKAN FORMAT TANGGAL ---
+        if (!reqDateStr) continue;
 
 
         if (reqEmail && reqSchool &&
@@ -436,25 +446,23 @@ function getAttendancePageData(email, school, year, month, token) {
         {
           if (reqStatus === 'pending' && !pendingChanges[reqDateStr]) {
              pendingChanges[reqDateStr] = {
-               newCheckIn: (row[10] || "").toString().replace(/^'/, ""), // Tambah safety check
-               newCheckOut: (row[11] || "").toString().replace(/^'/, ""), // Tambah safety check
-               newReason: row[12] || "" // Tambah safety check
+               newCheckIn: (row[10] || "").toString().replace(/^'/, ""), 
+               newCheckOut: (row[11] || "").toString().replace(/^'/, ""), 
+               newReason: row[12] || "" 
              };
           } else if (reqStatus === 'rejected') {
               
-              // 1. Logic Baru: Kumpulkan SEMUA penolakan ke dalam array
               rejectedChanges.push({
-                date: reqDateStr, // Tanggal (yyyy-mm-dd)
+                date: reqDateStr, 
                 oldData: { checkIn: (row[7] || "").toString().replace(/^'/, ""), checkOut: (row[8] || "").toString().replace(/^'/, ""), reason: row[9] || "" },
                 newData: { checkIn: (row[10] || "").toString().replace(/^'/, ""), checkOut: (row[11] || "").toString().replace(/^'/, ""), reason: row[12] || "" },
-                reason: row[15] || "" // Alasan penolakan
+                reason: row[15] || "" 
               });
 
-              // 2. Logic Lama (Tetap simpan): Ambil satu alasan untuk pesan global
               if (!rejectionInfo) {
                   rejectionInfo = {
                     date: reqDateStr,
-                    reason: row[15] || "" // Tambah safety check
+                    reason: row[15] || "" 
                   };
               }
           }
@@ -467,23 +475,23 @@ function getAttendancePageData(email, school, year, month, token) {
       lockedMonths,
       holidays,
       teacherHolidays,
-      token: token, // Pastikan token selalu ada di return object
+      token: token, 
       isRequestableMonth: isRequestableMonth,
       pendingChanges: pendingChanges,
       rejectionInfo: rejectionInfo,
       rejectedChanges: rejectedChanges,
-      announcements: announcements
+      announcements: announcements,
+      schoolSettings: schoolSettings // <-- Kirim pengaturan sekolah ke client
     };
   } catch (error) {
      Logger.log(`CRITICAL ERROR in getAttendancePageData for ${email}, ${school}, ${year}-${month}: ${error.toString()} \nStack: ${error.stack}`);
-     // Kembalikan objek error agar frontend bisa menanganinya, JANGAN return null
-     // Kita tetap perlu 'token' agar pengecekan awal di frontend tidak gagal
      return {
         error: `Terjadi kesalahan saat memuat data absensi (${error.message}). Coba muat ulang halaman.`,
-        token: token, // Sertakan token dummy agar pengecekan awal lolos
+        token: token, 
         attendance: {}, lockedMonths:[], holidays:{}, teacherHolidays: [],
         isRequestableMonth: false, pendingChanges: {}, rejectionInfo: null,
-        rejectedChanges: [] // <-- TAMBAKAN KEY BARU INI
+        rejectedChanges: [],
+        schoolSettings: {} // <-- Kirim objek kosong jika error
      };
   }
 }
@@ -538,6 +546,11 @@ function getMonthlyAttendance(email, school, year, month) {
   }
 }
 
+/**
+ * ===================================================================
+ * E. GANTI FUNGSI LAMA (saveMonthlyAttendance) DENGAN INI
+ * ===================================================================
+ */
 function saveMonthlyAttendance(payload) {
   try {
     const { email, name, school, attendance } = payload;
@@ -549,10 +562,36 @@ function saveMonthlyAttendance(payload) {
     const d = new Date(firstDateKey);
     const year = d.getUTCFullYear();
     const month = d.getUTCMonth() + 1;
+    const TIMEZONE = "Asia/Makassar"; // Definisikan TIMEZONE di sini
 
+    // --- AWAL VALIDASI GEOLOCATION ---
+    // 1. Dapatkan pengaturan untuk sekolah ini
+    const schoolSettingsMap = getSchoolSettingsMap_();
+    const schoolSettings = schoolSettingsMap.get(school) || {};
+
+    // 2. Cek jika fitur Geo-lock aktif
+    if (schoolSettings.geoEnabled === true) {
+      // 3. Dapatkan tanggal hari ini (di timezone server)
+      const todayStr = Utilities.formatDate(new Date(), TIMEZONE, "yyyy-MM-dd");
+      
+      // 4. Periksa semua tanggal yang ingin disimpan oleh pengguna
+      const datesToSave = Object.keys(attendance);
+      const isTryingToSaveOtherDays = datesToSave.some(date => date !== todayStr);
+      
+      // 5. Jika ada tanggal selain hari ini, tolak penyimpanan
+      if (isTryingToSaveOtherDays) {
+        Logger.log(`REJECTED save for ${email} at ${school}. Reason: Geo-lock enabled, tried to save non-today dates.`);
+        return { 
+          status: "error", 
+          message: "Validasi Gagal: Sekolah ini menggunakan fitur kunci-lokasi. Anda hanya dapat menyimpan data untuk hari ini." 
+        };
+      }
+    }
+    // --- AKHIR VALIDASI GEOLOCATION ---
+    
+    // Jika lolos validasi, lanjutkan proses penyimpanan
     const sheet = getAttendanceSheet_(year, month, true);
     const allData = sheet.getDataRange().getValues();
-    const TIMEZONE = "Asia/Makassar";
     const existingRecords = {};
 
     for (let i = 1; i < allData.length; i++) {
@@ -563,7 +602,6 @@ function saveMonthlyAttendance(payload) {
       }
     }
 
-    // --- Performa (dari step sebelumnya) ---
     const rowsToUpdate = [];
     const rowsToInsert = [];
 
@@ -615,12 +653,11 @@ function saveMonthlyAttendance(payload) {
         }
       });
       
-      // PENTING: Hapus cache pengguna SEBELUM memanggil getMonthlyAttendance lagi
       const userCacheKey_temp = `data_${email}_${school}_${year}_${month}`;
       CacheService.getScriptCache().remove(userCacheKey_temp);
       
       const teacherHolidays = getTeacherHolidays(email);
-      const freshAttendanceData = getMonthlyAttendance(email, school, year, month); // Akan mengambil data baru
+      const freshAttendanceData = getMonthlyAttendance(email, school, year, month); 
       const summary = calculateSummaryForUser_(freshAttendanceData, teacherHolidays, nationalHolidays, year, month);
       const monthStr = `${year}-${String(month).padStart(2, '0')}`;
       const notificationKey = `completion_notif_${email}_${school}_${monthStr}`;
@@ -660,24 +697,15 @@ function saveMonthlyAttendance(payload) {
     }
     // --- Akhir Logika Notifikasi ---
 
-    // --- TAMBAHAN BARU: Hapus cache setelah menyimpan data ---
     const cache = CacheService.getScriptCache();
     
-    // 1. Hapus cache data mentah (dipakai getSchoolAttendanceSummary)
-    // --- INI ADALAH PERUBAIKANNYA ---
-    // Kunci cache sekarang harus menyertakan 'school' agar sesuai dengan kunci
-    // yang digunakan di getSchoolAttendanceSummary
     const rawCacheKey = `raw_display_attendance_${school}_${year}_${month}`;
-    // --- AKHIR PERUBAIKAN ---
     cache.remove(rawCacheKey);
     Logger.log(`Menghapus cache mentah: ${rawCacheKey}`);
     
-    // 2. Hapus cache data spesifik pengguna (dipakai getMonthlyAttendance)
-    // (Ini sudah dihapus di atas sebelum memanggil notifikasi, tapi kita panggil lagi untuk keamanan)
     const userCacheKey = `data_${email}_${school}_${year}_${month}`;
     cache.remove(userCacheKey);
     Logger.log(`Menghapus cache pengguna: ${userCacheKey}`);
-    // --- AKHIR TAMBAHAN ---
 
     return { status: "success", message: "Absensi bulan ini berhasil diperbarui!" };
   } catch (e) {
@@ -3276,66 +3304,103 @@ function calculateTimeDifference_(startStr, endStr) {
 // ===================================================================
 
 /**
- * HELPER: Mendapatkan atau membuat sheet untuk SchoolSettings.
+ * HELPER (DIMODIFIKASI): Membaca sheet SchoolSettings dan mengembalikannya sebagai Map.
+ * Data di-cache untuk performa tinggi.
+ * @return {Map<string, {sptjmId: string, lkhId: string, geoEnabled: boolean, lat: number|null, lon: number|null, radius: number}>}
+ */
+function getSchoolSettingsMap_() {
+  const cache = CacheService.getScriptCache();
+  const CACHE_KEY = "school_settings_map_v3"; // v3 untuk format teks
+  
+  const cached = cache.get(CACHE_KEY);
+  if (cached) {
+    return new Map(JSON.parse(cached));
+  }
+
+  const sheet = getSchoolSettingsSheet_(); 
+  if (sheet.getLastRow() < 2) {
+    return new Map();
+  }
+  
+  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 7).getValues();
+  const settingsMap = new Map();
+  
+  data.forEach(row => {
+    const schoolName = String(row[0]).trim(); // NamaSekolah
+    const sptjmId = String(row[1]).trim();  // SptjmTemplateId
+    const lkhId = String(row[2]).trim();    // LkhTemplateId
+    const geoEnabled = (String(row[3]).toUpperCase() === "TRUE"); // GeoEnabled
+    
+    // --- PERUBAHAN DI SINI: Baca dari teks, konversi ke angka ---
+    const latStr = String(row[4]).trim();
+    const lonStr = String(row[5]).trim();
+    const radiusStr = String(row[6]).trim();
+    
+    // Coba konversi ke angka, gunakan null/default jika gagal
+    const lat = latStr === "" ? null : parseFloat(latStr);
+    const lon = lonStr === "" ? null : parseFloat(lonStr);
+    let radius = parseInt(radiusStr, 10); 
+    
+    // Tangani jika hasil konversi bukan angka (NaN)
+    const finalLat = isNaN(lat) ? null : lat;
+    const finalLon = isNaN(lon) ? null : lon;
+    const finalRadius = isNaN(radius) ? 500 : radius; // Default 500m jika tidak valid
+    // --- AKHIR PERUBAHAN ---
+    
+    if (schoolName) {
+      settingsMap.set(schoolName, { 
+        sptjmId: sptjmId, 
+        lkhId: lkhId,
+        geoEnabled: geoEnabled,
+        lat: finalLat, // Gunakan hasil konversi
+        lon: finalLon, // Gunakan hasil konversi
+        radius: finalRadius // Gunakan hasil konversi (atau default)
+      });
+    }
+  });
+  
+  cache.put(CACHE_KEY, JSON.stringify(Array.from(settingsMap.entries())), 21600);
+  
+  return settingsMap;
+}
+
+/**
+ * HELPER BARU: Mendapatkan atau membuat sheet untuk SchoolSettings.
  */
 function getSchoolSettingsSheet_() {
   let sheet = ss.getSheetByName("SchoolSettings");
   if (!sheet) {
     sheet = ss.insertSheet("SchoolSettings");
-    // (Anda tidak perlu alamat, jadi kita hapus kolom itu)
-    const headers = ["NamaSekolah", "SptjmTemplateId", "LkhTemplateId"];
+    const headers = [
+      "NamaSekolah", 
+      "SptjmTemplateId", 
+      "LkhTemplateId", 
+      "GeoEnabled",     
+      "Latitude",       
+      "Longitude",      
+      "Radius"          
+    ];
     sheet.appendRow(headers);
     sheet.setFrozenRows(1);
-    // Tambahkan data contoh
     const exampleData = [
-      ["MTS TANUNTUNG", "ID_TEMPLATE_SPTJM_MTS_DISINI", "ID_TEMPLATE_LKH_MTS_DISINI"],
-      ["MIS BUTUNG", "ID_TEMPLATE_SPTJM_MIS_DISINI", "ID_TEMPLATE_LKH_MIS_DISINI"]
+      ["MTS TANUNTUNG", "ID_TEMPLATE_SPTJM_MTS_DISINI", "ID_TEMPLATE_LKH_MTS_DISINI", "TRUE", "-5.418418", "119.316828", "500"],
+      ["MIS BUTUNG", "ID_TEMPLATE_SPTJM_MIS_DISINI", "ID_TEMPLATE_LKH_MIS_DISINI", "FALSE", "-5.418418", "119.316828", "500"]
     ];
-    sheet.getRange(2, 1, 2, 3).setValues(exampleData);
-    sheet.getRange("A:C").setNumberFormat("@");
+    sheet.getRange(2, 1, 2, 7).setValues(exampleData);
+    
+    // --- PERUBAHAN DI SINI ---
+    sheet.getRange("A:D").setNumberFormat("@"); // Nama, ID, ID, GeoEnabled -> Teks
+    sheet.getRange("E:G").setNumberFormat("@"); // Latitude, Longitude, Radius -> Teks (@)
+    // --- AKHIR PERUBAHAN ---
+    
+  } else {
+     // --- TAMBAHAN: Pastikan format kolom benar jika sheet sudah ada ---
+     try {
+       sheet.getRange("E:G").setNumberFormat("@"); 
+     } catch(e) {
+       Logger.log("Gagal set format teks untuk kolom E-G di SchoolSettings (mungkin sheet dilindungi?)");
+     }
+     // --- AKHIR TAMBAHAN ---
   }
   return sheet;
-}
-
-/**
- * HELPER: Membaca sheet SchoolSettings dan mengembalikannya sebagai Map.
- * Data di-cache untuk performa tinggi.
- * @return {Map<string, {sptjmId: string, lkhId: string}>}
- */
-function getSchoolSettingsMap_() {
-  const cache = CacheService.getScriptCache();
-  const CACHE_KEY = "school_settings_map";
-  
-  const cached = cache.get(CACHE_KEY);
-  if (cached) {
-    // Kembalikan dari cache jika ada
-    return new Map(JSON.parse(cached));
-  }
-
-  const sheet = getSchoolSettingsSheet_();
-  if (sheet.getLastRow() < 2) {
-    return new Map(); // Kosong jika tidak ada data
-  }
-  
-  // Baca data (mulai dari baris 2, ambil 3 kolom)
-  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 3).getValues();
-  const settingsMap = new Map();
-  
-  data.forEach(row => {
-    const schoolName = row[0]; // NamaSekolah
-    const sptjmId = row[1];  // SptjmTemplateId
-    const lkhId = row[2];    // LkhTemplateId
-    
-    if (schoolName) {
-      settingsMap.set(schoolName, { 
-        sptjmId: sptjmId, 
-        lkhId: lkhId 
-      });
-    }
-  });
-  
-  // Simpan ke cache selama 6 jam
-  cache.put(CACHE_KEY, JSON.stringify(Array.from(settingsMap.entries())), 21600);
-  
-  return settingsMap;
 }
