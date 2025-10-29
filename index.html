@@ -646,6 +646,24 @@
         const toastContainer = document.getElementById('toast-container');
         if (!toastContainer) return; // Keluar jika container tidak ada
         
+        // === AWAL PERBAIKAN ===
+        // 1. Cek jika 'text' kosong DAN ini BUKAN pesan 'processing'
+        if (!text && !isProcessing) {
+          // Jika ada toast "processing" yang aktif, hapus itu.
+          if (processingToastId) {
+            const processingToast = document.getElementById(processingToastId);
+            if (processingToast) {
+              // Hapus dengan animasi fade out (animasi ini sudah ada di CSS Anda)
+              processingToast.classList.add('toast-fade-out');
+              // Hapus dari DOM setelah animasi
+              setTimeout(() => processingToast.remove(), 400); 
+            }
+            processingToastId = null; // Kosongkan ID pelacak
+          }
+          return; // Hentikan fungsi di sini. Tidak perlu membuat toast baru.
+        }
+        // === AKHIR PERBAIKAN ===
+        
         // 1. Tentukan status (class) dan ikon
         let statusClass = '';
         let iconHtml = '';
@@ -682,9 +700,7 @@
           toast.innerHTML = `${iconHtml} <span>${text}</span>`;
           toastContainer.appendChild(toast);
           
-          // --- TAMBAHAN BARU ---
           makeToastDismissable(toast); // Buat toast "processing" bisa di-swipe
-          // --- AKHIR TAMBAHAN ---
         } 
         // 3. Jika ini pesan "success" atau "error"
         else {
@@ -698,19 +714,15 @@
               processingToast.id = '';
               
               // Set timeout untuk menghilangkannya
-              // --- PERUBAHAN: Simpan timer di elemen ---
               const newTimer = setTimeout(() => {
                 processingToast.classList.add('toast-fade-out');
                 setTimeout(() => processingToast.remove(), 400); // 0.4s (sesuai transisi CSS)
               }, 4000); // 4 detik
               processingToast.autoDismissTimer = newTimer; // Simpan timer di elemen
-              // --- AKHIR PERUBAHAN ---
               
               processingToastId = null; // Kosongkan pelacak
               
-              // --- TAMBAHAN BARU ---
               makeToastDismissable(processingToast); // Buat toast yang baru diganti ini bisa di-swipe
-              // --- AKHIR TAMBAHAN ---
             }
           } else {
             // Jika tidak ada toast processing, buat toast baru
@@ -720,17 +732,13 @@
             toastContainer.appendChild(toast);
             
             // Set timeout untuk menghilangkannya
-            // --- PERUBAHAN: Simpan timer di elemen ---
             const newTimer = setTimeout(() => {
               toast.classList.add('toast-fade-out');
               setTimeout(() => toast.remove(), 400);
             }, 4000); // 4 detik
             toast.autoDismissTimer = newTimer; // Simpan timer di elemen
-            // --- AKHIR PERUBAHAN ---
 
-            // --- TAMBAHAN BARU ---
             makeToastDismissable(toast); // Buat toast baru ini bisa di-swipe
-            // --- AKHIR TAMBAHAN ---
           }
         }
       }
