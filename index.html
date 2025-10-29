@@ -267,6 +267,10 @@
             </div>
             <div id="attendance-table-container"></div>
 
+            <p id="geo-lock-message" class="message" style="display:none; color: var(--danger-color); background-color: #FEF2F2; border-radius: 8px; padding: 10px 15px; margin-top: 15px;"></p>
+            <button id="retry-geo-button" onclick="checkGeolocation()" class="action-button secondary" style="display:none; width: auto; padding: 10px 18px; margin-top: 10px;">
+                <i class="fa-solid fa-location-crosshairs"></i> <span>Verifikasi Ulang Lokasi</span>
+            </button>
             <button id="save-button" onclick="handleSave()" disabled><i class="fa-solid fa-floppy-disk"></i> <span>Simpan Semua Perubahan</span></button>
             <button id="request-change-button" onclick="handleRequestChange()" style="display: none;"><i class="fa-solid fa-paper-plane"></i> <span>Ajukan Perubahan</span></button>
             <div id="rejection-details-wrapper"></div>
@@ -531,6 +535,12 @@
 
       // Variabel global untuk melacak toast "processing"
       let processingToastId = null;
+
+      // ===================================================================
+      // 1. TAMBAHKAN VARIABEL GLOBAL BARU INI
+      // ===================================================================
+      let currentSchoolSettings = {};
+      let isUserInLocation = false;
 
       // --- TAMBAHAN BARU: Fungsi untuk membuat toast swipeable ---
       function makeToastDismissable(toast) {
@@ -1265,17 +1275,17 @@
         }
       }
 
+// ===================================================================
+      // 4. GANTI FUNGSI LAMA (handleLogout) DENGAN INI
+      // ===================================================================
       function handleLogout() {
-        // --- PERUBAHAN DIMULAI ---
         const token = localStorage.getItem('ceklokAuthToken');
         if(token) {
-          // Panggil server untuk menghapus token
           google.script.run.userLogout(token);
         }
         localStorage.removeItem('ceklokUser');
         localStorage.removeItem('ceklokSelectedSchool');
         localStorage.removeItem('ceklokAuthToken');
-        // --- PERUBAHAN SELESAI ---
 
         currentUser = null;
         selectedSchool = null;
@@ -1283,14 +1293,16 @@
         selectedTeacherForStaff = null;
         schoolTeachers = [];
 
-        // --- AWAL PERUBAHAN: Reset appSettings ---
         appSettings = {
           lockedMonths: [], holidays: {}, announcements: "", teacherHolidays: [],
           isRequestableMonth: false, pendingChanges: {}, rejectionInfo: null, rejectedChanges: []
         };
-        // --- AKHIR PERUBAHAN ---
+        
+        // --- TAMBAHAN BARU ---
+        currentSchoolSettings = {};
+        isUserInLocation = false;
+        // --- AKHIR TAMBAHAN ---
 
-        // Pastikan kontainer login dikembalikan ke bentuk aslinya
         const loginContainer = document.getElementById("login-container");
         loginContainer.innerHTML = `
            <form id="login-form" onsubmit="event.preventDefault(); handleLogin();">
@@ -1301,7 +1313,6 @@
                   <label for="email">Email</label>
                   <input type="email" id="email" placeholder="Masukkan email Anda" autocomplete="username">
                 </div>
-
                 <div class="input-group">
                   <label for="password">Password</label>
                   <div class="password-wrapper">
@@ -1315,8 +1326,6 @@
            </form>
         `;
 
-        // ==== TAMBAHAN KODE SAAT LOGOUT ====
-        // Kita harus mendaftarkan ulang event listener untuk form login yang baru dibuat
         const emailInput = document.getElementById('email');
         const passwordInput = document.getElementById('password');
         const toggleIcon = document.getElementById('togglePassword');
@@ -1338,7 +1347,6 @@
             this.classList.toggle('fa-eye-slash');
           });
         }
-        // ==== AKHIR TAMBAHAN ====
 
         loginContainer.style.display = "block";
         document.getElementById("school-selection-container").style.display = "none";
@@ -1356,9 +1364,11 @@
         document.getElementById("lkh-view-container").style.display = "none";
         document.getElementById("lkh-weekly-container").style.display = "none";
         document.getElementById("all-teachers-summary-container").style.display = "none";
-        // --- AWAL PERUBAHAN: Sembunyikan container baru ---
         document.getElementById("change-request-container").style.display = "none";
-        // --- AKHIR PERUBAHAN ---
+        
+        // --- TAMBAHAN BARU ---
+        document.getElementById("geo-lock-message").style.display = "none"; // Sembunyikan pesan geo
+        // --- AKHIR TAMBAHAN ---
 
         displayMessage('login-message', "Anda berhasil logout.", { isSuccess: true });
       }
@@ -1475,6 +1485,20 @@
         document.getElementById("ceklok-container").style.display = "block";
         document.getElementById('ceklok-teacher-name').innerText = '';
         document.getElementById('ceklok-title').innerText = `Formulir Kehadiran - ${selectedSchool}`;
+
+        // --- AWAL PERUBAHAN ---
+        // 1. Reset status lokasi
+        isUserInLocation = false;
+        // 2. Nonaktifkan tombol simpan SEBELUM memuat data
+        const saveButton = document.getElementById('save-button');
+        if (saveButton) saveButton.disabled = true;
+        // 3. Sembunyikan pesan & tombol geo SEBELUM memuat data
+        const geoMessage = document.getElementById('geo-lock-message');
+        const retryButton = document.getElementById('retry-geo-button');
+        if (geoMessage) geoMessage.style.display = 'none';
+        if (retryButton) retryButton.style.display = 'none';
+        // --- AKHIR PERUBAHAN ---
+
         loadMonthData(currentDate);
       }
 
@@ -1520,23 +1544,22 @@
         loadMonthData(currentDate);
       }
 
-      // --- AWAL FUNGSI YANG DIMODIFIKASI BESAR-BESARAN ---
+      // ===================================================================
+      // 2. GANTI FUNGSI LAMA (loadMonthData) DENGAN INI
+      // ===================================================================
       function loadMonthData(date){
           const year = date.getFullYear();
           const month = date.getMonth() + 1;
           const userEmail = (currentUser.role === 'staff' && selectedTeacherForStaff) ? selectedTeacherForStaff.email : currentUser.email;
           const schoolForCall = (currentUser.role === 'staff' && selectedTeacherForStaff) ? selectedTeacherForStaff.school : selectedSchool;
 
-          // --- AWAL PERUBAHAN: Menargetkan kedua tombol ---
           const saveButton = document.getElementById('save-button');
           const requestButton = document.getElementById('request-change-button');
-          // --- AKHIR PERUBAHAN ---
 
           latestRequestToken++;
           const currentToken = latestRequestToken;
 
           document.getElementById('month-display').innerText = date.toLocaleString('id-ID', { month: 'long', year: 'numeric' });
-          // Tampilkan loading
           document.getElementById('attendance-table-container').innerHTML = `
             <div class="loader-container">
               <div class="loader">
@@ -1544,48 +1567,49 @@
               </div>
               <p>Memuat data absensi...</p>
             </div>`;
-          // --- AWAL PERUBAHAN: Nonaktifkan kedua tombol ---
           saveButton.disabled = true;
           requestButton.disabled = true;
-          // --- AKHIR PERUBAHAN ---
+          
+          // Sembunyikan pesan geo-lock saat memuat
+          document.getElementById('geo-lock-message').style.display = 'none';
 
           google.script.run
             .withSuccessHandler(response => {
-              // --- AWAL PERUBAHAN: Cek Error dari Backend ---
               if (response && response.error) {
-                 // Tampilkan pesan error dari backend
                  document.getElementById('attendance-table-container').innerHTML = `<p style="color: var(--danger-color);">${response.error}</p>`;
-                 // Nonaktifkan tombol (opsional, tergantung preferensi)
                  saveButton.disabled = true;
                  requestButton.disabled = true;
-                 return; // Hentikan pemrosesan lebih lanjut
+                 return; 
               }
-              // --- AKHIR PERUBAHAN ---
 
-              // Lanjutkan jika tidak ada error backend
-              if (!response || response.token !== latestRequestToken) { // Tambah cek !response
+              if (!response || response.token !== latestRequestToken) {
                 return;
               }
-              // --- AWAL PERUBAHAN: Simpan semua data baru dari server ---
+              
+              // --- AWAL MODIFIKASI: Simpan SEMUA pengaturan ---
               appSettings.attendance = response.attendance;
               appSettings.lockedMonths = response.lockedMonths;
               appSettings.holidays = response.holidays;
               appSettings.teacherHolidays = response.teacherHolidays;
-
               appSettings.announcements = response.announcements;
-
-              // Data baru untuk pengajuan
               appSettings.isRequestableMonth = response.isRequestableMonth;
               appSettings.pendingChanges = response.pendingChanges;
               appSettings.rejectionInfo = response.rejectionInfo;
               appSettings.rejectedChanges = response.rejectedChanges || [];
-              // --- AKHIR PERUBAHAN ---
+              
+              // Simpan pengaturan sekolah (termasuk geo)
+              currentSchoolSettings = response.schoolSettings || {}; 
+              // --- AKHIR MODIFIKASI ---
 
               generateMonthTable(year, month, response.attendance);
+              
+              // --- TAMBAHAN BARU: Panggil Pengecekan Geolocation ---
+              // Lakukan pengecekan lokasi SETELAH tabel dibuat
+              checkGeolocation();
+              // --- AKHIR TAMBAHAN ---
             })
             .withFailureHandler(error => {
-                document.getElementById('attendance-table-container').innerHTML = `<p style="color: var(--danger-color);">Gagal memuat data absensi: ${error.message}</p>`; // Tambahkan detail error
-                // Nonaktifkan tombol jika gagal total
+                document.getElementById('attendance-table-container').innerHTML = `<p style="color: var(--danger-color);">Gagal memuat data absensi: ${error.message}</p>`;
                  saveButton.disabled = true;
                  requestButton.disabled = true;
             })
@@ -1638,10 +1662,12 @@
         input.value = value;
       }
 
+      // ===================================================================
+      // 3. GANTI FUNGSI LAMA (generateMonthTable) DENGAN INI
+      // ===================================================================
       function generateMonthTable(year, month, attendanceData) {
           const container = document.getElementById('attendance-table-container');
 
-          // Opsi standar
           const reasonOptions = `
               <option value="">-- Pilih Alasan --</option>
               <option value="Hari Libur Sekolah">Hari Libur Sekolah</option>
@@ -1658,7 +1684,7 @@
               <option value="Izin Alasan Penting (Lebih dari 2 Hari)">Izin Alasan Penting (Lebih dari 2 Hari)</option>
               <option value="Izin Sakit (1 hari Sampai Dengan 14 Hari)">Izin Sakit (1 hari Sampai Dengan 14 Hari)</option>
               <option value="Izin Sakit (Lebih dari 14 Hari Sampai Dengan 12 Bulan)">Izin Sakit (Lebih dari 14 Hari Sampai Dengan 12 Bulan)</option>
-              <option value="Izin Sakit (Lebih dari 12 Bulan Sampai Dengan 18 Bulan)">Izin Sakit (Lebih dari 12 Bulan Sampai Dengan 18 Bulan)</option>
+              <option value="Izin Sakit (Lebih dari 18 Bulan)">Izin Sakit (Lebih dari 18 Bulan)</option>
               <option value="Dinas Luar">Dinas Luar</option>
           `;
 
@@ -1670,22 +1696,22 @@
           const currentMonth = today.getMonth() + 1;
           const isFutureMonth = year > currentYear || (year === currentYear && month > currentMonth);
 
-          // --- AWAL LOGIKA PENGAJUAN ---
           const isReqMonth = appSettings.isRequestableMonth;
           const pendingData = appSettings.pendingChanges;
-          
-          // *** Ini adalah SATU-SATUNYA deklarasi untuk isRequestPending ***
           const isRequestPending = Object.keys(pendingData).length > 0; 
           
-          const isDisabled = (isMonthLocked && !isReqMonth) || isFutureMonth;
-          // --- AKHIR LOGIKA PENGAJUAN ---
+          // --- AWAL PERUBAHAN: Logika Geo-lock ---
+          const isGeoEnabled = currentSchoolSettings.geoEnabled === true;
+          const todayStr = jsFormatDate(new Date()); // "YYYY-MM-DD"
+          // --- AKHIR PERUBAHAN ---
 
           let lockMessage = "";
-          if(isReqMonth) {
+          if (isGeoEnabled) {
+              lockMessage = 'Fitur Kunci Lokasi aktif. Anda hanya dapat mengisi absensi untuk hari ini dan harus berada di lokasi sekolah.';
+          } else if(isReqMonth) {
             if (isRequestPending) {
               lockMessage = 'Pengajuan Anda sedang ditinjau oleh Staff.';
             } else if (appSettings.rejectionInfo) {
-              // Pesan ini akan ditimpa oleh tabel detail di bawah jika ada
               lockMessage = 'Beberapa pengajuan Anda ditolak. Lihat detail di bawah.';
             } else {
               lockMessage = 'Bulan ini terkunci. Klik "Ubah" pada baris untuk mengajukan perubahan.';
@@ -1698,55 +1724,56 @@
 
           document.getElementById('global-lock-message').innerText = lockMessage;
 
-          // --- LOGIKA TOMBOL UTAMA ---
           const saveButton = document.getElementById('save-button');
           const requestButton = document.getElementById('request-change-button');
 
-          if (isReqMonth) {
-            saveButton.style.display = 'none';
-            requestButton.style.display = 'inline-flex';
-            requestButton.disabled = false;
-            if (isRequestPending) {
-              requestButton.innerHTML = '<i class="fa-solid fa-ban"></i> <span>Batalkan Ajuan</span>';
-              requestButton.className = 'action-button cancel-request';
-              requestButton.onclick = handleCancelRequest;
-            } else {
-              requestButton.innerHTML = '<i class="fa-solid fa-paper-plane"></i> <span>Ajukan Perubahan</span>';
-              requestButton.className = 'action-button';
-              requestButton.onclick = handleRequestChange;
-            }
+          // --- AWAL PERUBAHAN: Logika Tombol dengan Geo-lock ---
+          if (isGeoEnabled) {
+              // Jika geo-lock aktif, HANYA tombol Simpan yang muncul
+              saveButton.style.display = 'inline-flex';
+              requestButton.style.display = 'none';
+              // Tombol Simpan akan diaktifkan/dinonaktifkan oleh applyGeoLock()
+              saveButton.disabled = true; 
+          } else if (isReqMonth) {
+              // Logika pengajuan (jika geo-lock TIDAK aktif)
+              saveButton.style.display = 'none';
+              requestButton.style.display = 'inline-flex';
+              requestButton.disabled = false;
+              if (isRequestPending) {
+                requestButton.innerHTML = '<i class="fa-solid fa-ban"></i> <span>Batalkan Ajuan</span>';
+                requestButton.className = 'action-button cancel-request';
+                requestButton.onclick = handleCancelRequest;
+              } else {
+                requestButton.innerHTML = '<i class="fa-solid fa-paper-plane"></i> <span>Ajukan Perubahan</span>';
+                requestButton.className = 'action-button';
+                requestButton.onclick = handleRequestChange;
+              }
           } else {
-            saveButton.style.display = 'inline-flex';
-            requestButton.style.display = 'none';
-            saveButton.disabled = isDisabled;
+              // Logika normal (bulan berjalan, tidak terkunci, tidak geo-lock)
+              saveButton.style.display = 'inline-flex';
+              requestButton.style.display = 'none';
+              const isDisabled = isMonthLocked || isFutureMonth;
+              saveButton.disabled = isDisabled;
           }
+          // --- AKHIR PERUBAHAN ---
 
-          // --- BLOK BARU UNTUK MENAMPILKAN TABEL PENOLAKAN (SESUAI PERBAIKAN) ---
           const messageElement = document.getElementById('save-message');
-          const rejectionWrapper = document.getElementById('rejection-details-wrapper'); // 1. Ambil wrapper baru
-
-          messageElement.innerHTML = ''; // Selalu bersihkan pesan lama
-          rejectionWrapper.innerHTML = ''; // 2. Bersihkan wrapper tabel
-
+          const rejectionWrapper = document.getElementById('rejection-details-wrapper');
+          messageElement.innerHTML = '';
+          rejectionWrapper.innerHTML = '';
           const rejectedItems = appSettings.rejectedChanges || [];
           
-          // Tampilkan tabel penolakan JIKA ada item yang ditolak
-          // DAN TIDAK ADA item lain yang sedang pending
-          // (Menggunakan 'isRequestPending' yang sudah dideklarasikan di atas)
           if (isReqMonth && rejectedItems.length > 0) {
-              
+              // (Logika rejection-details-wrapper tetap sama, tidak perlu diubah)
               const formatData = (data) => {
                 if (data.reason) return `<strong>Alasan:</strong> ${data.reason}`;
                 if (!data.checkIn && !data.checkOut) return `<em>(Kosong)</em>`;
                 return `<strong>M:</strong> ${data.checkIn || '-'} | <strong>P:</strong> ${data.checkOut || '-'}`;
               };
-
-              // --- PERUBAHAN DIMULAI DI SINI ---
               let rejectionHtml = `
                 <div class="rejection-details-container">
                   <h4 class="rejection-title">Detail Pengajuan Ditolak</h4>
                   <p class="rejection-subtitle">Data berikut telah ditolak oleh Staff. Anda dapat mengubah dan mengajukannya kembali.</p>
-                  
                   <div class="table-scroll-wrapper"> 
                     <table class="rejection-table">
                       <thead>
@@ -1759,11 +1786,9 @@
                       </thead>
                       <tbody>
               `;
-              
               const formatDateTgl = (dateStr) => {
                   try { return dateStr.split('-')[2]; } catch(e) { return '?'; }
               }
-
               rejectedItems.forEach(item => {
                  rejectionHtml += `
                     <tr>
@@ -1774,13 +1799,9 @@
                     </tr>
                  `;
               });
-              
-              // TUTUP WRAPPER DAN CONTAINER
               rejectionHtml += `</tbody></table></div></div>`; 
-              rejectionWrapper.innerHTML = rejectionHtml; // 3. Masukkan HTML ke wrapper
-              // --- PERUBAHAN SELESAI DI SINI ---
+              rejectionWrapper.innerHTML = rejectionHtml;
           }
-          // --- AKHIR BLOK BARU ---
 
           let tableHTML = '<div class="table-scroll-wrapper"><table><thead><tr><th>Tanggal</th><th>Jam Masuk</th><th>Jam Pulang</th><th>Keterangan</th><th>Aksi</th></tr></thead><tbody>';
 
@@ -1804,8 +1825,27 @@
               rowClass = 'holiday-row';
             }
 
+            // --- AWAL PERUBAHAN: Logika Penguncian Baris (isRowDisabled) ---
+            let isRowDisabled = false;
+            
+            if (isGeoEnabled) {
+                // Jika geo-lock aktif, SEMUA baris dikunci KECUALI HARI INI.
+                // Status hari ini (terkunci/tidak) akan diatur oleh checkGeolocation() nanti.
+                isRowDisabled = (dateStr !== todayStr);
+            } else if (isReqMonth) {
+                // Jika bulan pengajuan, semua baris dikunci (perlu tombol 'Ubah')
+                isRowDisabled = true;
+            } else {
+                // Logika normal: kunci jika bulan terkunci atau bulan depan
+                isRowDisabled = (isMonthLocked && !isReqMonth) || isFutureMonth;
+            }
+            // --- AKHIR PERUBAHAN ---
+
             if (isSunday || isHoliday) {
-              // Tidak ada aksi
+              // Aksi untuk hari libur/minggu
+            } else if (isGeoEnabled) {
+                // Jika geo-lock aktif, tidak ada tombol aksi
+                aksiButton = '-';
             } else if (isReqMonth) {
               if (isRequestPending) {
                 aksiButton = `<button class="action-btn warning edit-btn" disabled>Menunggu</button>`;
@@ -1813,10 +1853,8 @@
                 aksiButton = `<button class="action-btn warning edit-btn" onclick="handleEnableEdit(event)">Ubah</button>`;
               }
             } else {
-              aksiButton = `<button class="clear-btn" onclick="handleClearRow(event)" ${isDisabled ? 'disabled' : ''}>Hapus</button>`;
+              aksiButton = `<button class="clear-btn" onclick="handleClearRow(event)" ${isRowDisabled ? 'disabled' : ''}>Hapus</button>`;
             }
-
-            const isRowDisabled = isDisabled || isReqMonth;
 
             if (isHoliday) {
               tableHTML += `<tr id="row-${dateStr}" class="${rowClass}"><td>${day} <small>(${dayName})</small></td><td colspan="3">${appSettings.holidays[dateStr]}</td><td>${aksiButton}</td></tr>`;
@@ -3152,6 +3190,20 @@
           document.getElementById("ceklok-container").style.display = "block";
           document.getElementById('ceklok-title').innerText = `Formulir Kehadiran - ${selectedTeacherForStaff.school}`;
           document.getElementById('ceklok-teacher-name').innerText = `Untuk: ${selectedTeacherForStaff.name}`;
+
+          // --- AWAL PERUBAHAN ---
+          // 1. Reset status lokasi
+          isUserInLocation = false;
+          // 2. Nonaktifkan tombol simpan SEBELUM memuat data
+          const saveButton = document.getElementById('save-button');
+          if (saveButton) saveButton.disabled = true;
+          // 3. Sembunyikan pesan & tombol geo SEBELUM memuat data
+          const geoMessage = document.getElementById('geo-lock-message');
+          const retryButton = document.getElementById('retry-geo-button');
+          if (geoMessage) geoMessage.style.display = 'none';
+          if (retryButton) retryButton.style.display = 'none';
+          // --- AKHIR PERUBAHAN ---
+
           loadMonthData(currentDate);
       }
 
@@ -4152,6 +4204,200 @@
           })
           .clearSchoolSummaryCache(currentUser.email, selectedSchool, year, month);
       }
+
+      // ===================================================================
+      // 5. TAMBAHKAN SEMUA FUNGSI BARU DI BAWAH INI (BLOK GEOLOCATION)
+      // ===================================================================
+      
+      /**
+       * (BARU) Fungsi utama untuk memulai pengecekan geolokasi.
+       * (DIMODIFIKASI: Timeout diperpanjang)
+       */
+      function checkGeolocation() {
+        // --- AWAL PERUBAHAN ---
+        // Reset status dan nonaktifkan tombol SAAT MEMULAI verifikasi ulang
+        isUserInLocation = false;
+        const saveButton = document.getElementById('save-button');
+        if (saveButton) saveButton.disabled = true;
+        const retryButton = document.getElementById('retry-geo-button');
+        if (retryButton) retryButton.disabled = true; // Nonaktifkan tombol retry saat proses
+        // Kunci input hari ini SEBELUM verifikasi
+        applyGeoLock("Sedang memverifikasi lokasi Anda...");
+        // --- AKHIR PERUBAHAN ---
+
+        if (!currentSchoolSettings || currentSchoolSettings.geoEnabled !== true) {
+          isUserInLocation = true;
+          applyGeoLock(null);
+          // Aktifkan tombol retry lagi jika perlu (walaupun tidak ditampilkan)
+          if (retryButton) retryButton.disabled = false;
+          return;
+        }
+
+        if ("geolocation" in navigator) {
+          const geoMessage = document.getElementById('geo-lock-message');
+          geoMessage.innerText = "Sedang memverifikasi lokasi Anda...";
+          geoMessage.style.display = 'block';
+          geoMessage.style.color = 'var(--text-secondary-color)';
+          geoMessage.style.backgroundColor = '#EFF6FF';
+
+          navigator.geolocation.getCurrentPosition(
+            handleGeoSuccess,
+            handleGeoError,
+            {
+              enableHighAccuracy: true,
+              timeout: 30000, // Tetap 30 detik
+              maximumAge: 0 // **PENTING: Pastikan ini 0 untuk lokasi baru**
+            }
+          );
+        } else {
+          isUserInLocation = false;
+          applyGeoLock("Browser Anda tidak mendukung Geolocation. Ceklok tidak dapat dilakukan.");
+          // Aktifkan tombol retry lagi jika error
+          if (retryButton) retryButton.disabled = false;
+        }
+      }
+
+      // ===================================================================
+      // 4. GANTI FUNGSI LAMA (applyGeoLock) DENGAN INI
+      // ===================================================================
+      function applyGeoLock(errorMessage) {
+          const geoMessage = document.getElementById('geo-lock-message');
+          const retryButton = document.getElementById('retry-geo-button');
+          const saveButton = document.getElementById('save-button');
+          const todayStr = jsFormatDate(new Date());
+          const isGeoEnabled = currentSchoolSettings.geoEnabled === true;
+
+          // Target input HARI INI saja
+          const todayRow = document.getElementById(`row-${todayStr}`);
+          let todayInputs = [];
+          if (todayRow) {
+             todayInputs = todayRow.querySelectorAll('input.time-entry, select');
+          }
+
+          // Nonaktifkan tombol Simpan secara default jika geo aktif
+          if (isGeoEnabled && saveButton) {
+              saveButton.disabled = true;
+          }
+
+          if (isUserInLocation && isGeoEnabled) {
+              // PENGGUNA DI LOKASI & GEO AKTIF
+              geoMessage.style.display = 'none'; // Sembunyikan pesan
+              retryButton.style.display = 'none'; // Sembunyikan tombol Coba Lagi
+
+              // Aktifkan tombol Simpan
+              if (saveButton) saveButton.disabled = false;
+
+              // Aktifkan input HARI INI
+              todayInputs.forEach(input => input.disabled = false);
+
+              // Panggil handleReasonChange khusus untuk baris hari ini
+              // untuk memastikan input jam sesuai dengan pilihan alasan
+              const todayReasonSelect = document.getElementById(`reason-${todayStr}`);
+              if (todayReasonSelect) {
+                  handleReasonChange({ target: todayReasonSelect });
+              }
+
+          } else if (isGeoEnabled) {
+              // PENGGUNA DI LUAR LOKASI / ERROR & GEO AKTIF
+              geoMessage.innerText = errorMessage || "Anda berada di luar jangkauan lokasi sekolah.";
+              geoMessage.style.display = 'block';
+              geoMessage.style.color = 'var(--danger-color)';
+              geoMessage.style.backgroundColor = '#FEF2F2';
+
+              // Tampilkan & Aktifkan tombol Coba Lagi
+              retryButton.style.display = 'inline-flex';
+              retryButton.disabled = false;
+
+              // Tombol Simpan tetap nonaktif (sudah di set di awal)
+
+              // Nonaktifkan input HARI INI
+              todayInputs.forEach(input => input.disabled = true);
+
+          } else {
+              // FITUR GEO TIDAK AKTIF atau ERROR SEBELUMNYA
+              geoMessage.style.display = 'none'; // Sembunyikan pesan
+              retryButton.style.display = 'none'; // Sembunyikan tombol Coba Lagi
+              // Status tombol Simpan diatur oleh logika lain (bulan terkunci, dll)
+              // Status input diatur oleh generateMonthTable
+          }
+      }
+      
+      /**
+       * (BARU) Dipanggil jika geolocation BERHASIL.
+       */
+      function handleGeoSuccess(position) {
+        const userLat = position.coords.latitude;
+        const userLon = position.coords.longitude;
+        
+        const schoolLat = currentSchoolSettings.lat;
+        const schoolLon = currentSchoolSettings.lon;
+        const schoolRadius = currentSchoolSettings.radius;
+        
+        if (schoolLat == null || schoolLon == null) {
+            isUserInLocation = false; // Anggap di luar lokasi jika data sekolah tidak lengkap
+            applyGeoLock("Pengaturan lokasi untuk sekolah ini belum lengkap. Hubungi Admin.");
+            return;
+        }
+
+        // Hitung jarak
+        const distance = calculateDistance(userLat, userLon, schoolLat, schoolLon);
+        
+        if (distance <= schoolRadius) {
+            // Pengguna BERADA DI DALAM LOKASI
+            isUserInLocation = true;
+            applyGeoLock(null); // null berarti tidak ada error
+        } else {
+            // Pengguna DI LUAR LOKASI
+            isUserInLocation = false;
+            const distanceKm = (distance / 1000).toFixed(2);
+            applyGeoLock(`Anda berada ${distanceKm} km di luar jangkauan lokasi sekolah (${schoolRadius} m) yang diizinkan.`);
+        }
+      }
+      
+      /**
+       * (BARU) Dipanggil jika geolocation GAGAL.
+       */
+      function handleGeoError(error) {
+        isUserInLocation = false;
+        let message = "Gagal mendapatkan lokasi Anda. ";
+        
+        switch(error.code) {
+          case error.PERMISSION_DENIED:
+            message += "Izin lokasi ditolak. Silakan izinkan akses lokasi di browser Anda untuk dapat melakukan ceklok.";
+            break;
+          case error.POSITION_UNAVAILABLE:
+            message += "Informasi lokasi tidak tersedia saat ini.";
+            break;
+          case error.TIMEOUT:
+            message += "Waktu verifikasi lokasi habis. Coba muat ulang halaman.";
+            break;
+          default:
+            message += "Terjadi kesalahan tidak diketahui.";
+            break;
+        }
+        applyGeoLock(message);
+      }
+
+      /**
+       * (BARU) Rumus Haversine untuk menghitung jarak antara 2 titik lat/lon.
+       * Mengembalikan jarak dalam METER.
+       */
+      function calculateDistance(lat1, lon1, lat2, lon2) {
+          const R = 6371e3; // Radius bumi dalam meter
+          const φ1 = lat1 * Math.PI/180; // φ, λ in radians
+          const φ2 = lat2 * Math.PI/180;
+          const Δφ = (lat2-lat1) * Math.PI/180;
+          const Δλ = (lon2-lon1) * Math.PI/180;
+
+          const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                    Math.cos(φ1) * Math.cos(φ2) *
+                    Math.sin(Δλ/2) * Math.sin(Δλ/2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+          const d = R * c; // dalam meter
+          return d;
+      }
+
     </script>
   </body>
 </html>
