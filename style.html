@@ -1630,4 +1630,51 @@
   }
   /* --- AKHIR PERUBAHAN: Global Toast Notification (Versi 2) --- */
 
+  /* ================================== */
+  /* TAMBAHKAN STYLE DI BAWAH INI     */
+  /* ================================== */
+
+  #geo-lock-message {
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.5;
+    text-align: left;
+    display: none; /* Default tersembunyi */
+  }
+
+  /* Style untuk baris hari ini jika terkunci oleh geo-lock */
+  tr.geo-locked {
+    background-color: #F3F4F6 !important; /* Abu-abu muda */
+    opacity: 0.7;
+  }
+  tr.geo-locked input,
+  tr.geo-locked select {
+    background-color: #E5E7EB !important;
+    cursor: not-allowed !important;
+  }
+
+  /* ================================== */
+  /* TAMBAHKAN STYLE DI BAWAH INI     */
+  /* ================================== */
+
+  #retry-geo-button {
+    background-color: #6B7280; /* Warna abu-abu (secondary) */
+    margin-bottom: 15px; /* Beri jarak bawah */
+  }
+  #retry-geo-button:hover:not(:disabled) {
+    background-color: #4B5563; /* Sedikit lebih gelap saat hover */
+    box-shadow: 0 4px 12px rgba(107, 114, 128, 0.2);
+  }
+
+  /* Style saat loading (opsional, jika ingin ada efek visual) */
+  #retry-geo-button:disabled {
+    opacity: 0.7;
+    cursor: wait; /* Ubah kursor saat loading */
+  }
+
+  /* Sesuaikan margin pesan geo agar tidak terlalu menempel dengan tombol */
+  #geo-lock-message {
+    margin-bottom: 5px; /* Kurangi margin bawah pesan */
+  }
+
 </style>
