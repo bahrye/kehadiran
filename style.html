@@ -1677,4 +1677,166 @@
     margin-bottom: 5px; /* Kurangi margin bawah pesan */
   }
 
+  /* ================================== */
+  /* === STATUS LOKASI DASBOR (BARU) === */
+  /* ================================== */
+
+  #geo-status-box {
+    border: 1px solid var(--border-color);
+    background-color: #F9FAFB;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 25px;
+    text-align: left;
+    display: none; /* Sembunyi secara default, JS akan menampilkan jika geo aktif */
+    transition: background-color 0.3s, border-color 0.3s;
+  }
+
+  #geo-status-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+
+  #geo-status-header h3 {
+    margin: 0;
+    font-size: 16px;
+    color: var(--text-primary-color);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  #refresh-geo-button {
+    width: auto;
+    padding: 8px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    background-color: #fff;
+    color: var(--text-secondary-color);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  }
+  #refresh-geo-button:hover:not(:disabled) {
+    background-color: #F9FAFB;
+    border-color: #D1D5DB;
+    transform: none;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  }
+  #refresh-geo-button:disabled {
+    background-color: #F9FAFB;
+    color: #9CA3AF;
+    cursor: wait;
+  }
+  #refresh-geo-button i {
+    margin-right: 6px;
+    animation: spin 1.5s linear infinite;
+  }
+  #refresh-geo-button:not(:disabled) i {
+    animation: none; /* Matikan animasi jika tidak loading */
+  }
+
+  #geo-status-message {
+    font-size: 18px;
+    font-weight: 700;
+    margin: 0 0 5px 0;
+  }
+
+  #geo-status-details {
+    font-size: 14px;
+    margin: 0;
+  }
+
+  /* Status Processing (Kuning Pucat) */
+  #geo-status-box.processing {
+    border-color: #F59E0B;
+    background-color: #FEF9C3;
+  }
+  #geo-status-box.processing h3 { color: #92400E; }
+  #geo-status-box.processing #geo-status-message { color: #92400E; }
+  #geo-status-box.processing #geo-status-details { color: #B45309; }
+
+  /* Status Sukses (Hijau) */
+  #geo-status-box.success {
+    border-color: var(--success-color);
+    background-color: #F0FDF4;
+  }
+  #geo-status-box.success h3 { color: #15803D; }
+  #geo-status-box.success #geo-status-message { color: #15803D; }
+  #geo-status-box.success #geo-status-details { color: #166534; }
+
+  /* Status Gagal (Merah) */
+  #geo-status-box.danger {
+    border-color: var(--danger-color);
+    background-color: #FEF2F2;
+  }
+  #geo-status-box.danger h3 { color: #991B1B; }
+  #geo-status-box.danger #geo-status-message { color: #991B1B; }
+  #geo-status-box.danger #geo-status-details { color: #B91C1C; }
+
+
+  /* ================================== */
+  /* === SEMBUNYIKAN TOMBOL LAMA === */
+  /* ================================== */
+
+  #retry-geo-button {
+    display: none !important; /* Sembunyikan tombol verifikasi di halaman Ceklok */
+  }
+
+  /* ================================== */
+  /* === HIGHLIGHT BARIS HARI INI (BARU) === */
+  /* ================================== */
+
+  /* --- Status Boleh Ceklok (Hijau) --- */
+  tr.today-row-allowed {
+    background-color: #F0FDF4 !important; /* Hijau muda */
+  }
+  tr.today-row-allowed td {
+    /* Beri border hijau tipis di atas & bawah */
+    border-top: 1px solid #A7F3D0 !important;
+    border-bottom: 1px solid #A7F3D0 !important;
+  }
+  tr.today-row-allowed td:first-child {
+    border-left: 3px solid var(--success-color) !important; /* Garis tebal di kiri */
+  }
+  tr.today-row-allowed td:last-child {
+    border-right: 1px solid #A7F3D0 !important;
+  }
+  /* Input di dalam baris hijau */
+  tr.today-row-allowed .time-entry,
+  tr.today-row-allowed select {
+    background-color: #D1FAE5 !important; /* Background input hijau lebih pekat */
+    border-color: var(--success-color) !important;
+  }
+  tr.today-row-allowed .time-entry:focus,
+  tr.today-row-allowed select:focus {
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.3); /* Shadow hijau */
+  }
+
+
+  /* --- Status Tidak Boleh Ceklok (Merah) --- */
+  tr.today-row-denied {
+    background-color: #FEF2F2 !important; /* Merah muda */
+    opacity: 0.9; /* Sedikit redup */
+  }
+  tr.today-row-denied td {
+    /* Beri border merah tipis di atas & bawah */
+    border-top: 1px solid #FECACA !important;
+    border-bottom: 1px solid #FECACA !important;
+  }
+  tr.today-row-denied td:first-child {
+    border-left: 3px solid var(--danger-color) !important; /* Garis tebal di kiri */
+  }
+  tr.today-row-denied td:last-child {
+    border-right: 1px solid #FECACA !important;
+  }
+  /* Input di dalam baris merah (sudah nonaktif oleh JS) */
+  tr.today-row-denied .time-entry,
+  tr.today-row-denied select {
+    background-color: #FEE2E2 !important; /* Background input merah lebih pekat */
+    border-color: var(--danger-color) !important;
+    cursor: not-allowed !important;
+  }
+
 </style>
