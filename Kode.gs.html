@@ -3305,25 +3305,17 @@ function calculateTimeDifference_(startStr, endStr) {
 
 /**
  * HELPER (DIMODIFIKASI): Membaca sheet SchoolSettings dan mengembalikannya sebagai Map.
- * !!! PERBAIKAN: CACHE DIHAPUS UNTUK MEMASTIKAN LOKASI SELALU BARU !!!
- * @return {Map<string, {sptjmId: string, lkhId: string, geoEnabled: boolean, lat: number|null, lon: number|null, radius: number}>}
+ * (VERSI DIPERBARUI DENGAN ViewDashboard)
+ * @return {Map<string, {sptjmId: string, lkhId: string, geoEnabled: boolean, lat: number|null, lon: number|null, radius: number, viewDashboard: boolean}>}
  */
 function getSchoolSettingsMap_() {
-  // const cache = CacheService.getScriptCache(); // CACHE DIHAPUS
-  // const CACHE_KEY = "school_settings_map_v3"; 
-  
-  // const cached = cache.get(CACHE_KEY); // CACHE DIHAPUS
-  // if (cached) {
-  //   return new Map(JSON.parse(cached));
-  // }
-
   const sheet = getSchoolSettingsSheet_(); 
   if (sheet.getLastRow() < 2) {
     return new Map();
   }
   
-  // Paksa pembacaan langsung dari sheet SETIAP SAAT
-  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 7).getValues();
+  // Baca 8 kolom
+  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 8).getValues();
   const settingsMap = new Map();
   
   data.forEach(row => {
@@ -3332,42 +3324,39 @@ function getSchoolSettingsMap_() {
     const lkhId = String(row[2]).trim();    // LkhTemplateId
     const geoEnabled = (String(row[3]).toUpperCase() === "TRUE"); // GeoEnabled
     
-    // --- PERUBAHAN DI SINI: Baca dari teks, konversi ke angka ---
     const latStr = String(row[4]).trim();
     const lonStr = String(row[5]).trim();
     const radiusStr = String(row[6]).trim();
+    const viewDashboard = (String(row[7]).toUpperCase() === "TRUE"); // <-- BACA KOLOM BARU
     
-    // Coba konversi ke angka, gunakan null/default jika gagal
     const lat = latStr === "" ? null : parseFloat(latStr);
     const lon = lonStr === "" ? null : parseFloat(lonStr);
     let radius = parseInt(radiusStr, 10); 
     
-    // Tangani jika hasil konversi bukan angka (NaN)
     const finalLat = isNaN(lat) ? null : lat;
     const finalLon = isNaN(lon) ? null : lon;
-    const finalRadius = isNaN(radius) ? 500 : radius; // Default 500m jika tidak valid
-    // --- AKHIR PERUBAHAN ---
+    const finalRadius = isNaN(radius) ? 500 : radius; // Default 500m
     
     if (schoolName) {
       settingsMap.set(schoolName, { 
         sptjmId: sptjmId, 
         lkhId: lkhId,
         geoEnabled: geoEnabled,
-        lat: finalLat, // Gunakan hasil konversi
-        lon: finalLon, // Gunakan hasil konversi
-        radius: finalRadius // Gunakan hasil konversi (atau default)
+        lat: finalLat,
+        lon: finalLon,
+        radius: finalRadius,
+        viewDashboard: viewDashboard // <-- TAMBAHKAN KE MAP
       });
     }
   });
   
-  // cache.put(CACHE_KEY, JSON.stringify(Array.from(settingsMap.entries())), 21600); // CACHE DIHAPUS
-  
-  Logger.log(`Membaca SchoolSettings langsung dari sheet (tanpa cache)`); // Tambah log
+  Logger.log(`Membaca SchoolSettings langsung dari sheet (tanpa cache)`);
   return settingsMap;
 }
 
 /**
  * HELPER BARU: Mendapatkan atau membuat sheet untuk SchoolSettings.
+ * (VERSI DIPERBARUI DENGAN ViewDashboard)
  */
 function getSchoolSettingsSheet_() {
   let sheet = ss.getSheetByName("SchoolSettings");
@@ -3380,29 +3369,30 @@ function getSchoolSettingsSheet_() {
       "GeoEnabled",     
       "Latitude",       
       "Longitude",      
-      "Radius"          
+      "Radius",
+      "ViewDashboard" // <-- KOLOM BARU
     ];
     sheet.appendRow(headers);
     sheet.setFrozenRows(1);
     const exampleData = [
-      ["MTS TANUNTUNG", "ID_TEMPLATE_SPTJM_MTS_DISINI", "ID_TEMPLATE_LKH_MTS_DISINI", "TRUE", "-5.418418", "119.316828", "500"],
-      ["MIS BUTUNG", "ID_TEMPLATE_SPTJM_MIS_DISINI", "ID_TEMPLATE_LKH_MIS_DISINI", "FALSE", "-5.418418", "119.316828", "500"]
+      // Contoh Geo Aktif (ViewDashboard diabaikan, akan tetap tampil)
+      ["MTS TANUNTUNG", "ID_TEMPLATE_SPTJM_MTS_DISINI", "ID_TEMPLATE_LKH_MTS_DISINI", "TRUE", "-5.418418", "119.316828", "500", "FALSE"],
+      // Contoh Geo Nonaktif, TAPI ViewDashboard Aktif
+      ["MIS BUTUNG", "ID_TEMPLATE_SPTJM_MIS_DISINI", "ID_TEMPLATE_LKH_MIS_DISINI", "FALSE", "-5.418418", "119.316828", "500", "TRUE"]
     ];
-    sheet.getRange(2, 1, 2, 7).setValues(exampleData);
+    // Ubah jangkauan (range) menjadi 8 kolom
+    sheet.getRange(2, 1, 2, 8).setValues(exampleData);
     
-    // --- PERUBAHAN DI SINI ---
     sheet.getRange("A:D").setNumberFormat("@"); // Nama, ID, ID, GeoEnabled -> Teks
-    sheet.getRange("E:G").setNumberFormat("@"); // Latitude, Longitude, Radius -> Teks (@)
-    // --- AKHIR PERUBAHAN ---
+    sheet.getRange("E:H").setNumberFormat("@"); // Latitude, Longitude, Radius, ViewDashboard -> Teks (@)
     
   } else {
-     // --- TAMBAHAN: Pastikan format kolom benar jika sheet sudah ada ---
+     // Pastikan format kolom benar jika sheet sudah ada
      try {
-       sheet.getRange("E:G").setNumberFormat("@"); 
+       sheet.getRange("E:H").setNumberFormat("@"); 
      } catch(e) {
-       Logger.log("Gagal set format teks untuk kolom E-G di SchoolSettings (mungkin sheet dilindungi?)");
+       Logger.log("Gagal set format teks untuk kolom E-H di SchoolSettings");
      }
-     // --- AKHIR TAMBAHAN ---
   }
   return sheet;
 }
