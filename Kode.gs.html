@@ -3305,23 +3305,24 @@ function calculateTimeDifference_(startStr, endStr) {
 
 /**
  * HELPER (DIMODIFIKASI): Membaca sheet SchoolSettings dan mengembalikannya sebagai Map.
- * Data di-cache untuk performa tinggi.
+ * !!! PERBAIKAN: CACHE DIHAPUS UNTUK MEMASTIKAN LOKASI SELALU BARU !!!
  * @return {Map<string, {sptjmId: string, lkhId: string, geoEnabled: boolean, lat: number|null, lon: number|null, radius: number}>}
  */
 function getSchoolSettingsMap_() {
-  const cache = CacheService.getScriptCache();
-  const CACHE_KEY = "school_settings_map_v3"; // v3 untuk format teks
+  // const cache = CacheService.getScriptCache(); // CACHE DIHAPUS
+  // const CACHE_KEY = "school_settings_map_v3"; 
   
-  const cached = cache.get(CACHE_KEY);
-  if (cached) {
-    return new Map(JSON.parse(cached));
-  }
+  // const cached = cache.get(CACHE_KEY); // CACHE DIHAPUS
+  // if (cached) {
+  //   return new Map(JSON.parse(cached));
+  // }
 
   const sheet = getSchoolSettingsSheet_(); 
   if (sheet.getLastRow() < 2) {
     return new Map();
   }
   
+  // Paksa pembacaan langsung dari sheet SETIAP SAAT
   const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 7).getValues();
   const settingsMap = new Map();
   
@@ -3359,8 +3360,9 @@ function getSchoolSettingsMap_() {
     }
   });
   
-  cache.put(CACHE_KEY, JSON.stringify(Array.from(settingsMap.entries())), 21600);
+  // cache.put(CACHE_KEY, JSON.stringify(Array.from(settingsMap.entries())), 21600); // CACHE DIHAPUS
   
+  Logger.log(`Membaca SchoolSettings langsung dari sheet (tanpa cache)`); // Tambah log
   return settingsMap;
 }
 
@@ -3403,4 +3405,46 @@ function getSchoolSettingsSheet_() {
      // --- AKHIR TAMBAHAN ---
   }
   return sheet;
+}
+
+/**
+ * HELPER: Fungsi untuk membersihkan cache pengaturan sekolah.
+ * Ini dipanggil oleh onEdit trigger.
+ */
+function clearSchoolSettingsCache_() {
+  try {
+    const cache = CacheService.getScriptCache();
+    // PASTIKAN KEY INI SAMA PERSIS dengan yang ada di getSchoolSettingsMap_
+    const CACHE_KEY = "school_settings_map_v3"; 
+    cache.remove(CACHE_KEY);
+    Logger.log(`Cache 'school_settings_map_v3' cleared due to SchoolSettings edit.`);
+  } catch (err) {
+    Logger.log(`Failed to clear school settings cache: ${err.message}`);
+  }
+}
+
+/**
+ * TRIGGER OTOMATIS: Berjalan saat ada editan di spreadsheet.
+ * Jika sheet "SchoolSettings" diedit, cache pengaturan akan dihapus.
+ *
+ * Cukup tambahkan fungsi ini ke Kode.gs, Google Apps Script akan
+ * menjalankannya secara otomatis (ini adalah "Simple Trigger").
+ */
+function onEdit(e) {
+  try {
+    // Periksa apakah event object 'e' (informasi editan) ada
+    if (!e) return;
+    
+    // Dapatkan sheet yang sedang diedit dari event
+    const sheet = e.range.getSheet();
+    
+    // Cek jika nama sheet yang diedit adalah "SchoolSettings"
+    if (sheet.getName() === "SchoolSettings") {
+      // Jika ya, panggil fungsi untuk membersihkan cache
+      clearSchoolSettingsCache_();
+    }
+  } catch (err) {
+    // Log error jika terjadi, tapi jangan hentikan proses edit
+    Logger.log(`Error in onEdit trigger for SchoolSettings: ${err.message}`);
+  }
 }
