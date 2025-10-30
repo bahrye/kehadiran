@@ -3310,10 +3310,24 @@ function calculateTimeDifference_(startStr, endStr) {
 
 /**
  * HELPER (DIMODIFIKASI): Membaca sheet SchoolSettings dan mengembalikannya sebagai Map.
- * (VERSI DIPERBARUI DENGAN ViewDashboard)
+ * (VERSI DIPERBARUI DENGAN ViewDashboard DAN CACHE)
  * @return {Map<string, {sptjmId: string, lkhId: string, geoEnabled: boolean, lat: number|null, lon: number|null, radius: number, viewDashboard: boolean}>}
  */
 function getSchoolSettingsMap_() {
+  // 1. Tentukan Kunci Cache
+  const CACHE_KEY = "school_settings_map_v3";
+  const cache = CacheService.getScriptCache();
+  
+  // 2. Coba ambil dari Cache
+  const cachedData = cache.get(CACHE_KEY);
+  if (cachedData) {
+    Logger.log("Mengambil SchoolSettings dari CACHE");
+    // Data di cache adalah string, parse kembali ke Map
+    return new Map(JSON.parse(cachedData)); 
+  }
+
+  // 3. Jika tidak ada di cache, baca dari Sheet
+  Logger.log("Membaca SchoolSettings langsung dari SHEET");
   const sheet = getSchoolSettingsSheet_(); 
   if (sheet.getLastRow() < 2) {
     return new Map();
@@ -3355,7 +3369,10 @@ function getSchoolSettingsMap_() {
     }
   });
   
-  Logger.log(`Membaca SchoolSettings langsung dari sheet (tanpa cache)`);
+  // 4. Simpan hasil ke Cache sebelum mengembalikan
+  // (Ubah Map ke Array untuk disimpan sebagai JSON string)
+  cache.put(CACHE_KEY, JSON.stringify(Array.from(settingsMap.entries())), 21600); // Cache 6 jam
+
   return settingsMap;
 }
 
