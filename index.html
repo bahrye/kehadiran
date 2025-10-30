@@ -1816,13 +1816,20 @@
           document.getElementById('global-lock-message').innerText = lockMessage;
           // Tambahkan class untuk styling (opsional)
           const lockMessageElement = document.getElementById('global-lock-message');
-          lockMessageElement.classList.remove('info-message', 'warning-message'); // Hapus kelas lama
-          if (isPastMonthView && !isLocked && !isReqMonth) {
-              lockMessageElement.classList.add('info-message'); // Tambah kelas untuk pesan 'dibuka'
-          } else if (isReqMonth && !isRequestPending && !appSettings.rejectionInfo){
-              lockMessageElement.classList.add('warning-message'); // Tambah kelas untuk pesan 'klik ubah'
-          }
+          
+          // 1. Hapus SEMUA kelas status, termasuk 'danger-message' yang baru
+          lockMessageElement.classList.remove('info-message', 'warning-message', 'danger-message'); 
 
+          if (isPastMonthView && !isLocked && !isReqMonth) {
+              // 2. Kondisi HIJAU (Bulan lalu dibuka)
+              lockMessageElement.classList.add('info-message');
+          } else if (isReqMonth && !isRequestPending && !appSettings.rejectionInfo){
+              // 3. Kondisi KUNING (Bulan pengajuan)
+              lockMessageElement.classList.add('warning-message');
+          } else if (lockMessage.trim() !== '') { 
+              // 4. Kondisi MERAH (Semua kasus lain di mana ada pesan terkunci)
+              lockMessageElement.classList.add('danger-message');
+          }
 
           // Logika Tampilan Tombol Simpan/Ajukan (di bawah tabel)
           const saveButton = document.getElementById('save-button');
