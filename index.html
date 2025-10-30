@@ -4407,43 +4407,68 @@
       }
 
       /**
-       * (BARU) Fungsi utama untuk memulai pengecekan geolokasi di DASBOR.
+       * (MODIFIKASI) Fungsi utama untuk memulai pengecekan geolokasi di DASBOR.
+       * Sekarang mengambil pengaturan terbaru dari server SEBELUM mengecek GPS.
        */
       function runDashboardGeoCheck() {
           const statusBox = document.getElementById('geo-status-box');
           if (!statusBox) return; // Keluar jika tidak di dasbor guru
-          
-          const isGeoEnabled = currentSchoolSettings.geoEnabled === true;
-          if (!isGeoEnabled) {
-              statusBox.style.display = 'none'; // Sembunyikan box jika geo tidak aktif
-              isUserInLocation = true; // Anggap di lokasi jika geo nonaktif
-              return;
-          }
-          
-          // Tampilkan box dan set ke status "memverifikasi"
+
+          // 1. Set UI ke status loading (langkah pertama)
           statusBox.style.display = 'block';
           statusBox.className = 'card-section processing';
-          document.getElementById('geo-status-message').innerText = 'Sedang memverifikasi lokasi Anda...';
-          document.getElementById('geo-status-details').innerText = 'Pastikan GPS dan izin lokasi aktif.';
+          document.getElementById('geo-status-message').innerText = 'Memperbarui pengaturan...';
+          document.getElementById('geo-status-details').innerText = 'Mengambil setelan lokasi terbaru dari server...';
           document.getElementById('refresh-geo-button').disabled = true;
 
-          if ("geolocation" in navigator) {
-              navigator.geolocation.getCurrentPosition(
-                  handleGeoSuccess, // Panggil fungsi global
-                  handleGeoError,   // Panggil fungsi global
-                  
-                  // --- AWAL PERUBAHAN (Goal 2) ---
-                  {
-                      enableHighAccuracy: false, // <-- Gunakan mode non-akurat (lebih cepat & hemat baterai)
-                      timeout: 15000, // <-- Beri waktu 15 detik untuk merespon
-                      maximumAge: 0  // <-- Izinkan menggunakan lokasi yang diambil 1 menit lalu
+          // 2. Panggil server untuk mendapatkan SchoolSettings TERBARU
+          // (Kita gunakan getAttendancePageData karena fungsi itu yang mengembalikan schoolSettings)
+          const dummyDate = new Date(); // Hanya perlu tanggal untuk parameter
+          google.script.run
+              .withSuccessHandler(response => {
+                  if (response && response.error) {
+                      // Gagal mengambil data dari server
+                      handleGeoError({ code: -1, message: "Gagal mengambil pengaturan: " + response.error });
+                      return;
                   }
-                  // --- AKHIR PERUBAHAN ---
-              );
-          } else {
-              // Kirim error buatan jika browser tidak support
-              handleGeoError({ code: -1, message: "Browser tidak mendukung Geolocation." });
-          }
+                  
+                  // 3. SUKSES: Perbarui variabel global dengan pengaturan BARU dari server
+                  currentSchoolSettings = response.schoolSettings || {};
+                  
+                  // 4. Cek apakah Geo-lock aktif berdasarkan pengaturan BARU ini
+                  const isGeoEnabled = currentSchoolSettings.geoEnabled === true;
+                  if (!isGeoEnabled) {
+                      statusBox.style.display = 'none'; // Sembunyikan box
+                      isUserInLocation = true; // Anggap di lokasi jika fitur nonaktif
+                      // Panggil updateGeoStatusUI untuk menangani cooldown tombol refresh
+                      updateGeoStatusUI(null, null); 
+                      return;
+                  }
+
+                  // 5. Fitur Geo-lock aktif, lanjutkan ke pengecekan GPS
+                  document.getElementById('geo-status-message').innerText = 'Sedang memverifikasi lokasi Anda...';
+                  document.getElementById('geo-status-details').innerText = 'Pastikan GPS dan izin lokasi aktif.';
+
+                  if ("geolocation" in navigator) {
+                      navigator.geolocation.getCurrentPosition(
+                          handleGeoSuccess, // Panggil fungsi global
+                          handleGeoError,   // Panggil fungsi global
+                          {
+                              enableHighAccuracy: false, 
+                              timeout: 15000, 
+                              maximumAge: 0  // Paksa ambil lokasi GPS baru (dari perbaikan sebelumnya)
+                          }
+                      );
+                  } else {
+                      // Kirim error buatan jika browser tidak support
+                      handleGeoError({ code: -1, message: "Browser tidak mendukung Geolocation." });
+                  }
+              })
+              .withFailureHandler(error => {
+                  // Gagal menghubungi server
+                  handleGeoError({ code: -1, message: "Error server: " + error.message });
+              })
+              .getAttendancePageData(currentUser.email, selectedSchool, dummyDate.getFullYear(), dummyDate.getMonth() + 1, 0);
       }
 
     </script>
