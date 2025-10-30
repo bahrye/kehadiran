@@ -541,7 +541,7 @@
         // lockedMonths: [], // Tidak perlu lagi di sisi client
         openedMonths: [], // Tambahkan ini
         holidays: {},
-        announcements: "",
+        // announcements: "", // --> KITA PINDAHKAN KE CACHE
         teacherHolidays: [],
         isMonthLocked: true, // Tambahkan boolean ini
         isRequestableMonth: false,
@@ -566,6 +566,11 @@
       let currentSchoolSettings = {};
       let isUserInLocation = false;
       let settingsPollInterval = null;
+
+      // --- AWAL TAMBAHAN BARU (CACHE PENGUMUMAN) ---
+      let cachedAnnouncements = null; // Cache untuk teks pengumuman
+      let currentAnnouncementTimestamp = '0'; // Timestamp pengumuman yang sedang tampil
+      // --- AKHIR TAMBAHAN BARU ---
 
       // --- TAMBAHAN BARU: Fungsi untuk membuat toast swipeable ---
       function makeToastDismissable(toast) {
@@ -1355,9 +1360,6 @@
         }
       }
 
-// ===================================================================
-      // 4. GANTI FUNGSI LAMA (handleLogout) DENGAN INI
-      // ===================================================================
       function handleLogout() {
         const token = localStorage.getItem('ceklokAuthToken');
         if(token) {
@@ -1374,8 +1376,9 @@
         schoolTeachers = [];
 
         appSettings = {
-          lockedMonths: [], holidays: {}, announcements: "", teacherHolidays: [],
-          isRequestableMonth: false, pendingChanges: {}, rejectionInfo: null, rejectedChanges: []
+          openedMonths: [], holidays: {}, teacherHolidays: [],
+          isRequestableMonth: false, pendingChanges: {}, rejectionInfo: null, rejectedChanges: [],
+          hasGeoBypass: false
         };
 
         // === AWAL PERUBAHAN (Sesuai Permintaan) ===
@@ -1384,6 +1387,11 @@
           clearInterval(settingsPollInterval);
           settingsPollInterval = null;
         }
+        
+        // --- TAMBAHAN BARU: Reset Cache Pengumuman ---
+        cachedAnnouncements = null;
+        currentAnnouncementTimestamp = '0';
+        // --- AKHIR TAMBAHAN ---
         // === AKHIR PERUBAHAN ===
         
         // --- TAMBAHAN BARU ---
@@ -1511,38 +1519,56 @@
             lkhButton.style.display = 'none';
           }
 
-          // Tampilkan loading untuk pengumuman
-          renderAnnouncements("Memuat pengumuman...", true);
+          // --- AWAL PERUBAHAN LOGIKA CACHING ---
+          
+          // Cek jika cache KOSONG (null)
+          if (cachedAnnouncements === null) {
+            // Ini adalah load pertama kali (setelah login)
+            console.log("Cache pengumuman kosong, mengambil data baru...");
+            renderAnnouncements("Memuat pengumuman...", true); // Tampilkan loading
 
-          // Panggil getAttendancePageData untuk mendapatkan *semua* pengaturan (termasuk schoolSettings)
-          google.script.run
-            .withSuccessHandler(response => {
-              if (response && response.error) {
-                renderAnnouncements("Gagal memuat pengaturan.");
-                document.getElementById('geo-status-box').style.display = 'none'; // Sembunyikan jika gagal
-                return;
-              }
-              // Simpan semua pengaturan
-              appSettings = response;
-              currentSchoolSettings = response.schoolSettings || {};
-              
-              // Render pengumuman
-              renderAnnouncements(response.announcements);
-              
-              // === LOGIKA BARU: Mulai verifikasi lokasi ===
-              runDashboardGeoCheck(); 
-              // ==========================================
+            // Panggil getAttendancePageData untuk mendapatkan *semua* data awal
+            google.script.run
+              .withSuccessHandler(response => {
+                if (response && response.error) {
+                  renderAnnouncements("Gagal memuat pengaturan.");
+                  document.getElementById('geo-status-box').style.display = 'none';
+                  return;
+                }
+                
+                // Simpan semua pengaturan
+                appSettings = response;
+                currentSchoolSettings = response.schoolSettings || {};
+                
+                // === SIMPAN KE CACHE ===
+                cachedAnnouncements = response.announcements;
+                currentAnnouncementTimestamp = response.announcementTimestamp || '0';
+                // === AKHIR SIMPAN KE CACHE ===
 
-              // === AWAL PERUBAHAN (Sesuai Permintaan) ===
-              // Mulai polling untuk pengaturan SETELAH semua data awal dimuat.
-              startSettingsPolling();
-              // === AKHIR PERUBAHAN ===
-            })
-            .withFailureHandler(error => {
-               renderAnnouncements(`Gagal memuat pengaturan: ${error.message}`);
-               document.getElementById('geo-status-box').style.display = 'none'; // Sembunyikan jika gagal
-            })
-            .getAttendancePageData(currentUser.email, selectedSchool, currentDate.getFullYear(), currentDate.getMonth() + 1, 0); // Token 0 tidak masalah, hanya untuk ambil settings
+                // Render pengumuman dari cache
+                renderAnnouncements(cachedAnnouncements);
+                
+                runDashboardGeoCheck(); 
+                startSettingsPolling(); // Mulai polling SETELAH semua data awal dimuat
+              })
+              .withFailureHandler(error => {
+                  renderAnnouncements(`Gagal memuat pengaturan: ${error.message}`);
+                  document.getElementById('geo-status-box').style.display = 'none';
+              })
+              .getAttendancePageData(currentUser.email, selectedSchool, currentDate.getFullYear(), currentDate.getMonth() + 1, 0); 
+          
+          } else {
+            // Ini adalah *kembali* ke dasbor (cache SUDAH ADA)
+            console.log("Menggunakan cache pengumuman.");
+            
+            // Langsung render dari cache, TIDAK perlu panggil server
+            renderAnnouncements(cachedAnnouncements);
+            
+            // (Logika Geo dan Polling sudah berjalan dari load pertama,
+            // jadi kita hanya perlu me-refresh UI Geo)
+            runDashboardGeoCheck();
+          }
+          // --- AKHIR PERUBAHAN LOGIKA CACHING ---
 
           loadAndRenderSummary();
       }
@@ -3341,12 +3367,36 @@
 
           // Tampilkan loading untuk pengumuman staff
           const p = document.getElementById('staff-announcement-text');
-          p.innerHTML = `<div class="message-with-loader" style="justify-content: left;"><div class="message-loader"></div><span>Memuat pengumuman...</span></div>`;
+          
+          // --- AWAL PERUBAHAN LOGIKA CACHING v2 (STAFF) ---
+          const staffAnnounceP = document.getElementById('staff-announcement-text');
+          
+          if (cachedAnnouncements === null) {
+            // Load pertama kali
+            console.log("Cache pengumuman staff kosong, mengambil data baru...");
+            staffAnnounceP.innerHTML = `<div class="message-with-loader" style="justify-content: left;"><div class="message-loader"></div><span>Memuat pengumuman...</span></div>`;
 
-          google.script.run.withSuccessHandler(response => {
-            const p = document.getElementById('staff-announcement-text');
-            p.innerText = (response.announcements && response.announcements.trim() !== "") ? response.announcements : "Tidak ada pengumuman saat ini.";
-          }).getAppSettingsForUser(currentUser.email, selectedSchool, currentDate.getFullYear(), currentDate.getMonth() + 1);
+            google.script.run
+              .withSuccessHandler(response => {
+                // Simpan data
+                cachedAnnouncements = response.announcements;
+                currentAnnouncementTimestamp = response.announcementTimestamp || '0';
+                
+                // Render
+                staffAnnounceP.innerText = (cachedAnnouncements && cachedAnnouncements.trim() !== "") ? cachedAnnouncements : "Tidak ada pengumuman saat ini.";
+                
+                // Mulai polling untuk Staff juga
+                startSettingsPolling(); 
+              })
+              .getAppSettingsForUser(currentUser.email, selectedSchool, currentDate.getFullYear(), currentDate.getMonth() + 1);
+          
+          } else {
+            // Kembali ke dasbor (cache sudah ada)
+            console.log("Menggunakan cache pengumuman staff.");
+            staffAnnounceP.innerText = (cachedAnnouncements && cachedAnnouncements.trim() !== "") ? cachedAnnouncements : "Tidak ada pengumuman saat ini.";
+            // Polling seharusnya sudah berjalan, tidak perlu start lagi.
+          }
+          // --- AKHIR PERUBAHAN LOGIKA CACHING v2 (STAFF) ---
       }
 
       function loadSchoolTeachers() {
@@ -4774,42 +4824,58 @@
 
         // Mulai polling baru setiap 30 detik (30000 ms)
         settingsPollInterval = setInterval(() => {
-          // 1. Pastikan kita masih di dasbor guru dan ada user
-          if (!currentUser || !selectedSchool || document.getElementById('guru-dashboard-container').style.display !== 'block') {
+          // --- AWAL PERUBAHAN: Cek di dasbor mana kita berada ---
+          const isGuruDashboard = document.getElementById('guru-dashboard-container').style.display === 'block';
+          const isStaffDashboard = document.getElementById('staff-dashboard-container').style.display === 'block';
+          
+          // 1. Pastikan kita masih di dasbor (Guru ATAU Staff) dan ada user
+          if (!currentUser || !selectedSchool || (!isGuruDashboard && !isStaffDashboard)) {
+          // --- AKHIR PERUBAHAN ---
             // Jika tidak, hentikan polling
             clearInterval(settingsPollInterval);
             settingsPollInterval = null;
             return;
           }
 
-          // 2. Panggil fungsi server yang ringan
+          // 2. Panggil fungsi server yang ringan (YANG BARU)
           google.script.run
             .withSuccessHandler(response => {
               if (response.success) {
-                const newSettings = response.settings;
-
-                // 3. Bandingkan dengan pengaturan 'currentSchoolSettings' yang ada
-                if (hasSettingsChanged(currentSchoolSettings, newSettings)) {
-                  
-                  // === AWAL PERUBAHAN INTI ===
-                  console.log("Deteksi perubahan pengaturan server. Memperbarui UI...");
-
-                  // a. Perbarui pengaturan global
-                  currentSchoolSettings = newSettings; 
-
-                  // b. Panggil fungsi refresh UI (BUKAN runDashboardGeoCheck)
-                  refreshGeoUI(); 
-                  // === AKHIR PERUBAHAN INTI ===
-                  
-                } else {
-                   // console.log("Pengaturan server masih sama."); // (Bisa di-uncomment untuk debugging)
+                
+                // 3. Logika Geo (HANYA untuk GURU)
+                if (isGuruDashboard) {
+                  const newSettings = response.schoolSettings;
+                  // Bandingkan dengan pengaturan 'currentSchoolSettings' yang ada
+                  if (hasSettingsChanged(currentSchoolSettings, newSettings)) {
+                    console.log("Deteksi perubahan pengaturan GEO server. Memperbarui UI...");
+                    // a. Perbarui pengaturan global
+                    currentSchoolSettings = newSettings; 
+                    // b. Panggil fungsi refresh UI
+                    refreshGeoUI(); 
+                  }
                 }
+                
+                // 4. Logika Pengumuman (BARU - Untuk Guru & Staff)
+                const newTimestamp = response.announcementTimestamp;
+                
+                // Cek jika timestamp baru, tidak '0', dan beda dari yang kita punya
+                if (newTimestamp && newTimestamp !== '0' && newTimestamp !== currentAnnouncementTimestamp) {
+                  console.log("Deteksi perubahan PENGUMUMAN. Mengambil data baru...");
+                  
+                  // Update timestamp global kita
+                  currentAnnouncementTimestamp = newTimestamp; 
+                  
+                  // Panggil fungsi baru untuk ambil teks pengumuman
+                  fetchLatestAnnouncements(); 
+                }
+
               }
             })
             .withFailureHandler(err => {
-              console.error("Gagal polling pengaturan: ", err.message);
+              console.error("Gagal polling status: ", err.message);
             })
-            .getLatestSchoolSettings(currentUser.email, selectedSchool);
+            // --- PANGGIL FUNGSI BARU DI SERVER ---
+            .getDashboardStatus(currentUser.email, selectedSchool); 
 
         }, 30000); // Poll setiap 30 detik
       }
@@ -4859,6 +4925,43 @@
               handleGeoError({ code: -1, message: "Browser tidak mendukung Geolocation." });
           }
       }
+
+      // --- FUNGSI BARU ---
+      /**
+       * (BARU) Dipanggil oleh polling HANYA jika timestamp pengumuman berubah.
+       * Mengambil teks pengumuman terbaru dan me-render ulang.
+       */
+      function fetchLatestAnnouncements() {
+        // Tampilkan toast "processing"
+        displayMessage(null, "Memuat pengumuman baru...", { isProcessing: true });
+        
+        google.script.run
+          .withSuccessHandler(newAnnouncementText => {
+            
+            // 1. Simpan ke cache
+            cachedAnnouncements = newAnnouncementText;
+            
+            // 2. Render ulang di dasbor yang aktif
+            const isGuruDashboard = document.getElementById('guru-dashboard-container').style.display === 'block';
+            const isStaffDashboard = document.getElementById('staff-dashboard-container').style.display === 'block';
+            
+            if (isGuruDashboard) {
+              renderAnnouncements(cachedAnnouncements, false);
+            } else if (isStaffDashboard) {
+              const staffAnnounceP = document.getElementById('staff-announcement-text');
+              staffAnnounceP.innerText = (cachedAnnouncements && cachedAnnouncements.trim() !== "") ? cachedAnnouncements : "Tidak ada pengumuman saat ini.";
+            }
+            
+            // 3. Tampilkan toast sukses
+            displayMessage(null, "Pengumuman telah diperbarui.", { isSuccess: true });
+          })
+          .withFailureHandler(err => {
+            displayMessage(null, "Gagal memuat pengumuman baru.");
+            console.error("Error fetchLatestAnnouncements:", err.message);
+          })
+          .getLatestAnnouncements(); // Panggil fungsi server baru
+      }
+      // --- AKHIR FUNGSI BARU ---
 
     </script>
   </body>
