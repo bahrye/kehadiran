@@ -795,6 +795,10 @@
 
           document.getElementById('sptjm-settings-container').style.display = 'block';
 
+          // --- TAMBAHKAN BARIS INI ---
+          history.pushState(null, null, location.href);
+          // --- AKHIR TAMBAHAN ---
+
           const saveButton = document.getElementById('save-sptjm-settings-button');
           saveButton.disabled = true; // Nonaktifkan tombol saat halaman dibuka
 
@@ -894,6 +898,10 @@
       function showSptjmViewPage() {
           document.getElementById('lkh-sptjm-dashboard-container').style.display = 'none';
           document.getElementById('sptjm-view-container').style.display = 'block';
+
+          // --- TAMBAHKAN BARIS INI ---
+          history.pushState(null, null, location.href);
+          // --- AKHIR TAMBAHAN ---
 
           // 1. Dapatkan elemen tombol dan pesan
           const downloadButton = document.getElementById('download-sptjm-pdf-button');
@@ -1041,6 +1049,11 @@
       function showLkhWeeklyPage() {
         document.getElementById("lkh-sptjm-dashboard-container").style.display = "none";
         document.getElementById("lkh-weekly-container").style.display = "block";
+
+        // --- TAMBAHKAN BARIS INI ---
+        history.pushState(null, null, location.href);
+        // --- AKHIR TAMBAHAN ---
+
         generateLkhWeeklyForm();
       }
 
@@ -1137,6 +1150,44 @@
       document.addEventListener('DOMContentLoaded', () => {
         // --- AWAL PERUBAHAN: Set Tahun Otomatis ---
         document.getElementById('currentYear').textContent = new Date().getFullYear();
+        // --- AKHIR PERUBAHAN ---
+
+        // --- AWAL PERUBAHAN: Logika Tombol Kembali Ponsel (VERSI 2) ---
+        window.addEventListener('popstate', function(event) {
+            // Fungsi ini akan dipicu oleh tombol kembali browser/ponsel.
+            // Kita periksa halaman apa yang sedang aktif.
+
+            // 1. Cek sub-menu LKH (paling dalam)
+            if (document.getElementById('sptjm-settings-container').style.display === 'block' ||
+                document.getElementById('lkh-container').style.display === 'block' ||
+                document.getElementById('lkh-weekly-container').style.display === 'block' ||
+                document.getElementById('sptjm-view-container').style.display === 'block' ||
+                document.getElementById('lkh-view-container').style.display === 'block') {
+                
+                // Jika di sub-menu LKH, kembali ke dasbor LKH
+                // JANGAN pushState di sini, kita hanya menampilkan
+                showLkhSptjmDashboard();
+            } 
+            // 2. Cek halaman "level 1" (Ceklok, Dasbor LKH, Pengaturan Libur, dll.)
+            else if (
+                document.getElementById('ceklok-container').style.display === 'block' ||
+                document.getElementById('teacher-holiday-settings-container').style.display === 'block' ||
+                document.getElementById('emis-import-container').style.display === 'block' ||
+                document.getElementById('emis-export-container').style.display === 'block' ||
+                document.getElementById('all-teachers-summary-container').style.display === 'block' ||
+                document.getElementById('change-request-container').style.display === 'block' ||
+                document.getElementById('lkh-sptjm-dashboard-container').style.display === 'block'
+            ) {
+                // Jika di halaman-halaman ini, kembali ke dasbor utama
+                // JANGAN panggil goBackToDashboard() karena itu akan pushState
+                // Cukup tampilkan dasbor yang sesuai secara manual
+                if (currentUser.role === 'admin') showAdminDashboard();
+                else if (currentUser.role === 'staff') showStaffDashboard();
+                else showGuruDashboard();
+            }
+            // 3. Jika kita ada di dasbor utama (atau halaman login),
+            // biarkan browser melakukan aksi default-nya (yaitu keluar dari aplikasi).
+        });
         // --- AKHIR PERUBAHAN ---
 
         const token = localStorage.getItem('ceklokAuthToken');
@@ -1282,6 +1333,10 @@
             select.appendChild(option);
         });
         document.getElementById('school-selection-container').style.display = 'block';
+
+        // --- TAMBAKAH BARIS INI ---
+        history.pushState(null, null, location.href);
+        // --- AKHIR TAMBAHAN ---
       }
 
       function handleSchoolSelection() {
@@ -1434,6 +1489,10 @@
           document.getElementById("change-request-container").style.display = "none";
           document.getElementById("guru-dashboard-container").style.display = "block";
 
+          // --- TAMBAHKAN BARIS INI ---
+          history.pushState(null, null, location.href);
+          // --- AKHIR TAMBAHAN ---
+
           const welcomeH2 = document.getElementById('guru-welcome-message');
           let welcomeHTML = `Halo, <strong>${currentUser.name}</strong>`;
 
@@ -1541,6 +1600,10 @@
         document.getElementById("lkh-container").style.display = "none";
         document.getElementById("lkh-view-container").style.display = "none";
         document.getElementById("lkh-weekly-container").style.display = "none";
+
+        // --- TAMBAHKAN BARIS INI ---
+        history.pushState(null, null, location.href);
+        // --- AKHIR TAMBAHAN ---
       }
 
       function showCeklokPage() {
@@ -1549,6 +1612,10 @@
         document.getElementById("ceklok-container").style.display = "block";
         document.getElementById('ceklok-teacher-name').innerText = '';
         document.getElementById('ceklok-title').innerText = `Formulir Kehadiran - ${selectedSchool}`;
+
+        // --- TAMBAHKAN BARIS INI ---
+        history.pushState(null, null, location.href);
+        // --- AKHIR TAMBAHAN ---
 
         // === LOGIKA BARU: Cek status global ===
         const isGeoEnabled = currentSchoolSettings.geoEnabled === true;
@@ -1583,6 +1650,11 @@
           document.getElementById("emis-import-container").style.display = "none";
           document.getElementById("emis-export-container").style.display = "none";
           document.getElementById("teacher-holiday-settings-container").style.display = "block";
+
+          // --- TAMBAHKAN BARIS INI ---
+          history.pushState(null, null, location.href);
+          // --- AKHIR TAMBAHAN ---
+
           document.getElementById('teacher-holiday-title').innerText = `Pengaturan Hari Libur - ${selectedSchool}`;
           renderTeacherHolidaySwitches();
           loadTeacherHolidays();
@@ -1591,6 +1663,11 @@
       function showEmisImportPage() {
         document.getElementById("guru-dashboard-container").style.display = "none";
         document.getElementById("emis-import-container").style.display = "block";
+
+        // --- TAMBAHKAN BARIS INI ---
+        history.pushState(null, null, location.href);
+        // --- AKHIR TAMBAHAN ---
+
         document.getElementById('emis-import-teacher-name').innerText = '';
         document.getElementById('emis-import-title').innerText = `Import Data Kehadiran EMIS - ${selectedSchool}`;
       }
@@ -1598,6 +1675,11 @@
       function showEmisExportPage() {
         document.getElementById("guru-dashboard-container").style.display = "none";
         document.getElementById("emis-export-container").style.display = "block";
+
+        // --- TAMBAHKAN BARIS INI ---
+        history.pushState(null, null, location.href);
+        // --- AKHIR TAMBAHAN ---
+
         document.getElementById('emis-export-teacher-name').innerText = '';
         document.getElementById('emis-export-title').innerText = `Eksport Data Kehadiran - ${selectedSchool}`;
       }
@@ -2357,6 +2439,10 @@
         document.getElementById("staff-dashboard-container").style.display = "none";
         document.getElementById("change-request-container").style.display = "block";
 
+        // --- TAMBAHKAN BARIS INI ---
+        history.pushState(null, null, location.href);
+        // --- AKHIR TAMBAHAN ---
+
         const container = document.getElementById('request-list-container');
         container.innerHTML = `
           <div class="loader-container">
@@ -3101,6 +3187,11 @@
       function showAllTeacherSummary() {
         document.getElementById("guru-dashboard-container").style.display = "none";
         document.getElementById("all-teachers-summary-container").style.display = "block";
+
+        // --- TAMBAHKAN BARIS INI ---
+        history.pushState(null, null, location.href);
+        // --- AKHIR TAMBAHAN ---
+
         document.getElementById("all-teachers-summary-title").innerText = `Ringkasan Kehadiran - ${selectedSchool}`;
         loadAllTeacherSummaryData();
       }
@@ -3206,8 +3297,11 @@
           document.getElementById("change-request-container").style.display = "none";
           // --- AKHIR PERUBAHAN ---
 
-
           document.getElementById("staff-dashboard-container").style.display = "block";
+
+          // --- TAMBAHKAN BARIS INI ---
+          history.pushState(null, null, location.href);
+          // --- AKHIR TAMBAHAN ---
 
           // MODIFIKASI DIMULAI DI SINI
           const welcomeH2 = document.getElementById('staff-welcome-message');
@@ -3352,6 +3446,10 @@
         
         // 5. Tampilkan halaman Ceklok
         document.getElementById("ceklok-container").style.display = "block";
+
+        // --- TAMBAHKAN BARIS INI ---
+        history.pushState(null, null, location.href);
+        // --- AKHIR TAMBAHAN ---
         
         // 6. Atur judul halaman Ceklok
         document.getElementById('ceklok-title').innerText = `Formulir Kehadiran - ${selectedTeacherForStaff.school}`;
@@ -3376,6 +3474,11 @@
 
           document.getElementById("staff-dashboard-container").style.display = "none";
           document.getElementById("emis-import-container").style.display = "block";
+
+          // --- TAMBAHKAN BARIS INI ---
+          history.pushState(null, null, location.href);
+          // --- AKHIR TAMBAHAN ---
+
           document.getElementById('emis-import-title').innerText = `Import Data Kehadiran EMIS - ${selectedTeacherForStaff.school}`;
           document.getElementById('emis-import-teacher-name').innerText = `Untuk: ${selectedTeacherForStaff.name}`;
       }
@@ -3389,6 +3492,11 @@
 
           document.getElementById("staff-dashboard-container").style.display = "none";
           document.getElementById("emis-export-container").style.display = "block";
+
+          // --- TAMBAHKAN BARIS INI ---
+          history.pushState(null, null, location.href);
+          // --- AKHIR TAMBAHAN ---
+
           document.getElementById('emis-export-title').innerText = `Eksport Data Kehadiran - ${selectedTeacherForStaff.school}`;
           document.getElementById('emis-export-teacher-name').innerText = `Untuk: ${selectedTeacherForStaff.name}`;
       }
@@ -3439,6 +3547,11 @@
         document.getElementById("ceklok-container").style.display = "none";
         document.getElementById("school-selection-container").style.display = "none";
         document.getElementById("admin-container").style.display = "block";
+
+        // --- TAMBAHKAN BARIS INI ---
+        history.pushState(null, null, location.href);
+        // --- AKHIR TAMBAHAN ---
+
         document.getElementById("admin-welcome-message").innerHTML = `Halo Admin, <strong>${currentUser.name}</strong>`;
         loadUsers();
         loadAdminSettings();
@@ -3839,6 +3952,11 @@
       function showLkhPage() {
         document.getElementById("lkh-sptjm-dashboard-container").style.display = "none";
         document.getElementById("lkh-container").style.display = "block";
+
+        // --- TAMBAHKAN BARIS INI ---
+        history.pushState(null, null, location.href);
+        // --- AKHIR TAMBAHAN ---
+
         const lkhMonthInput = document.getElementById('lkh-month-input');
         if (!lkhMonthInput.value) {
           // --- PERUBAHAN: Logika default bulan berdasarkan tanggal ---
@@ -3990,6 +4108,10 @@
       function showLkhViewPage() {
           document.getElementById('lkh-sptjm-dashboard-container').style.display = 'none';
           document.getElementById('lkh-view-container').style.display = 'block';
+
+          // --- TAMBAHKAN BARIS INI ---
+          history.pushState(null, null, location.href);
+          // --- AKHIR TAMBAHAN ---
 
           // 1. Dapatkan elemen tombol dan pesan
           const downloadButton = document.getElementById('download-lkh-pdf-button');
@@ -4518,6 +4640,11 @@
        * bahkan jika GeoEnabled=FALSE.
        */
       function runDashboardGeoCheck() {
+          // --- AWAL PERBAIKAN ---
+          // Tambahkan pengecekan ini di baris paling atas
+          if (!currentUser) return; 
+          // --- AKHIR PERBAIKAN ---
+
           const statusBox = document.getElementById('geo-status-box');
           if (!statusBox) return; // Keluar jika tidak di dasbor guru
 
