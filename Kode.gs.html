@@ -296,8 +296,14 @@ function getAppSettingsForUser(email, school, year, month) {
   const announcements = getAnnouncements();
   const teacherHolidays = getTeacherHolidays(email);
 
+  // --- AWAL TAMBAHAN ---
+  // Ambil timestamp pengumuman untuk auto-reload
+  const announcementTimestamp = PropertiesService.getScriptProperties().getProperty('announcement_timestamp') || '0';
+  // --- AKHIR TAMBAHAN ---
+
   return { 
-    attendance: attendanceData, lockedMonths, holidays, announcements, teacherHolidays 
+    attendance: attendanceData, lockedMonths, holidays, announcements, teacherHolidays,
+    announcementTimestamp: announcementTimestamp // <-- Kirim timestamp
   };
 }
 
@@ -357,6 +363,12 @@ function getAttendancePageData(email, school, year, month, token, viewerEmail = 
     const teacherHolidays = getTeacherHolidays(email);
     const announcements = getAnnouncements();
     const schoolSettingsMap = getSchoolSettingsMap_();
+    
+    // --- AWAL TAMBAHAN ---
+    // Ambil timestamp pengumuman untuk auto-reload
+    const announcementTimestamp = PropertiesService.getScriptProperties().getProperty('announcement_timestamp') || '0';
+    // --- AKHIR TAMBAHAN ---
+    
     const schoolSettings = schoolSettingsMap.get(school) || {};
 
     const today = new Date();
@@ -460,6 +472,7 @@ function getAttendancePageData(email, school, year, month, token, viewerEmail = 
       teacherHolidays: teacherHolidays,
       token: token,
       announcements: announcements,
+      announcementTimestamp: announcementTimestamp, // <-- 1. Kirim timestamp
       schoolSettings: schoolSettings,
       isMonthLocked: isMonthLocked, // <-- Kirim status boolean baru
       isRequestableMonth: isRequestableMonth, // <-- Tetap kirim ini
@@ -472,10 +485,13 @@ function getAttendancePageData(email, school, year, month, token, viewerEmail = 
      Logger.log(`CRITICAL ERROR in getAttendancePageData for ${email}, ${school}, ${year}-${month}: ${error.toString()} \nStack: ${error.stack}`);
      return {
         error: `Terjadi kesalahan saat memuat data absensi (${error.message}). Coba muat ulang halaman.`,
-        token: token, attendance: {}, holidays:{}, teacherHolidays: [], announcements: "", schoolSettings: {},
+        token: token, attendance: {}, holidays:{}, teacherHolidays: [], 
+        announcements: "", // <-- 3. Tambahkan di error fallback
+        announcementTimestamp: '0', // <-- 4. Tambahkan di error fallback
+        schoolSettings: {},
         isMonthLocked: true, // Kunci sebagai fallback jika error
         isRequestableMonth: false, pendingChanges: {}, rejectionInfo: null, rejectedChanges: [],
-        hasGeoBypass: false // <-- 3. Tambahkan di error fallback
+        hasGeoBypass: false // <-- 5. Tambahkan di error fallback
      };
   }
 }
@@ -1632,6 +1648,12 @@ function saveAnnouncements(adminEmail, announcementText) {
   if (!checkIfAdmin(adminEmail)) throw new Error("Akses ditolak.");
   try {
     announcementsSheet.getRange("A1").setValue(announcementText);
+    
+    // --- AWAL TAMBAHAN ---
+    // Simpan timestamp (waktu) kapan pengumuman ini diubah
+    PropertiesService.getScriptProperties().setProperty('announcement_timestamp', new Date().getTime().toString());
+    // --- AKHIR TAMBAHAN ---
+    
     return { status: "success", message: "Pengumuman berhasil diperbarui." };
   } catch (e) { 
     Logger.log(`Error saving announcements: ${e.toString()}`);
@@ -3430,20 +3452,42 @@ function handleSheetEdit(e) {
 
 /**
  * (BARU) Fungsi ringan yang dipanggil oleh client polling.
- * Hanya mengembalikan pengaturan untuk satu sekolah.
+ * Menggantikan getLatestSchoolSettings.
+ * Memeriksa status Geo-settings DAN status pengumuman.
  */
-function getLatestSchoolSettings(email, school) {
+function getDashboardStatus(email, school) {
   try {
-    // Fungsi ini sudah ada dan (berdasarkan modifikasi kita sebelumnya) 
-    // selalu membaca data baru dari sheet karena cache-nya dihapus.
+    // 1. Logika dari getLatestSchoolSettings (untuk Geo-lock)
     const settingsMap = getSchoolSettingsMap_(); 
     const schoolSettings = settingsMap.get(school) || {};
-    return { success: true, settings: schoolSettings };
+    
+    // 2. Logika baru untuk pengumuman
+    const announcementTimestamp = PropertiesService.getScriptProperties().getProperty('announcement_timestamp') || '0';
+
+    return { 
+      success: true, 
+      schoolSettings: schoolSettings,
+      announcementTimestamp: announcementTimestamp 
+    };
   } catch (e) {
-    Logger.log(`Error di getLatestSchoolSettings: ${e.message}`);
-    return { success: false, error: e.message, settings: {} };
+    Logger.log(`Error di getDashboardStatus: ${e.message}`);
+    return { 
+      success: false, 
+      error: e.message, 
+      schoolSettings: {}, 
+      announcementTimestamp: '0' 
+    };
   }
 }
+
+// --- FUNGSI BARU ---
+/**
+ * (BARU) Fungsi yang dipanggil client untuk mengambil HANYA teks pengumuman.
+ */
+function getLatestAnnouncements() {
+  return getAnnouncements(); // Panggil fungsi internal yang sudah ada
+}
+// --- AKHIR FUNGSI BARU ---
 
 // --- FUNGSI BARU UNTUK ADMIN: Menyimpan opened_months ---
 function saveOpenedMonths(adminEmail, months) {
