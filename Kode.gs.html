@@ -2038,37 +2038,13 @@ function getLKHSheetForUser_(userName) {
   return sheet;
 }
 
-/**
- * (FUNGSI HELPER BARU YANG JAUH LEBIH CEPAT)
- * Mendapatkan sheet LKH yang spesifik untuk user DAN bulan/tahun.
- * Format Nama: LKH_email@gmail.com_2025_10
- * PERUBAHAN: Menambahkan createIfNotExist.
- */
-function getLKHSheetForUserAndMonth_(email, year, month, createIfNotExist = false) { // <-- Tambah parameter
-  const yearStr = String(year);
-  const monthStr = String(month).padStart(2, '0');
-  const sheetName = `LKH_${email}_${yearStr}_${monthStr}`;
-  
-  let sheet = ss.getSheetByName(sheetName);
-  
-  // Hanya buat jika tidak ada DAN diizinkan (createIfNotExist = true)
-  if (!sheet && createIfNotExist) { // <-- Logika diubah
-    sheet = ss.insertSheet(sheetName);
-    const headers = ["Tanggal", "Uraian Kegiatan", "Hasil/Output", "Vol"];
-    sheet.appendRow(headers);
-    sheet.getRange("A:A").setNumberFormat("yyyy-mm-dd");
-    sheet.setFrozenRows(1);
-  }
-  
-  return sheet; // Akan mengembalikan null jika sheet tidak ada & createIfNotExist = false
-}
-
 function getLKHData(email, school, year, month) {
   try {
     if (!checkIfLKHUser_(email)) {
       return { success: false, error: "Akses LKH ditolak." };
     }
-    // --- Bagian 1: Mendapatkan Hari Kerja (Ini sudah cepat, JANGAN DIUBAH) ---
+    
+    // --- Bagian 1: Mendapatkan Hari Kerja (Logika ini tidak berubah) ---
     const holidaysData = holidaysSheet.getDataRange().getValues().slice(1);
     const nationalHolidays = {};
     holidaysData.forEach(row => {
@@ -2096,30 +2072,55 @@ function getLKHData(email, school, year, month) {
       }
     }
     
-    // --- Bagian 2: Memuat data LKH (INI YANG DIPERBARUI) ---
+    // --- Bagian 2: Memuat data LKH (Logika BARU dengan Caching) ---
+    const TIMEZONE = "Asia/Makassar";
+    const cache = CacheService.getScriptCache();
+    // Buat cache key yang unik per user, per sekolah, per bulan
+    const cacheKey = `lkh_data_${email}_${school}_${year}_${month}`;
+    const cachedData = cache.get(cacheKey);
+
+    if (cachedData) {
+      Logger.log(`Mengambil LKH dari cache: ${cacheKey}`);
+      // Jika ada di cache, langsung kembalikan.
+      // Kita cache seluruh objek { workingDays, existingData }
+      return JSON.parse(cachedData);
+    }
     
-    // PANGGIL HELPER BARU: (dengan createIfNotExist = false)
-    const lkhSheet = getLKHSheetForUserAndMonth_(email, year, month, false); // <-- Tambah 'false'
+    Logger.log(`Membaca LKH dari sheet: ${cacheKey}`);
+    // Panggil helper BARU (hanya untuk membaca, 'false')
+    const lkhSheet = getLKHSheet_(year, month, false);
     const existingData = {};
 
-    // Hanya baca data jika sheet-nya ADA (lkhSheet != null)
-    if (lkhSheet && lkhSheet.getLastRow() > 1) { // <-- Tambah cek 'lkhSheet &&'
-      // Baca 4 kolom data
-      const lkhData = lkhSheet.getRange(2, 1, lkhSheet.getLastRow() - 1, 4).getValues();
+    // Hanya baca jika sheet-nya ADA
+    if (lkhSheet && lkhSheet.getLastRow() > 1) {
+      // Baca 6 kolom data
+      const lkhData = lkhSheet.getRange(2, 1, lkhSheet.getLastRow() - 1, 6).getValues();
     
       lkhData.forEach(row => {
-        const rowDate = Utilities.formatDate(new Date(row[0]), "Asia/Makassar", "yyyy-MM-dd");
-        existingData[rowDate] = {
-          uraian: row[1] || "",
-          hasil: row[2] || "",
-          vol: row[3] || ""
-        };
+        const recordEmail = row[0];
+        const recordSchool = row[1];
+        
+        // Filter data HANYA untuk user & sekolah ini
+        if (recordEmail.toLowerCase() === email.toLowerCase() && recordSchool === school) {
+          const rowDate = Utilities.formatDate(new Date(row[2]), TIMEZONE, "yyyy-MM-dd");
+          existingData[rowDate] = {
+            uraian: row[3] || "",
+            hasil: row[4] || "",
+            vol: row[5] || ""
+          };
+        }
       });
     }
 
-    return { success: true, workingDays, existingData };
+    const result = { success: true, workingDays, existingData };
+    
+    // Simpan hasil ke cache selama 6 jam
+    cache.put(cacheKey, JSON.stringify(result), 21600);
+
+    return result;
+    
   } catch (e) {
-    Logger.log("Error di getLKHData (Optimized): " + e.message + " \nStack: " + e.stack);
+    Logger.log("Error di getLKHData (Refactored): " + e.message + " \nStack: " + e.stack);
     return { success: false, error: "Gagal memuat data LKH." };
   }
 }
@@ -2130,58 +2131,61 @@ function saveLKHData(email, school, year, month, lkhData) {
       return { status: "error", message: "Akses LKH ditolak." };
     }
     
-    // --- STRATEGI PENYIMPANAN BARU (LEBIH EFISIEN) ---
+    // Panggil helper BARU (dengan 'true' agar sheet dibuat jika belum ada)
+    const sheet = getLKHSheet_(year, month, true);
     
-    // 1. Proses data input dari client TERLEBIH DAHULU
-    const dataToSave = [];
+    // 1. Baca SEMUA data dari sheet
+    const allData = sheet.getDataRange().getValues();
+    const headers = allData[0]; // Simpan header
+
+    // 2. Filter: Buat array baru HANYA berisi data PENGGUNA LAIN
+    const otherUsersData = allData.slice(1) // (slice(1) untuk lewati header)
+      .filter(row => {
+        if (!row[0]) return false; // Lewati baris kosong
+        // Simpan baris JIKA emailnya BEDA, ATAU sekolahnya BEDA
+        return row[0].toLowerCase() !== email.toLowerCase() || row[1] !== school; 
+      });
+
+    // 3. Tambah: Buat baris data baru untuk PENGGUNA SAAT INI
+    const currentUserNewData = [];
     for (const date in lkhData) {
       const entry = lkhData[date];
       // Hanya tambahkan jika ada isinya
       if (entry.uraian || entry.hasil || entry.vol) {
-        dataToSave.push([
-          new Date(date), // Kolom A: Tanggal
-          entry.uraian,   // Kolom B: Uraian
-          entry.hasil,    // Kolom C: Hasil
-          entry.vol       // Kolom D: Vol
+        currentUserNewData.push([
+          email,            // Kolom A: Email
+          school,           // Kolom B: Sekolah
+          new Date(date),   // Kolom C: Tanggal
+          entry.uraian,     // Kolom D: Uraian
+          entry.hasil,      // Kolom E: Hasil
+          entry.vol         // Kolom F: Vol
         ]);
       }
     }
     
-    // 2. Tentukan sheet (JANGAN buat dulu)
-    let sheet;
+    // Urutkan data pengguna saat ini berdasarkan tanggal (opsional tapi bagus)
+    currentUserNewData.sort((a, b) => a[2] - b[2]); // a[2] adalah objek Tanggal
 
-    // 3. Jika ada data untuk disimpan
-    if (dataToSave.length > 0) {
-      // PANGGIL HELPER DENGAN 'true': Buat sheet jika belum ada
-      sheet = getLKHSheetForUserAndMonth_(email, year, month, true);
-      
-      // Hapus data lama (jika ada)
-      if (sheet.getLastRow() > 1) {
-        sheet.getRange(2, 1, sheet.getLastRow() - 1, 4).clearContent();
-      }
-      
-      // Tulis data baru
-      dataToSave.sort((a, b) => a[0] - b[0]);
-      sheet.getRange(2, 1, dataToSave.length, 4).setValues(dataToSave);
-      
-    } 
-    // 4. Jika TIDAK ADA data (user mengosongkan form)
-    else {
-      // PANGGIL HELPER DENGAN 'false': Cek apakah sheet-nya sudah ada
-      sheet = getLKHSheetForUserAndMonth_(email, year, month, false);
-      
-      // Jika sheet-nya ada (bukan null), berarti user mau menghapus data
-      if (sheet && sheet.getLastRow() > 1) {
-        sheet.getRange(2, 1, sheet.getLastRow() - 1, 4).clearContent();
-      }
-      // Jika sheet-nya null, tidak terjadi apa-apa (sheet tidak dibuat)
+    // 4. Gabungkan semua data: Header + Data Pengguna Lain + Data Baru Pengguna Ini
+    const finalData = [headers, ...otherUsersData, ...currentUserNewData];
+
+    // 5. Tulis (Clear dan Set): Hapus total dan tulis ulang semua
+    sheet.getRange(1, 1, sheet.getMaxRows(), sheet.getMaxColumns()).clearContent();
+    
+    if (finalData.length > 0) {
+      sheet.getRange(1, 1, finalData.length, headers.length).setValues(finalData);
     }
-    // --- AKHIR STRATEGI PENYIMPANAN BARU ---
+    
+    // 6. Hapus Cache
+    const cache = CacheService.getScriptCache();
+    const cacheKey = `lkh_data_${email}_${school}_${year}_${month}`;
+    cache.remove(cacheKey);
+    Logger.log(`Cache LKH dihapus: ${cacheKey}`);
 
     return { status: "success", message: "LKH berhasil disimpan." };
   
   } catch (e) {
-    Logger.log(`Error in saveLKHData (Optimized): ${e.message} \nStack: ${e.stack}`);
+    Logger.log(`Error in saveLKHData (Refactored): ${e.message} \nStack: ${e.stack}`);
     return { status: "error", message: "Gagal menyimpan LKH. Terjadi kesalahan server." };
   }
 }
@@ -3417,3 +3421,35 @@ function saveOpenedMonths(adminEmail, months) {
   return { status: "success", message: "Bulan yang dibuka berhasil disimpan." };
 }
 // --- AKHIR FUNGSI BARU ---
+
+/**
+ * (BARU) Mendapatkan sheet LKH terpusat berdasarkan tahun dan bulan.
+ * Format Nama: LKH_MM_YYYY (cth: LKH_10_2025)
+ */
+function getLKHSheet_(year, month, createIfNotExist = false) {
+  const monthStr = String(month).padStart(2, '0');
+  const yearStr = String(year);
+  const sheetName = `LKH_${monthStr}_${yearStr}`;
+  
+  let sheet = ss.getSheetByName(sheetName);
+  
+  if (!sheet && createIfNotExist) {
+    sheet = ss.insertSheet(sheetName);
+    // Tambahkan Email & Sekolah sebagai kolom identifikasi
+    const headers = [
+      "Email", 
+      "Sekolah", 
+      "Tanggal", 
+      "Uraian Kegiatan", 
+      "Hasil/Output", 
+      "Vol"
+    ];
+    sheet.appendRow(headers);
+    sheet.getRange("A:B").setNumberFormat("@"); // Email, Sekolah
+    sheet.getRange("C:C").setNumberFormat("yyyy-mm-dd"); // Tanggal
+    sheet.getRange("D:F").setNumberFormat("@"); // Uraian, Hasil, Vol
+    sheet.setFrozenRows(1);
+  }
+  
+  return sheet; // Akan mengembalikan null jika sheet tidak ditemukan & createIfNotExist = false
+}
