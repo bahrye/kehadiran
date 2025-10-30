@@ -1698,6 +1698,34 @@
       function generateMonthTable(year, month, attendanceData) {
           const container = document.getElementById('attendance-table-container');
 
+          // === AWAL PERBAIKAN: Logika dipindahkan ke sini ===
+          // Logika ini akan dievaluasi setiap kali bulan berganti.
+          
+          const geoMessage = document.getElementById('geo-lock-message');
+          const isGeoEnabled = currentSchoolSettings.geoEnabled === true;
+          const today = new Date();
+          
+          // Cek apakah bulan YANG DITAMPILKAN (dari parameter year & month)
+          // adalah bulan berjalan saat ini.
+          const isCurrentMonthView = (year === today.getFullYear() && month === (today.getMonth() + 1));
+
+          // Tampilkan pesan "Di Luar Jangkauan" HANYA JIKA:
+          // 1. Fitur Geo-lock aktif
+          // 2. Status pengguna saat ini 'di luar lokasi'
+          // 3. Halaman yang dilihat adalah BULAN INI
+          if (isGeoEnabled && !isUserInLocation && isCurrentMonthView) {
+              geoMessage.innerText = "Anda berada di luar jangkauan lokasi. Input Ceklok hari ini dikunci.";
+              geoMessage.style.display = 'block';
+              geoMessage.style.color = 'var(--danger-color)';
+              geoMessage.style.backgroundColor = '#FEF2F2';
+          } else {
+              // Sembunyikan pesan untuk SEMUA KASUS LAINNYA
+              // (Geo nonaktif, atau pengguna di dalam lokasi, atau ini BUKAN bulan berjalan)
+              geoMessage.style.display = 'none';
+          }
+          // === AKHIR PERBAIKAN ===
+
+
           // Opsi alasan cuti/izin
           const reasonOptions = `
               <option value="">-- Pilih Alasan --</option>
@@ -1723,7 +1751,7 @@
           const daysInMonth = new Date(year, month, 0).getDate();
           const currentMonthStr = `${year}-${String(month).padStart(2, '0')}`;
           const isMonthLocked = appSettings.lockedMonths.includes(currentMonthStr);
-          const today = new Date();
+          // const today = new Date(); // (Sudah didefinisikan di atas)
           const currentYear = today.getFullYear();
           const currentMonth = today.getMonth() + 1;
           const isFutureMonth = year > currentYear || (year === currentYear && month > currentMonth);
@@ -1732,12 +1760,12 @@
           const pendingData = appSettings.pendingChanges;
           const isRequestPending = Object.keys(pendingData).length > 0;
 
-          const isGeoEnabled = currentSchoolSettings.geoEnabled === true;
+          const isGeoEnabled_check = currentSchoolSettings.geoEnabled === true; // (Variabel baru untuk menghindari konflik)
           const todayStr = jsFormatDate(new Date()); // Format "YYYY-MM-DD"
 
           // Logika Pesan Penguncian Global
           let lockMessage = "";
-          if (isGeoEnabled && !isReqMonth) {
+          if (isGeoEnabled_check && !isReqMonth) { 
               lockMessage = ''; 
           } else if(isReqMonth) {
             if (isRequestPending) {
@@ -1771,7 +1799,7 @@
                 requestButton.className = 'action-button';
                 requestButton.onclick = handleRequestChange;
               }
-          } else if (isGeoEnabled) { 
+          } else if (isGeoEnabled_check) { 
               saveButton.style.display = 'inline-flex';
               requestButton.style.display = 'none';
               saveButton.disabled = !isUserInLocation; 
@@ -1852,7 +1880,7 @@
             else if (isHoliday) { rowClassList.push('holiday-row'); }
 
             // Tambahkan Kelas CSS Highlight untuk Hari Ini (jika Geo Aktif)
-            if (dateStr === todayStr && isGeoEnabled && !isReqMonth) { 
+            if (dateStr === todayStr && isGeoEnabled_check && !isReqMonth) { 
                 if (isUserInLocation) {
                     rowClassList.push('today-row-allowed'); // Kelas hijau
                 } else {
@@ -1870,7 +1898,7 @@
             //    - ATAU ini ADALAH bulan pengajuan (ini yang baru)
             let isRowDisabled = (isMonthLocked && !isReqMonth) || isFutureMonth || isReqMonth; 
             
-            if (isGeoEnabled && !isReqMonth) { 
+            if (isGeoEnabled_check && !isReqMonth) { 
                 isRowDisabled = (dateStr === todayStr) ? !isUserInLocation : true;
             }
             // --- AKHIR PERBAIKAN ---
@@ -1890,7 +1918,7 @@
                     aksiButton = `<button class="action-btn warning edit-btn" onclick="handleEnableEdit(event)">Ubah</button>`;
                 }
 
-            } else if (isGeoEnabled) { 
+            } else if (isGeoEnabled_check) { 
                 aksiButton = `<button class="clear-btn" onclick="handleClearRow(event)" ${isRowDisabled ? 'disabled' : ''}>Hapus</button>`;
             
             } else { 
@@ -1920,7 +1948,7 @@
           const todayRowElement = document.getElementById(`row-${todayStr}`);
           if (todayRowElement) {
               const isCurrentDisplayMonth = (year === currentYear && month === currentMonth);
-              if (isGeoEnabled && isCurrentDisplayMonth && !isReqMonth) { 
+              if (isGeoEnabled_check && isCurrentDisplayMonth && !isReqMonth) { 
                   todayRowElement.scrollIntoView({
                       behavior: 'smooth', 
                       block: 'center'    
@@ -3252,33 +3280,21 @@
           return schoolTeachers.find(t => t.email === email);
       }
 
-      function showCeklokPageForStaff(isRedirect = false) {
-          if (!isRedirect) {
-              selectedTeacherForStaff = getSelectedTeacher('staff-teacher-select-ceklok');
-          }
-          if (!selectedTeacherForStaff) {
-            displayMessage('staff-ceklok-message', 'Silakan pilih seorang guru terlebih dahulu.');
-            return;
-          }
-
-          document.getElementById("staff-dashboard-container").style.display = "none";
+      function showCeklokPage() {
+          document.getElementById("guru-dashboard-container").style.display = "none";
           document.getElementById("emis-import-container").style.display = "none";
           document.getElementById("ceklok-container").style.display = "block";
-          document.getElementById('ceklok-title').innerText = `Formulir Kehadiran - ${selectedTeacherForStaff.school}`;
-          document.getElementById('ceklok-teacher-name').innerText = `Untuk: ${selectedTeacherForStaff.name}`;
+          document.getElementById('ceklok-teacher-name').innerText = '';
+          document.getElementById('ceklok-title').innerText = `Formulir Kehadiran - ${selectedSchool}`;
 
-          // --- AWAL PERUBAHAN ---
-          // 1. Reset status lokasi
-          isUserInLocation = false;
-          // 2. Nonaktifkan tombol simpan SEBELUM memuat data
-          const saveButton = document.getElementById('save-button');
-          if (saveButton) saveButton.disabled = true;
-          // 3. Sembunyikan pesan & tombol geo SEBELUM memuat data
+          // === AWAL PERBAIKAN: Hapus logika lama ===
+          // Cukup sembunyikan pesan ini. 
+          // Fungsi generateMonthTable() akan memutuskan apakah perlu menampilkannya.
           const geoMessage = document.getElementById('geo-lock-message');
-          const retryButton = document.getElementById('retry-geo-button');
-          if (geoMessage) geoMessage.style.display = 'none';
-          if (retryButton) retryButton.style.display = 'none';
-          // --- AKHIR PERUBAHAN ---
+          if (geoMessage) {
+              geoMessage.style.display = 'none';
+          }
+          // === AKHIR PERBAIKAN ===
 
           loadMonthData(currentDate);
       }
