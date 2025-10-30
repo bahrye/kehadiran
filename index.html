@@ -1104,22 +1104,12 @@
         google.script.run
           .withSuccessHandler(response => {
             if(response.status === 'success') {
-              displayMessage('lkh-message', response.message, { isSuccess: true });
-
-              // HAPUS DUA BARIS PENYEBAB KEDIPAN:
-              // button.disabled = false;
-              // button.querySelector('span').textContent = "Simpan LKH";
-
-              // Langsung panggil muat ulang. 
-              // Fungsi ini yang akan mengurus status tombol setelah datanya siap.
-              handleLkhMonthChange(); 
-
+              displayMessage('lkh-weekly-message', response.message, { isSuccess: true });
             } else {
-              displayMessage('lkh-message', response.message);
-              // Jika GAGAL, baru aktifkan tombolnya lagi di sini
-              button.disabled = false;
-              button.querySelector('span').textContent = "Simpan LKH";
+              displayMessage('lkh-weekly-message', response.message);
             }
+            button.disabled = false;
+            button.querySelector('span').textContent = "Simpan LKH Mingguan";
           })
           .withFailureHandler(error => {
             displayMessage('lkh-weekly-message', 'Error: ' + error.message);
@@ -1861,26 +1851,12 @@
                 }
             }
 
-            // =================================================================
-            // === PERUBAHAN YANG DIMINTA DIMULAI DI SINI ===
-            // =================================================================
-
             // Tentukan Status Disabled untuk Input Baris Ini
             let isRowDisabled = (isMonthLocked && !isReqMonth) || isFutureMonth; // Kunci dasar (bulan terkunci/masa depan)
-            
             if (isGeoEnabled) { // Timpa jika Geo aktif
-                // Jika hari ini, status kunci tergantung status global. Jika bukan hari ini, kunci total.
+                // Jika hari ini, status kunci tergantung status lokasi global. Jika bukan hari ini, kunci total.
                 isRowDisabled = (dateStr === todayStr) ? !isUserInLocation : true;
-            } else if (isReqMonth) {
-                // Jika ini adalah bulan pengajuan (dan Geo tidak aktif),
-                // KUNCI semua input secara default. Tombol "Ubah" akan membukanya.
-                isRowDisabled = true; 
             }
-
-            // =================================================================
-            // === PERUBAHAN YANG DIMINTA SELESAI ===
-            // =================================================================
-
 
             // Tentukan Tombol Aksi berdasarkan Kondisi
             if (isSunday || isHoliday) {
@@ -1958,7 +1934,10 @@
             // Jika ada data PENDING, tampilkan data pending
             if (checkInInput) checkInInput.value = pendingEntry.newCheckIn;
             
+            // --- AWAL PERBAIKAN TYPO ---
+            // Bug sebelumnya: checkInInput.value = pendingEntry.newCheckOut
             if (checkOutInput) checkOutInput.value = pendingEntry.newCheckOut; 
+            // --- AKHIR PERBAIKAN TYPO ---
 
             if (reasonSelect) {
                 reasonSelect.value = pendingEntry.newReason || "";
@@ -4287,29 +4266,27 @@
         const userLat = position.coords.latitude;
         const userLon = position.coords.longitude;
         
-        // Tentukan apakah ini mode "Hanya Tampil"
-        const isViewOnly = currentSchoolSettings.geoEnabled !== true;
-
         const schoolLat = currentSchoolSettings.lat;
         const schoolLon = currentSchoolSettings.lon;
+        const schoolRadius = currentSchoolSettings.radius;
         
         if (schoolLat == null || schoolLon == null) {
-            isUserInLocation = false; // Anggap di luar lokasi
-            updateGeoStatusUI(null, { message: "Pengaturan lokasi untuk sekolah ini belum lengkap." }, isViewOnly);
+            isUserInLocation = false; // Anggap di luar lokasi jika data sekolah tidak lengkap
+            updateGeoStatusUI(null, { message: "Pengaturan lokasi untuk sekolah ini belum lengkap." });
             return;
         }
 
         // Hitung jarak
         const distance = calculateDistance(userLat, userLon, schoolLat, schoolLon);
         
-        if (distance <= currentSchoolSettings.radius) {
-            isUserInLocation = true; // BERADA DI DALAM LOKASI
+        if (distance <= schoolRadius) {
+            // Pengguna BERADA DI DALAM LOKASI
+            isUserInLocation = true;
         } else {
-            isUserInLocation = false; // DI LUAR LOKASI
+            // Pengguna DI LUAR LOKASI
+            isUserInLocation = false;
         }
-        
-        // Kirim status 'isViewOnly' ke UI
-        updateGeoStatusUI(distance, null, isViewOnly);
+        updateGeoStatusUI(distance); // Kirim jarak untuk ditampilkan
       }
       
       /**
@@ -4317,20 +4294,15 @@
        */
       function handleGeoError(error) {
         isUserInLocation = false; // Selalu set 'false' jika error
-        
-        // Tentukan apakah ini mode "Hanya Tampil"
-        const isViewOnly = currentSchoolSettings.geoEnabled !== true;
-
-        // Kirim status 'isViewOnly' ke UI
-        updateGeoStatusUI(null, error, isViewOnly);
+        updateGeoStatusUI(null, error); // Kirim error untuk ditampilkan
       }
 
       /**
-       * (MODIFIKASI BARU) Memperbarui kotak status lokasi di DASBOR.
+       * (BARU) Memperbarui kotak status lokasi di DASBOR.
        */
-      function updateGeoStatusUI(distance, error, isViewOnly = false) {
+      function updateGeoStatusUI(distance, error) {
           const statusBox = document.getElementById('geo-status-box');
-          if (!statusBox) return;
+          if (!statusBox) return; // Keluar jika elemen tidak ada
 
           const msgEl = document.getElementById('geo-status-message');
           const detailsEl = document.getElementById('geo-status-details');
@@ -4339,7 +4311,7 @@
           const radius = currentSchoolSettings.radius || 0;
           
           if (error) {
-              // Status GAGAL (Error teknis) - Selalu tampilkan sebagai 'danger' (merah)
+              // Status GAGAL (Error teknis)
               isUserInLocation = false;
               statusBox.className = 'card-section danger';
               msgEl.innerText = 'Lokasi Gagal Diverifikasi';
@@ -4354,32 +4326,16 @@
                       detailsEl.innerText = error.message || "Gagal mendapatkan lokasi.";
               }
           } else if (isUserInLocation) {
-              // Pengguna BERADA DI DALAM LOKASI
-              if (isViewOnly) {
-                  // Tampilan Info Saja (Kuning)
-                  statusBox.className = 'card-section processing'; // Pakai style kuning
-                  msgEl.innerText = 'Info Lokasi (Hanya Tampilan)';
-                  detailsEl.innerText = `Jarak: ${distance.toFixed(0)} m (Radius: ${radius} m). Fitur kunci-lokasi tidak aktif.`;
-              } else {
-                  // Tampilan Sukses Normal (Hijau)
-                  statusBox.className = 'card-section success';
-                  msgEl.innerText = 'Anda Berada di Lokasi';
-                  detailsEl.innerText = `Jarak: ${distance.toFixed(0)} m (Radius: ${radius} m). Ceklok hari ini dibuka.`;
-              }
+              // Status SUKSES (Di dalam lokasi)
+              statusBox.className = 'card-section success';
+              msgEl.innerText = 'Anda Berada di Lokasi';
+              detailsEl.innerText = `Jarak: ${distance.toFixed(0)} m (Radius: ${radius} m). Ceklok hari ini dibuka.`;
           } else {
-              // Pengguna DI LUAR LOKASI
+              // Status GAGAL (Di luar lokasi)
+              statusBox.className = 'card-section danger';
+              msgEl.innerText = 'Anda di Luar Jangkauan';
               const distanceKm = (distance / 1000).toFixed(2);
-              if (isViewOnly) {
-                  // Tampilan Info Saja (Kuning)
-                  statusBox.className = 'card-section processing'; // Pakai style kuning
-                  msgEl.innerText = 'Info Lokasi (Hanya Tampilan)';
-                  detailsEl.innerText = `Jarak: ${distanceKm} km (Radius: ${radius} m). Fitur kunci-lokasi tidak aktif.`;
-              } else {
-                  // Tampilan Gagal Normal (Merah)
-                  statusBox.className = 'card-section danger';
-                  msgEl.innerText = 'Anda di Luar Jangkauan';
-                  detailsEl.innerText = `Jarak: ${distanceKm} km (Radius: ${radius} m). Ceklok hari ini dikunci.`;
-              }
+              detailsEl.innerText = `Jarak: ${distanceKm} km (Radius: ${radius} m). Ceklok hari ini dikunci.`;
           }
           
           refreshBtn.disabled = false; // Aktifkan kembali tombol refresh
@@ -4406,25 +4362,20 @@
       }
 
       /**
-       * (MODIFIKASI) Fungsi utama untuk memulai pengecekan geolokasi di DASBOR.
+       * (BARU) Fungsi utama untuk memulai pengecekan geolokasi di DASBOR.
        */
       function runDashboardGeoCheck() {
           const statusBox = document.getElementById('geo-status-box');
           if (!statusBox) return; // Keluar jika tidak di dasbor guru
           
           const isGeoEnabled = currentSchoolSettings.geoEnabled === true;
-          const shouldViewDashboard = currentSchoolSettings.viewDashboard === true;
-
-          // --- LOGIKA BARU ---
-          // Sembunyikan box HANYA jika GeoEnabled=FALSE DAN ViewDashboard=FALSE
-          if (!isGeoEnabled && !shouldViewDashboard) {
-              statusBox.style.display = 'none'; // Sembunyikan box
-              isUserInLocation = true; // Anggap di lokasi (karena geo nonaktif)
+          if (!isGeoEnabled) {
+              statusBox.style.display = 'none'; // Sembunyikan box jika geo tidak aktif
+              isUserInLocation = true; // Anggap di lokasi jika geo nonaktif
               return;
           }
-          // --- AKHIR LOGIKA BARU ---
           
-          // Jika GeoEnabled=TRUE atau ViewDashboard=TRUE, Lanjutkan:
+          // Tampilkan box dan set ke status "memverifikasi"
           statusBox.style.display = 'block';
           statusBox.className = 'card-section processing';
           document.getElementById('geo-status-message').innerText = 'Sedang memverifikasi lokasi Anda...';
