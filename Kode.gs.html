@@ -391,13 +391,14 @@ function getAttendancePageData(email, school, year, month, token) {
     const isWithinRequestPeriod = (currentDayOfMonth <= requestDayLimit);
     
     // --- AWAL PERUBAHAN: Logika Pengajuan tidak berlaku jika Geo-lock aktif ---
-    const isGeoEnabled = schoolSettings.geoEnabled === true;
+    // const isGeoEnabled = schoolSettings.geoEnabled === true; // <-- Baris ini tidak lagi relevan untuk isRequestableMonth
     // Bulan hanya bisa diajukan jika:
     // 1. Ini adalah bulan lalu
     // 2. Bulan lalu itu terkunci
     // 3. Masih dalam periode pengajuan (misal tgl 1-10)
-    // 4. Fitur Geolocation TIDAK aktif (karena geo-lock punya aturan sendiri)
-    const isRequestableMonth = isLastMonth && isLocked && isWithinRequestPeriod && !isGeoEnabled; 
+    
+    // PERBAIKAN: Menghapus "&& !isGeoEnabled" dari logika di bawah ini
+    const isRequestableMonth = isLastMonth && isLocked && isWithinRequestPeriod; 
     // --- AKHIR PERUBAHAN ---
 
     let pendingChanges = {};
