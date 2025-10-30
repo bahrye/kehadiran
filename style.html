@@ -1839,4 +1839,32 @@
     cursor: not-allowed !important;
   }
 
+  #global-lock-message {
+    /* Gaya default (untuk pesan terkunci merah) */
+    color: var(--danger-color);
+    margin-bottom: 15px;
+    font-weight: 500;
+    text-align: left; /* Sesuaikan jika perlu */
+  }
+
+  /* Gaya untuk pesan bulan dibuka (hijau info) */
+  #global-lock-message.info-message {
+    color: #059669; /* Warna hijau info */
+    background-color: #ECFDF5; /* Background hijau sangat muda */
+    border: 1px solid #A7F3D0;
+    padding: 10px 15px;
+    border-radius: 8px;
+    margin-bottom: 15px; /* Pastikan margin tetap ada */
+  }
+
+  /* Gaya untuk pesan klik ubah (kuning peringatan) */
+  #global-lock-message.warning-message {
+    color: #92400E; /* Warna kuning tua */
+    background-color: #FEF9C3; /* Background kuning sangat muda */
+    border: 1px solid #FDE68A;
+    padding: 10px 15px;
+    border-radius: 8px;
+    margin-bottom: 15px; /* Pastikan margin tetap ada */
+  }
+
 </style>
