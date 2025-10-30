@@ -1520,14 +1520,22 @@
         const isGeoEnabled = currentSchoolSettings.geoEnabled === true;
         const geoMessage = document.getElementById('geo-lock-message');
         
-        if (isGeoEnabled && !isUserInLocation) {
-            // Jika geo aktif DAN status global "di luar lokasi"
+        // --- AWAL PERBAIKAN (Goal 3) ---
+        // Cek apakah kita sedang melihat bulan berjalan
+        const today = new Date();
+        const isCurrentMonthView = currentDate.getFullYear() === today.getFullYear() &&
+                                   currentDate.getMonth() === today.getMonth();
+
+        if (isGeoEnabled && !isUserInLocation && isCurrentMonthView) {
+        // --- AKHIR PERBAIKAN ---
+            
+            // Jika geo aktif DAN status global "di luar lokasi" DAN ini bulan berjalan
             geoMessage.innerText = "Anda berada di luar jangkauan lokasi. Input Ceklok hari ini dikunci.";
             geoMessage.style.display = 'block';
             geoMessage.style.color = 'var(--danger-color)';
             geoMessage.style.backgroundColor = '#FEF2F2';
         } else {
-            // Jika geo nonaktif ATAU pengguna di dalam lokasi
+            // Jika geo nonaktif ATAU pengguna di dalam lokasi ATAU ini bulan lalu/depan
             geoMessage.style.display = 'none';
         }
         // ====================================
@@ -1729,8 +1737,8 @@
 
           // Logika Pesan Penguncian Global
           let lockMessage = "";
-          if (isGeoEnabled) {
-              lockMessage = ''; // Pesan geo ditangani oleh showCeklokPage
+          if (isGeoEnabled && !isReqMonth) {
+              lockMessage = ''; 
           } else if(isReqMonth) {
             if (isRequestPending) {
               lockMessage = 'Pengajuan Anda sedang ditinjau oleh Staff.';
@@ -1749,11 +1757,8 @@
           // Logika Tampilan Tombol Simpan/Ajukan
           const saveButton = document.getElementById('save-button');
           const requestButton = document.getElementById('request-change-button');
-          if (isGeoEnabled) {
-              saveButton.style.display = 'inline-flex';
-              requestButton.style.display = 'none';
-              saveButton.disabled = !isUserInLocation; // Tombol simpan aktif jika di lokasi
-          } else if (isReqMonth) { // Logika tombol pengajuan
+          
+          if (isReqMonth) { 
               saveButton.style.display = 'none';
               requestButton.style.display = 'inline-flex';
               requestButton.disabled = false;
@@ -1766,7 +1771,11 @@
                 requestButton.className = 'action-button';
                 requestButton.onclick = handleRequestChange;
               }
-          } else { // Logika bulan normal/terkunci
+          } else if (isGeoEnabled) { 
+              saveButton.style.display = 'inline-flex';
+              requestButton.style.display = 'none';
+              saveButton.disabled = !isUserInLocation; 
+          } else { 
               saveButton.style.display = 'inline-flex';
               requestButton.style.display = 'none';
               saveButton.disabled = isMonthLocked || isFutureMonth;
@@ -1843,7 +1852,7 @@
             else if (isHoliday) { rowClassList.push('holiday-row'); }
 
             // Tambahkan Kelas CSS Highlight untuk Hari Ini (jika Geo Aktif)
-            if (dateStr === todayStr && isGeoEnabled) {
+            if (dateStr === todayStr && isGeoEnabled && !isReqMonth) { 
                 if (isUserInLocation) {
                     rowClassList.push('today-row-allowed'); // Kelas hijau
                 } else {
@@ -1852,24 +1861,39 @@
             }
 
             // Tentukan Status Disabled untuk Input Baris Ini
-            let isRowDisabled = (isMonthLocked && !isReqMonth) || isFutureMonth; // Kunci dasar (bulan terkunci/masa depan)
-            if (isGeoEnabled) { // Timpa jika Geo aktif
-                // Jika hari ini, status kunci tergantung status lokasi global. Jika bukan hari ini, kunci total.
+            
+            // --- AWAL PERBAIKAN (Goal 1 & 2) ---
+            // 1. Modifikasi definisi isRowDisabled
+            //    Sekarang, baris akan disabled JIKA:
+            //    - Bulan terkunci (dan BUKAN bulan pengajuan)
+            //    - ATAU ini bulan depan
+            //    - ATAU ini ADALAH bulan pengajuan (ini yang baru)
+            let isRowDisabled = (isMonthLocked && !isReqMonth) || isFutureMonth || isReqMonth; 
+            
+            if (isGeoEnabled && !isReqMonth) { 
                 isRowDisabled = (dateStr === todayStr) ? !isUserInLocation : true;
             }
+            // --- AKHIR PERBAIKAN ---
+
 
             // Tentukan Tombol Aksi berdasarkan Kondisi
             if (isSunday || isHoliday) {
-                // Tidak ada tombol aksi untuk hari libur atau Minggu
-            } else if (isGeoEnabled) { // Jika Geo aktif, hanya tombol Hapus
+                // Tidak ada tombol aksi
+            
+            } else if (isReqMonth) { 
+                // 2. Hapus baris `isRowDisabled = false;` dari sini
+                //    Nilai `isRowDisabled` (true) dari atas akan dipakai
+                
+                if (isRequestPending) {
+                    aksiButton = `<button class="action-btn warning edit-btn" disabled>Menunggu</button>`;
+                } else {
+                    aksiButton = `<button class="action-btn warning edit-btn" onclick="handleEnableEdit(event)">Ubah</button>`;
+                }
+
+            } else if (isGeoEnabled) { 
                 aksiButton = `<button class="clear-btn" onclick="handleClearRow(event)" ${isRowDisabled ? 'disabled' : ''}>Hapus</button>`;
-            } else if (isReqMonth) { // Jika bulan pengajuan, tombol Ubah/Menunggu
-              if (isRequestPending) {
-                aksiButton = `<button class="action-btn warning edit-btn" disabled>Menunggu</button>`;
-              } else {
-                aksiButton = `<button class="action-btn warning edit-btn" onclick="handleEnableEdit(event)">Ubah</button>`;
-              }
-            } else { // Bulan normal/terkunci (tanpa Geo), tombol Hapus
+            
+            } else { 
               aksiButton = `<button class="clear-btn" onclick="handleClearRow(event)" ${isRowDisabled ? 'disabled' : ''}>Hapus</button>`;
             }
 
@@ -1895,13 +1919,11 @@
           // Scroll ke Baris Hari Ini (jika bulan berjalan)
           const todayRowElement = document.getElementById(`row-${todayStr}`);
           if (todayRowElement) {
-              // Cek apakah bulan yang ditampilkan adalah bulan saat ini
               const isCurrentDisplayMonth = (year === currentYear && month === currentMonth);
-              if (isGeoEnabled && isCurrentDisplayMonth) {
-                  // Hanya scroll jika ini bulan berjalan
+              if (isGeoEnabled && isCurrentDisplayMonth && !isReqMonth) { 
                   todayRowElement.scrollIntoView({
-                      behavior: 'smooth', // Animasi halus
-                      block: 'center'    // Posisikan di tengah layar vertikal
+                      behavior: 'smooth', 
+                      block: 'center'    
                   });
               }
           }
@@ -4386,11 +4408,14 @@
               navigator.geolocation.getCurrentPosition(
                   handleGeoSuccess, // Panggil fungsi global
                   handleGeoError,   // Panggil fungsi global
+                  
+                  // --- AWAL PERUBAHAN (Goal 2) ---
                   {
-                      enableHighAccuracy: true,
-                      timeout: 10000, // 10 detik
-                      maximumAge: 0   // Lokasi baru
+                      enableHighAccuracy: false, // <-- Gunakan mode non-akurat (lebih cepat & hemat baterai)
+                      timeout: 15000, // <-- Beri waktu 15 detik untuk merespon
+                      maximumAge: 60000  // <-- Izinkan menggunakan lokasi yang diambil 1 menit lalu
                   }
+                  // --- AKHIR PERUBAHAN ---
               );
           } else {
               // Kirim error buatan jika browser tidak support
