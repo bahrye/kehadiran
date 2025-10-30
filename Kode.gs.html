@@ -3449,3 +3449,20 @@ function onEdit(e) {
     Logger.log(`Error in onEdit trigger for SchoolSettings: ${err.message}`);
   }
 }
+
+/**
+ * (BARU) Fungsi ringan yang dipanggil oleh client polling.
+ * Hanya mengembalikan pengaturan untuk satu sekolah.
+ */
+function getLatestSchoolSettings(email, school) {
+  try {
+    // Fungsi ini sudah ada dan (berdasarkan modifikasi kita sebelumnya) 
+    // selalu membaca data baru dari sheet karena cache-nya dihapus.
+    const settingsMap = getSchoolSettingsMap_(); 
+    const schoolSettings = settingsMap.get(school) || {};
+    return { success: true, settings: schoolSettings };
+  } catch (e) {
+    Logger.log(`Error di getLatestSchoolSettings: ${e.message}`);
+    return { success: false, error: e.message, settings: {} };
+  }
+}
