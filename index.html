@@ -1861,12 +1861,26 @@
                 }
             }
 
+            // =================================================================
+            // === PERUBAHAN YANG DIMINTA DIMULAI DI SINI ===
+            // =================================================================
+
             // Tentukan Status Disabled untuk Input Baris Ini
             let isRowDisabled = (isMonthLocked && !isReqMonth) || isFutureMonth; // Kunci dasar (bulan terkunci/masa depan)
+            
             if (isGeoEnabled) { // Timpa jika Geo aktif
-                // Jika hari ini, status kunci tergantung status lokasi global. Jika bukan hari ini, kunci total.
+                // Jika hari ini, status kunci tergantung status global. Jika bukan hari ini, kunci total.
                 isRowDisabled = (dateStr === todayStr) ? !isUserInLocation : true;
+            } else if (isReqMonth) {
+                // Jika ini adalah bulan pengajuan (dan Geo tidak aktif),
+                // KUNCI semua input secara default. Tombol "Ubah" akan membukanya.
+                isRowDisabled = true; 
             }
+
+            // =================================================================
+            // === PERUBAHAN YANG DIMINTA SELESAI ===
+            // =================================================================
+
 
             // Tentukan Tombol Aksi berdasarkan Kondisi
             if (isSunday || isHoliday) {
@@ -1944,10 +1958,7 @@
             // Jika ada data PENDING, tampilkan data pending
             if (checkInInput) checkInInput.value = pendingEntry.newCheckIn;
             
-            // --- AWAL PERBAIKAN TYPO ---
-            // Bug sebelumnya: checkInInput.value = pendingEntry.newCheckOut
             if (checkOutInput) checkOutInput.value = pendingEntry.newCheckOut; 
-            // --- AKHIR PERBAIKAN TYPO ---
 
             if (reasonSelect) {
                 reasonSelect.value = pendingEntry.newReason || "";
