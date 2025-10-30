@@ -720,12 +720,7 @@
   
   /* --- Style untuk LKH Form --- */
   /* PERUBAHAN: Menghapus max-width: 90% dan width: 850px */
-  
-  /* PERBAIKAN: Menggabungkan semua card lebar (LKH, Mingguan, Pratinjau LKH, Pratinjau SPTJM) */
-  #lkh-container .card,
-  #lkh-weekly-container .card,
-  #lkh-view-container .card,
-  #sptjm-view-container .card {
+  #lkh-container .card {
     width: 100%;
     max-width: 850px; /* Batas lebar maksimum di layar besar */
     margin: 0 auto; /* Pusatkan card */
@@ -785,6 +780,14 @@
     outline: none;
     border-color: var(--primary-color);
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+  }
+
+  /* --- Style untuk LKH Mingguan Form --- */
+  /* PERUBAHAN: Menghapus max-width: 90% dan width: 850px */
+  #lkh-weekly-container .card {
+    width: 100%;
+    max-width: 850px; /* Batas lebar maksimum di layar besar */
+    margin: 0 auto; /* Pusatkan card */
   }
   
   #lkh-weekly-table-container {
