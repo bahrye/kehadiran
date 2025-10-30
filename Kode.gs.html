@@ -2148,6 +2148,9 @@ function getLKHData(email, school, year, month) {
 }
 
 function saveLKHData(email, school, year, month, lkhData) {
+  const lock = LockService.getScriptLock(); // <-- TAMBAHKAN
+  lock.waitLock(30000); // <-- TAMBAHKAN (Tunggu maks 30 detik)
+
   try {
     if (!checkIfLKHUser_(email)) {
       return { status: "error", message: "Akses LKH ditolak." };
@@ -2209,6 +2212,8 @@ function saveLKHData(email, school, year, month, lkhData) {
   } catch (e) {
     Logger.log(`Error in saveLKHData (Refactored): ${e.message} \nStack: ${e.stack}`);
     return { status: "error", message: "Gagal menyimpan LKH. Terjadi kesalahan server." };
+  } finally { // <-- TAMBAHKAN
+    lock.releaseLock(); // <-- TAMBAHKAN
   }
 }
 
@@ -2445,6 +2450,9 @@ function getLKHWeeklyData(email) {
  * pembaruan dan penambahan data ke dalam satu panggilan API.
  */
 function saveLKHWeeklyData(email, school, lkhWeeklyData) {
+  const lock = LockService.getScriptLock(); // <-- TAMBAHKAN
+  lock.waitLock(30000); // <-- TAMBAHKAN
+
   try {
     // 1. Dapatkan info pengguna (Tidak berubah)
     if (!checkIfLKHUser_(email)) {
@@ -2509,6 +2517,8 @@ function saveLKHWeeklyData(email, school, lkhWeeklyData) {
     // Tambahkan .stack untuk debugging
     Logger.log(`Error in saveLKHWeeklyData (Optimized): ${e.message} \nStack: ${e.stack}`);
     return { status: "error", message: "Gagal menyimpan LKH mingguan. Terjadi kesalahan server." };
+  } finally { // <-- TAMBAHKAN
+    lock.releaseLock(); // <-- TAMBAHKAN
   }
 }
 
@@ -3273,24 +3283,25 @@ function calculateTimeDifference_(startStr, endStr) {
 
 /**
  * HELPER (DIMODIFIKASI): Membaca sheet SchoolSettings dan mengembalikannya sebagai Map.
- * !!! PERBAIKAN: CACHE DIHAPUS UNTUK MEMASTIKAN LOKASI SELALU BARU !!!
+ * !!! PERBAIKAN: Cache diaktifkan kembali untuk performa dan kuota !!!
  * @return {Map<string, {sptjmId: string, lkhId: string, geoEnabled: boolean, lat: number|null, lon: number|null, radius: number}>}
  */
 function getSchoolSettingsMap_() {
-  // const cache = CacheService.getScriptCache(); // CACHE DIHAPUS
-  // const CACHE_KEY = "school_settings_map_v3"; 
+  const cache = CacheService.getScriptCache(); // <-- DI-AKTIFKAN KEMBALI
+  const CACHE_KEY = "school_settings_map_v3"; 
   
-  // const cached = cache.get(CACHE_KEY); // CACHE DIHAPUS
-  // if (cached) {
-  //   return new Map(JSON.parse(cached));
-  // }
+  const cached = cache.get(CACHE_KEY); // <-- DI-AKTIFKAN KEMBALI
+  if (cached) {
+    Logger.log(`Mengambil SchoolSettings dari cache`); // <-- Log diubah
+    return new Map(JSON.parse(cached));
+  }
 
   const sheet = getSchoolSettingsSheet_(); 
   if (sheet.getLastRow() < 2) {
     return new Map();
   }
   
-  // Paksa pembacaan langsung dari sheet SETIAP SAAT
+  // Membaca dari sheet (karena tidak ada di cache)
   const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 7).getValues();
   const settingsMap = new Map();
   
@@ -3328,9 +3339,9 @@ function getSchoolSettingsMap_() {
     }
   });
   
-  // cache.put(CACHE_KEY, JSON.stringify(Array.from(settingsMap.entries())), 21600); // CACHE DIHAPUS
+  cache.put(CACHE_KEY, JSON.stringify(Array.from(settingsMap.entries())), 21600); // <-- DI-AKTIFKAN KEMBALI (Cache 6 jam)
   
-  Logger.log(`Membaca SchoolSettings langsung dari sheet (tanpa cache)`); // Tambah log
+  Logger.log(`Membaca SchoolSettings dari sheet dan disimpan ke cache`); // <-- Log diubah
   return settingsMap;
 }
 
@@ -3398,7 +3409,7 @@ function clearSchoolSettingsCache_() {
  * Cukup tambahkan fungsi ini ke Kode.gs, Google Apps Script akan
  * menjalankannya secara otomatis (ini adalah "Simple Trigger").
  */
-function onEdit(e) {
+function handleSheetEdit(e) {
   try {
     // Periksa apakah event object 'e' (informasi editan) ada
     if (!e) return;
@@ -3413,7 +3424,7 @@ function onEdit(e) {
     }
   } catch (err) {
     // Log error jika terjadi, tapi jangan hentikan proses edit
-    Logger.log(`Error in onEdit trigger for SchoolSettings: ${err.message}`);
+    Logger.log(`Error in handleSheetEdit trigger for SchoolSettings: ${err.message}`);
   }
 }
 
@@ -3524,3 +3535,24 @@ function checkIfStaffHasGeoBypass_(staffEmail) {
   return hasBypass;
 }
 // --- AKHIR TAMBAHAN ---
+
+/**
+ * (BARU) Menghapus cache SchoolSettings secara manual.
+ * Dipanggil oleh tombol refresh di dasbor.
+ */
+function clearSchoolSettingsCacheManual(token) {
+  try {
+    // Verifikasi token sederhana untuk keamanan
+    const verification = verifyToken(token);
+    if (verification.status !== 'success') throw new Error("Token tidak valid.");
+    
+    const cache = CacheService.getScriptCache();
+    const CACHE_KEY = "school_settings_map_v3"; 
+    cache.remove(CACHE_KEY);
+    Logger.log(`Cache 'school_settings_map_v3' cleared manually by ${verification.user.email}.`);
+    return { success: true };
+  } catch (err) {
+    Logger.log(`Failed to clear school settings cache manually: ${err.message}`);
+    return { success: false, error: err.message };
+  }
+}
