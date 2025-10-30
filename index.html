@@ -553,6 +553,7 @@
       // ===================================================================
       let currentSchoolSettings = {};
       let isUserInLocation = false;
+      let settingsPollInterval = null;
 
       // --- TAMBAHAN BARU: Fungsi untuk membuat toast swipeable ---
       function makeToastDismissable(toast) {
@@ -1309,6 +1310,14 @@
           lockedMonths: [], holidays: {}, announcements: "", teacherHolidays: [],
           isRequestableMonth: false, pendingChanges: {}, rejectionInfo: null, rejectedChanges: []
         };
+
+        // === AWAL PERUBAHAN (Sesuai Permintaan) ===
+        // Hentikan polling saat logout
+        if (settingsPollInterval) {
+          clearInterval(settingsPollInterval);
+          settingsPollInterval = null;
+        }
+        // === AKHIR PERUBAHAN ===
         
         // --- TAMBAHAN BARU ---
         currentSchoolSettings = {};
@@ -1452,6 +1461,11 @@
               // === LOGIKA BARU: Mulai verifikasi lokasi ===
               runDashboardGeoCheck(); 
               // ==========================================
+
+              // === AWAL PERUBAHAN (Sesuai Permintaan) ===
+              // Mulai polling untuk pengaturan SETELAH semua data awal dimuat.
+              startSettingsPolling();
+              // === AKHIR PERUBAHAN ===
             })
             .withFailureHandler(error => {
                renderAnnouncements(`Gagal memuat pengaturan: ${error.message}`);
@@ -1490,6 +1504,15 @@
           // --- PERUBAHAN DIMULAI ---
           localStorage.setItem('ceklokSelectedSchool', selectedSchool);
           // --- PERUBAHAN SELESAI ---
+
+          // === AWAL PERUBAHAN (Sesuai Permintaan) ===
+          // Hentikan polling lama. Polling baru akan
+          // dimulai otomatis oleh showGuruDashboard.
+          if (settingsPollInterval) {
+            clearInterval(settingsPollInterval);
+            settingsPollInterval = null;
+          }
+          // === AKHIR PERUBAHAN ===
 
           if (currentUser.role === 'guru') {
             showGuruDashboard();
@@ -4299,44 +4322,56 @@
       
       /**
        * (MODIFIKASI) Dipanggil jika geolocation BERHASIL.
+       * Mengatur variabel 'isUserInLocation' (untuk kuncian) berdasarkan status GeoEnabled.
        */
       function handleGeoSuccess(position) {
         const userLat = position.coords.latitude;
         const userLon = position.coords.longitude;
-        
+
         const schoolLat = currentSchoolSettings.lat;
         const schoolLon = currentSchoolSettings.lon;
         const schoolRadius = currentSchoolSettings.radius;
-        
+
+        const isGeoActive = currentSchoolSettings.geoEnabled === true;
+
         if (schoolLat == null || schoolLon == null) {
-            isUserInLocation = false; // Anggap di luar lokasi jika data sekolah tidak lengkap
-            updateGeoStatusUI(null, { message: "Pengaturan lokasi untuk sekolah ini belum lengkap." });
+            // Pengaturan sekolah tidak lengkap
+            isUserInLocation = !isGeoActive; // true jika nonaktif, false jika aktif
+            updateGeoStatusUI(null, { message: "Pengaturan lokasi (Lat/Lon) untuk sekolah ini belum lengkap." });
             return;
         }
 
         // Hitung jarak
         const distance = calculateDistance(userLat, userLon, schoolLat, schoolLon);
-        
-        if (distance <= schoolRadius) {
-            // Pengguna BERADA DI DALAM LOKASI
-            isUserInLocation = true;
-        } else {
-            // Pengguna DI LUAR LOKASI
-            isUserInLocation = false;
-        }
-        updateGeoStatusUI(distance); // Kirim jarak untuk ditampilkan
+        const realUserInLocation = (distance <= schoolRadius);
+
+        // === KUNCI UNTUK KUNCIA/BUKA CEKLOK ===
+        // Jika geo aktif, gunakan status lokasi asli.
+        // Jika geo nonaktif, PAKSA jadi 'true' (selalu di dalam lokasi / tidak terkunci).
+        isUserInLocation = isGeoActive ? realUserInLocation : true;
+
+        // Kirim jarak asli ke UI
+        updateGeoStatusUI(distance, null); 
       }
       
       /**
        * (MODIFIKASI) Dipanggil jika geolocation GAGAL.
+       * Mengatur variabel 'isUserInLocation' (untuk kuncian) berdasarkan status GeoEnabled.
        */
       function handleGeoError(error) {
-        isUserInLocation = false; // Selalu set 'false' jika error
-        updateGeoStatusUI(null, error); // Kirim error untuk ditampilkan
+        const isGeoActive = currentSchoolSettings.geoEnabled === true;
+
+        // === KUNCI UNTUK KUNCIA/BUKA CEKLOK ===
+        // Jika geo aktif, status jadi 'false' (terkunci).
+        // Jika geo nonaktif, PAKSA jadi 'true' (tidak terkunci).
+        isUserInLocation = !isGeoActive; 
+
+        updateGeoStatusUI(null, error); // Kirim error ke UI
       }
 
       /**
        * (BARU) Memperbarui kotak status lokasi di DASBOR.
+       * (DIMODIFIKASI untuk menampilkan status HIJAU saat geoDisabled)
        */
       function updateGeoStatusUI(distance, error) {
           const statusBox = document.getElementById('geo-status-box');
@@ -4345,39 +4380,55 @@
           const msgEl = document.getElementById('geo-status-message');
           const detailsEl = document.getElementById('geo-status-details');
           const refreshBtn = document.getElementById('refresh-geo-button');
-          
+
           const radius = currentSchoolSettings.radius || 0;
-          
+          const isGeoActive = currentSchoolSettings.geoEnabled === true; // Ambil status dari global
+
+          refreshBtn.style.display = 'flex'; // Selalu tampilkan tombol refresh
+
           if (error) {
-              // Status GAGAL (Error teknis)
-              isUserInLocation = false;
-              statusBox.className = 'card-section danger';
-              msgEl.innerText = 'Lokasi Gagal Diverifikasi';
-              switch(error.code) {
-                  case error.PERMISSION_DENIED:
-                      detailsEl.innerText = "Izin lokasi ditolak. Aktifkan di setelan browser."; break;
-                  case error.POSITION_UNAVAILABLE:
-                      detailsEl.innerText = "Sinyal lokasi tidak tersedia. Coba lagi."; break;
-                  case error.TIMEOUT:
-                      detailsEl.innerText = "Waktu verifikasi habis. Coba lagi."; break;
-                  default:
-                      detailsEl.innerText = error.message || "Gagal mendapatkan lokasi.";
+              // Kasus 1: Gagal (GPS error, Izin ditolak, dll)
+              statusBox.className = isGeoActive ? 'card-section danger' : 'card-section success'; // Merah jika aktif, Hijau jika nonaktif
+              msgEl.innerText = isGeoActive ? 'Lokasi Gagal Diverifikasi' : 'Gagal Verifikasi (Nonaktif)';
+
+              let errorMsg = "Gagal mendapatkan lokasi.";
+              if (error.code) {
+                  switch(error.code) {
+                      case error.PERMISSION_DENIED: errorMsg = "Izin lokasi ditolak. Aktifkan di setelan browser."; break;
+                      case error.POSITION_UNAVAILABLE: errorMsg = "Sinyal lokasi tidak tersedia. Coba lagi."; break;
+                      case error.TIMEOUT: errorMsg = "Waktu verifikasi habis. Coba lagi."; break;
+                      default: errorMsg = error.message || errorMsg;
+                  }
+              } else {
+                  errorMsg = error.message || errorMsg; // Handle error non-GPS
               }
-          } else if (isUserInLocation) {
-              // Status SUKSES (Di dalam lokasi)
-              statusBox.className = 'card-section success';
-              msgEl.innerText = 'Anda Berada di Lokasi';
-              detailsEl.innerText = `Jarak: ${distance.toFixed(0)} m (Radius: ${radius} m). Ceklok hari ini dibuka.`;
-          } else {
-              // Status GAGAL (Di luar lokasi)
-              statusBox.className = 'card-section danger';
-              msgEl.innerText = 'Anda di Luar Jangkauan';
-              const distanceKm = (distance / 1000).toFixed(2);
-              detailsEl.innerText = `Jarak: ${distanceKm} km (Radius: ${radius} m). Ceklok hari ini dikunci.`;
+
+              detailsEl.innerText = isGeoActive ? errorMsg : `${errorMsg} Ceklok tetap dibuka.`;
+
+          } else if (distance !== null) {
+              // Kasus 2: Sukses mendapat lokasi, sekarang cek jarak
+              const realUserInLocation = (distance <= radius);
+
+              if (realUserInLocation) {
+                  // 2a: Di Dalam Jangkauan (Selalu Hijau, sudah benar)
+                  statusBox.className = 'card-section success';
+                  msgEl.innerText = 'Anda Berada di Lokasi';
+                  detailsEl.innerText = `Jarak: ${distance.toFixed(0)} m (Radius: ${radius} m). Ceklok dibuka.`;
+              } else {
+                  // 2b: Di Luar Jangkauan
+                  const distanceKm = (distance / 1000).toFixed(2);
+
+                  // INI LOGIKA BARU ANDA:
+                  statusBox.className = isGeoActive ? 'card-section danger' : 'card-section success'; // Merah jika aktif, HIJAU jika nonaktif
+                  msgEl.innerText = isGeoActive ? 'Anda di Luar Jangkauan' : 'Anda di Luar Jangkauan (Nonaktif)';
+                  detailsEl.innerText = isGeoActive ? 
+                      `Jarak: ${distanceKm} km (Radius: ${radius} m). Ceklok hari ini dikunci.` : 
+                      `Jarak: ${distanceKm} km (Radius: ${radius} m). Ceklok tetap dibuka.`; // Pesan berbeda
+              }
           }
-          
+
           // --- AWAL PERUBAHAN (Cooldown Tombol Refresh) ---
-          // Beri jeda 5 detik sebelum tombol bisa diklik lagi
+          // (Logika ini tidak berubah)
           setTimeout(() => {
             if(refreshBtn) {
               refreshBtn.disabled = false; 
@@ -4408,13 +4459,15 @@
 
       /**
        * (MODIFIKASI) Fungsi utama untuk memulai pengecekan geolokasi di DASBOR.
-       * Sekarang mengambil pengaturan terbaru dari server SEBELUM mengecek GPS.
+       * Versi ini SELALU menjalankan pengecekan GPS untuk mendapatkan jarak,
+       * bahkan jika GeoEnabled=FALSE.
        */
       function runDashboardGeoCheck() {
           const statusBox = document.getElementById('geo-status-box');
           if (!statusBox) return; // Keluar jika tidak di dasbor guru
 
           // 1. Set UI ke status loading (langkah pertama)
+          // PAKSA TAMPIL: Selalu tampilkan kotak status, apa pun pengaturannya.
           statusBox.style.display = 'block';
           statusBox.className = 'card-section processing';
           document.getElementById('geo-status-message').innerText = 'Memperbarui pengaturan...';
@@ -4422,8 +4475,7 @@
           document.getElementById('refresh-geo-button').disabled = true;
 
           // 2. Panggil server untuk mendapatkan SchoolSettings TERBARU
-          // (Kita gunakan getAttendancePageData karena fungsi itu yang mengembalikan schoolSettings)
-          const dummyDate = new Date(); // Hanya perlu tanggal untuk parameter
+          const dummyDate = new Date();
           google.script.run
               .withSuccessHandler(response => {
                   if (response && response.error) {
@@ -4431,21 +4483,14 @@
                       handleGeoError({ code: -1, message: "Gagal mengambil pengaturan: " + response.error });
                       return;
                   }
-                  
+
                   // 3. SUKSES: Perbarui variabel global dengan pengaturan BARU dari server
                   currentSchoolSettings = response.schoolSettings || {};
-                  
-                  // 4. Cek apakah Geo-lock aktif berdasarkan pengaturan BARU ini
-                  const isGeoEnabled = currentSchoolSettings.geoEnabled === true;
-                  if (!isGeoEnabled) {
-                      statusBox.style.display = 'none'; // Sembunyikan box
-                      isUserInLocation = true; // Anggap di lokasi jika fitur nonaktif
-                      // Panggil updateGeoStatusUI untuk menangani cooldown tombol refresh
-                      updateGeoStatusUI(null, null); 
-                      return;
-                  }
 
-                  // 5. Fitur Geo-lock aktif, lanjutkan ke pengecekan GPS
+                  // 4. (DIHAPUS) Logika 'return' jika GeoEnabled=FALSE dihapus.
+                  //    Kita sekarang SELALU lanjut ke langkah 5.
+
+                  // 5. Lanjutkan ke pengecekan GPS
                   document.getElementById('geo-status-message').innerText = 'Sedang memverifikasi lokasi Anda...';
                   document.getElementById('geo-status-details').innerText = 'Pastikan GPS dan izin lokasi aktif.';
 
@@ -4456,7 +4501,7 @@
                           {
                               enableHighAccuracy: false, 
                               timeout: 15000, 
-                              maximumAge: 0  // Paksa ambil lokasi GPS baru (dari perbaikan sebelumnya)
+                              maximumAge: 0  
                           }
                       );
                   } else {
@@ -4469,6 +4514,71 @@
                   handleGeoError({ code: -1, message: "Error server: " + error.message });
               })
               .getAttendancePageData(currentUser.email, selectedSchool, dummyDate.getFullYear(), dummyDate.getMonth() + 1, 0);
+      }
+
+      /**
+       * (BARU) Memulai polling untuk memeriksa perubahan pengaturan server.
+       * Hanya dipanggil sekali saat dasbor guru dimuat.
+       */
+      function startSettingsPolling() {
+        // Hentikan polling lama jika ada
+        if (settingsPollInterval) {
+          clearInterval(settingsPollInterval);
+          settingsPollInterval = null;
+        }
+
+        // Mulai polling baru setiap 30 detik (30000 ms)
+        settingsPollInterval = setInterval(() => {
+          // 1. Pastikan kita masih di dasbor guru dan ada user
+          if (!currentUser || !selectedSchool || document.getElementById('guru-dashboard-container').style.display !== 'block') {
+            // Jika tidak, hentikan polling
+            clearInterval(settingsPollInterval);
+            settingsPollInterval = null;
+            return;
+          }
+
+          // 2. Panggil fungsi server yang ringan
+          google.script.run
+            .withSuccessHandler(response => {
+              if (response.success) {
+                const newSettings = response.settings;
+
+                // 3. Bandingkan dengan pengaturan 'currentSchoolSettings' yang ada
+                if (hasSettingsChanged(currentSchoolSettings, newSettings)) {
+                  // 4. JIKA BERUBAH:
+                  console.log("Deteksi perubahan pengaturan server. Memperbarui status lokasi...");
+
+                  // a. Perbarui pengaturan global
+                  currentSchoolSettings = newSettings; 
+
+                  // b. Jalankan refresh UI (fungsi yang sudah ada)
+                  runDashboardGeoCheck(); 
+                } else {
+                  // console.log("Pengaturan server masih sama."); // (Bisa di-uncomment untuk debugging)
+                }
+              }
+            })
+            .withFailureHandler(err => {
+              console.error("Gagal polling pengaturan: ", err.message);
+            })
+            .getLatestSchoolSettings(currentUser.email, selectedSchool);
+
+        }, 30000); // Poll setiap 30 detik
+      }
+
+      /**
+       * (BARU) Fungsi helper untuk membandingkan dua objek pengaturan.
+       * @return {boolean} true jika ada perbedaan, false jika sama.
+       */
+      function hasSettingsChanged(oldSettings, newSettings) {
+        if (!oldSettings || !newSettings) return true; // Anggap berubah jika salah satu tidak ada
+
+        return (
+          oldSettings.geoEnabled !== newSettings.geoEnabled ||
+          oldSettings.lat !== newSettings.lat ||
+          oldSettings.lon !== newSettings.lon ||
+          oldSettings.radius !== newSettings.radius
+        );
       }
 
     </script>
