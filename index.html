@@ -4655,10 +4655,7 @@
           return d;
       }
 
-      /**
-       * (MODIFIKASI) Fungsi utama untuk memulai pengecekan geolokasi di DASBOR.
-       * Versi ini SECARA AKTIF MENGHAPUS CACHE server terlebih dahulu.
-       */
+      // [MODIFIKASI] Fungsi ini sekarang memanggil runPrimaryGeoCheck
       function runDashboardGeoCheck() {
           if (!currentUser) return; 
 
@@ -4686,25 +4683,22 @@
                   }
 
                   // 3. SETELAH cache dihapus (baik sukses atau gagal),
-                  //    LANJUTKAN ke panggilan untuk mengambil data baru (diekstrak ke runFallbackGeoCheck).
-                  runFallbackGeoCheck();
+                  //    LANJUTKAN ke panggilan untuk mengambil data baru
+                  runPrimaryGeoCheck(); // <-- Ganti dari runFallbackGeoCheck
 
               })
               .withFailureHandler(clearError => {
                   // Jika panggilan hapus cache GAGAL TOTAL (jarang terjadi)
                   console.error("Gagal total menghubungi server untuk hapus cache:", clearError.message);
                   // Tetap jalankan proses utama
-                  // (Ini akan mengambil dari cache, tapi lebih baik daripada tidak sama sekali)
-                  runFallbackGeoCheck();
+                  runPrimaryGeoCheck(); // <-- Ganti dari runFallbackGeoCheck
               })
               .clearSchoolSettingsCacheManual(token); // Panggil fungsi baru di server
       }
 
-      /**
-       * (FUNGSI HELPER BARU)
-       * Ini adalah logika inti pengecekan geo, dipanggil SETELAH cache dihapus.
-       */
-      function runFallbackGeoCheck() {
+      // [NAMA DIGANTI & DIMODIFIKASI] Fungsi ini (sebelumnya runFallbackGeoCheck)
+      // sekarang menjadi Pengecekan Prioritas 1 (High Accuracy)
+      function runPrimaryGeoCheck() {
           const dummyDate = new Date();
           google.script.run
               // !!! PASTIKAN 'response' ADA DI SINI !!!
@@ -4721,15 +4715,15 @@
 
                   // Lanjutkan ke pengecekan GPS
                   document.getElementById('geo-status-message').innerText = 'Sedang memverifikasi lokasi Anda...';
-                  document.getElementById('geo-status-details').innerText = 'Pastikan GPS dan izin lokasi aktif.';
+                  document.getElementById('geo-status-details').innerText = 'Prioritas 1: Menggunakan GPS (Akurasi Tinggi)...';
 
                   if ("geolocation" in navigator) {
                       navigator.geolocation.getCurrentPosition(
-                          handleGeoSuccess, // Panggil fungsi global
-                          handleGeoError,   // Panggil fungsi global
+                          handleGeoSuccess, // Sukses: Panggil handleGeoSuccess
+                          runFallbackGeoCheck, // GAGAL: Panggil FALLBACK (Prioritas 2)
                           {
-                              enableHighAccuracy: true, 
-                              timeout: 30000, 
+                              enableHighAccuracy: true, // Prioritas 1
+                              timeout: 20000, // Timeout 20 detik untuk GPS
                               maximumAge: 0  
                           }
                       );
@@ -4743,6 +4737,28 @@
                   handleGeoError({ code: -1, message: "Error server: " + error.message });
               })
               .getAttendancePageData(currentUser.email, selectedSchool, dummyDate.getFullYear(), dummyDate.getMonth() + 1, 0);
+      }
+
+      // [FUNGSI BARU] Ini adalah Pengecekan Prioritas 2 (Low Accuracy)
+      // Dipanggil HANYA JIKA runPrimaryGeoCheck gagal.
+      function runFallbackGeoCheck(error) {
+          // Log error dari Pri-1
+          console.warn(`Pengecekan Akurasi Tinggi (GPS) gagal (${error.message}). Memulai Pengecekan Fallback (WiFi/Seluler).`);
+
+          // Update UI untuk memberitahu user
+          document.getElementById('geo-status-message').innerText = 'Verifikasi GPS Gagal...';
+          document.getElementById('geo-status-details').innerText = 'Prioritas 2: Mencoba via WiFi/Seluler (Akurasi Rendah)...';
+
+          // Panggil Geolocation lagi dengan akurasi rendah
+          navigator.geolocation.getCurrentPosition(
+              handleGeoSuccess, // Sukses: Panggil handleGeoSuccess
+              handleGeoError,   // GAGAL: Panggil handleGeoError (Final)
+              {
+                  enableHighAccuracy: false, // Prioritas 2
+                  timeout: 10000, // Timeout 10 detik
+                  maximumAge: 0
+              }
+          );
       }
 
       /**
@@ -4813,11 +4829,7 @@
         );
       }
 
-      /**
-       * (BARU) Fungsi UI-only untuk me-refresh status geo.
-       * Menggunakan var global 'currentSchoolSettings' dan 'isUserInLocation'.
-       * TIDAK memanggil server untuk settings.
-       */
+      // [MODIFIKASI] refreshGeoUI juga harus menggunakan logika 2-langkah
       function refreshGeoUI() {
           console.log("Pengaturan berubah. Menjalankan ulang pemeriksaan lokasi...");
 
@@ -4829,17 +4841,17 @@
           // 1. Set UI ke status loading
           statusBox.className = 'card-section processing';
           document.getElementById('geo-status-message').innerText = 'Memverifikasi ulang lokasi...';
-          document.getElementById('geo-status-details').innerText = 'Menggunakan pengaturan baru...';
+          document.getElementById('geo-status-details').innerText = 'Prioritas 1: Menggunakan GPS (Akurasi Tinggi)...'; // Update teks
           document.getElementById('refresh-geo-button').disabled = true; // Nonaktifkan tombol refresh saat sedang refresh
 
-          // 2. Jalankan pengecekan GPS
+          // 2. Jalankan pengecekan GPS (Prioritas 1)
           if ("geolocation" in navigator) {
               navigator.geolocation.getCurrentPosition(
-                  handleGeoSuccess, // Panggil fungsi global
-                  handleGeoError,   // Panggil fungsi global
+                  handleGeoSuccess, // Sukses: Panggil handleGeoSuccess
+                  runFallbackGeoCheck, // GAGAL: Panggil FALLBACK (Prioritas 2)
                   {
-                      enableHighAccuracy: true, 
-                      timeout: 30000, 
+                      enableHighAccuracy: true, // Prioritas 1
+                      timeout: 20000, // Timeout 20 detik
                       maximumAge: 0  
                   }
               );
