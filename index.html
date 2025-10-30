@@ -4376,7 +4376,14 @@
               detailsEl.innerText = `Jarak: ${distanceKm} km (Radius: ${radius} m). Ceklok hari ini dikunci.`;
           }
           
-          refreshBtn.disabled = false; // Aktifkan kembali tombol refresh
+          // --- AWAL PERUBAHAN (Cooldown Tombol Refresh) ---
+          // Beri jeda 5 detik sebelum tombol bisa diklik lagi
+          setTimeout(() => {
+            if(refreshBtn) {
+              refreshBtn.disabled = false; 
+            }
+          }, 5000); // 5000ms = 5 detik
+          // --- AKHIR PERUBAHAN ---
       }
 
       /**
@@ -4429,7 +4436,7 @@
                   {
                       enableHighAccuracy: false, // <-- Gunakan mode non-akurat (lebih cepat & hemat baterai)
                       timeout: 15000, // <-- Beri waktu 15 detik untuk merespon
-                      maximumAge: 60000  // <-- Izinkan menggunakan lokasi yang diambil 1 menit lalu
+                      maximumAge: 0  // <-- Izinkan menggunakan lokasi yang diambil 1 menit lalu
                   }
                   // --- AKHIR PERUBAHAN ---
               );
