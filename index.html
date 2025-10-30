@@ -2142,10 +2142,7 @@
             // Jika ada data PENDING, tampilkan data pending
             if (checkInInput) checkInInput.value = pendingEntry.newCheckIn;
             
-            // --- AWAL PERBAIKAN TYPO ---
-            // Bug sebelumnya: checkInInput.value = pendingEntry.newCheckOut
             if (checkOutInput) checkOutInput.value = pendingEntry.newCheckOut; 
-            // --- AKHIR PERBAIKAN TYPO ---
 
             if (reasonSelect) {
                 reasonSelect.value = pendingEntry.newReason || "";
@@ -4677,43 +4674,69 @@
 
       /**
        * (MODIFIKASI) Fungsi utama untuk memulai pengecekan geolokasi di DASBOR.
-       * Versi ini SELALU menjalankan pengecekan GPS untuk mendapatkan jarak,
-       * bahkan jika GeoEnabled=FALSE.
+       * Versi ini SECARA AKTIF MENGHAPUS CACHE server terlebih dahulu.
        */
       function runDashboardGeoCheck() {
-          // --- AWAL PERBAIKAN ---
-          // Tambahkan pengecekan ini di baris paling atas
           if (!currentUser) return; 
-          // --- AKHIR PERBAIKAN ---
 
           const statusBox = document.getElementById('geo-status-box');
           if (!statusBox) return; // Keluar jika tidak di dasbor guru
 
           // 1. Set UI ke status loading (langkah pertama)
-          // PAKSA TAMPIL: Selalu tampilkan kotak status, apa pun pengaturannya.
           statusBox.style.display = 'block';
           statusBox.className = 'card-section processing';
           document.getElementById('geo-status-message').innerText = 'Memperbarui pengaturan...';
-          document.getElementById('geo-status-details').innerText = 'Mengambil setelan lokasi terbaru dari server...';
+          document.getElementById('geo-status-details').innerText = 'Menghapus cache dan mengambil setelan terbaru...';
           document.getElementById('refresh-geo-button').disabled = true;
 
-          // 2. Panggil server untuk mendapatkan SchoolSettings TERBARU
+          // Dapatkan token dari localStorage
+          const token = localStorage.getItem('ceklokAuthToken');
+
+          // 2. Panggil fungsi BARU untuk menghapus cache di server
+          google.script.run
+              .withSuccessHandler(clearResponse => {
+                  
+                  if (clearResponse && clearResponse.success) {
+                      console.log("Cache pengaturan sekolah berhasil dihapus.");
+                  } else {
+                      console.warn("Gagal menghapus cache, mungkin menampilkan data lama.");
+                  }
+
+                  // 3. SETELAH cache dihapus (baik sukses atau gagal),
+                  //    LANJUTKAN ke panggilan untuk mengambil data baru (diekstrak ke runFallbackGeoCheck).
+                  runFallbackGeoCheck();
+
+              })
+              .withFailureHandler(clearError => {
+                  // Jika panggilan hapus cache GAGAL TOTAL (jarang terjadi)
+                  console.error("Gagal total menghubungi server untuk hapus cache:", clearError.message);
+                  // Tetap jalankan proses utama
+                  // (Ini akan mengambil dari cache, tapi lebih baik daripada tidak sama sekali)
+                  runFallbackGeoCheck();
+              })
+              .clearSchoolSettingsCacheManual(token); // Panggil fungsi baru di server
+      }
+
+      /**
+       * (FUNGSI HELPER BARU)
+       * Ini adalah logika inti pengecekan geo, dipanggil SETELAH cache dihapus.
+       */
+      function runFallbackGeoCheck() {
           const dummyDate = new Date();
           google.script.run
-              .withSuccessHandler(response => {
+              // !!! PASTIKAN 'response' ADA DI SINI !!!
+              .withSuccessHandler(response => { 
+                  
+                  // Baris ini (atau di sekitarnya) adalah tempat error Anda terjadi
                   if (response && response.error) {
-                      // Gagal mengambil data dari server
                       handleGeoError({ code: -1, message: "Gagal mengambil pengaturan: " + response.error });
                       return;
                   }
 
-                  // 3. SUKSES: Perbarui variabel global dengan pengaturan BARU dari server
+                  // SUKSES: Perbarui variabel global dengan pengaturan BARU dari server
                   currentSchoolSettings = response.schoolSettings || {};
 
-                  // 4. (DIHAPUS) Logika 'return' jika GeoEnabled=FALSE dihapus.
-                  //    Kita sekarang SELALU lanjut ke langkah 5.
-
-                  // 5. Lanjutkan ke pengecekan GPS
+                  // Lanjutkan ke pengecekan GPS
                   document.getElementById('geo-status-message').innerText = 'Sedang memverifikasi lokasi Anda...';
                   document.getElementById('geo-status-details').innerText = 'Pastikan GPS dan izin lokasi aktif.';
 
@@ -4740,7 +4763,7 @@
       }
 
       /**
-       * (BARU) Memulai polling untuk memeriksa perubahan pengaturan server.
+       * (MODIFIKASI) Memulai polling untuk memeriksa perubahan pengaturan server.
        * Hanya dipanggil sekali saat dasbor guru dimuat.
        */
       function startSettingsPolling() {
@@ -4768,16 +4791,19 @@
 
                 // 3. Bandingkan dengan pengaturan 'currentSchoolSettings' yang ada
                 if (hasSettingsChanged(currentSchoolSettings, newSettings)) {
-                  // 4. JIKA BERUBAH:
-                  console.log("Deteksi perubahan pengaturan server. Memperbarui status lokasi...");
+                  
+                  // === AWAL PERUBAHAN INTI ===
+                  console.log("Deteksi perubahan pengaturan server. Memperbarui UI...");
 
                   // a. Perbarui pengaturan global
                   currentSchoolSettings = newSettings; 
 
-                  // b. Jalankan refresh UI (fungsi yang sudah ada)
-                  runDashboardGeoCheck(); 
+                  // b. Panggil fungsi refresh UI (BUKAN runDashboardGeoCheck)
+                  refreshGeoUI(); 
+                  // === AKHIR PERUBAHAN INTI ===
+                  
                 } else {
-                  // console.log("Pengaturan server masih sama."); // (Bisa di-uncomment untuk debugging)
+                   // console.log("Pengaturan server masih sama."); // (Bisa di-uncomment untuk debugging)
                 }
               }
             })
@@ -4802,6 +4828,41 @@
           oldSettings.lon !== newSettings.lon ||
           oldSettings.radius !== newSettings.radius
         );
+      }
+
+      /**
+       * (BARU) Fungsi UI-only untuk me-refresh status geo.
+       * Menggunakan var global 'currentSchoolSettings' dan 'isUserInLocation'.
+       * TIDAK memanggil server untuk settings.
+       */
+      function refreshGeoUI() {
+          console.log("Pengaturan berubah. Menjalankan ulang pemeriksaan lokasi...");
+
+          const statusBox = document.getElementById('geo-status-box');
+          if (!statusBox || document.getElementById('guru-dashboard-container').style.display !== 'block') {
+              return; // Hanya berjalan jika di dasbor guru
+          }
+          
+          // 1. Set UI ke status loading
+          statusBox.className = 'card-section processing';
+          document.getElementById('geo-status-message').innerText = 'Memverifikasi ulang lokasi...';
+          document.getElementById('geo-status-details').innerText = 'Menggunakan pengaturan baru...';
+          document.getElementById('refresh-geo-button').disabled = true; // Nonaktifkan tombol refresh saat sedang refresh
+
+          // 2. Jalankan pengecekan GPS
+          if ("geolocation" in navigator) {
+              navigator.geolocation.getCurrentPosition(
+                  handleGeoSuccess, // Panggil fungsi global
+                  handleGeoError,   // Panggil fungsi global
+                  {
+                      enableHighAccuracy: false, 
+                      timeout: 15000, 
+                      maximumAge: 0  
+                  }
+              );
+          } else {
+              handleGeoError({ code: -1, message: "Browser tidak mendukung Geolocation." });
+          }
       }
 
     </script>
