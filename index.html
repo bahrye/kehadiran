@@ -547,7 +547,8 @@
         isRequestableMonth: false,
         pendingChanges: {},
         rejectionInfo: null,
-        rejectedChanges: []
+        rejectedChanges: [],
+        hasGeoBypass: false // <-- TAMBAHKAN INI
       };
       // --- AKHIR MODIFIKASI ---
 
@@ -1707,6 +1708,7 @@
           // Tentukan user target (guru atau staff yang melihat guru lain)
           const userEmail = (currentUser.role === 'staff' && selectedTeacherForStaff) ? selectedTeacherForStaff.email : currentUser.email;
           const schoolForCall = (currentUser.role === 'staff' && selectedTeacherForStaff) ? selectedTeacherForStaff.school : selectedSchool;
+          const viewerEmail = currentUser.email; // <-- 1. TAMBAHKAN INI (Email yang sedang login)
 
           // Dapatkan referensi tombol
           const saveButton = document.getElementById('save-button');
@@ -1758,6 +1760,7 @@
                   appSettings.pendingChanges = response.pendingChanges || {}; // Data ajuan pending
                   appSettings.rejectionInfo = response.rejectionInfo; // Info penolakan
                   appSettings.rejectedChanges = response.rejectedChanges || []; // Detail ajuan ditolak
+                  appSettings.hasGeoBypass = response.hasGeoBypass; // <-- 2. SIMPAN STATUS BYPASS
                   currentSchoolSettings = response.schoolSettings || {}; // Pengaturan sekolah (termasuk Geo)
               }
 
@@ -1771,7 +1774,7 @@
                  requestButton.disabled = true;
             })
             // Panggil fungsi di Kode.gs untuk mendapatkan semua data sekaligus
-            .getAttendancePageData(userEmail, schoolForCall, year, month, currentToken);
+            .getAttendancePageData(userEmail, schoolForCall, year, month, currentToken, viewerEmail); // <-- 3. TAMBAHKAN viewerEmail
       }
 
       function handleTimeInput(event) {
@@ -1827,6 +1830,8 @@
        * - Menambahkan pesan spesifik untuk bulan lalu yang dibuka/dikunci.
        * - Menggunakan 'appSettings.isMonthLocked' untuk logika penguncian utama.
        * - Logika 'isRequestableMonth' tetap digunakan untuk fitur pengajuan.
+       * --- PERUBAHAN BARU ---
+       * - Menggunakan appSettings.hasGeoBypass untuk membuka kunci UI.
        */
       function generateMonthTable(year, month, attendanceData) {
           const container = document.getElementById('attendance-table-container');
@@ -1838,12 +1843,24 @@
           const isCurrentMonthView = (year === currentYear && month === currentMonth);
           const isPastMonthView = year < currentYear || (year === currentYear && month < currentMonth);
 
+          // --- AWAL PERUBAHAN BYPASS ---
+          // Cek bypass global. 'appSettings.hasGeoBypass' dikirim dari server
+          const hasBypass = appSettings.hasGeoBypass === true;
+          // --- AKHIR PERUBAHAN BYPASS ---
+
           // Logika pesan Geo-lock
           if (isGeoEnabled && !isUserInLocation && isCurrentMonthView) {
-              geoMessage.innerText = "Anda berada di luar jangkauan lokasi. Input Ceklok hari ini dikunci.";
-              geoMessage.style.display = 'block';
-              geoMessage.style.color = 'var(--danger-color)';
-              geoMessage.style.backgroundColor = '#FEF2F2';
+              if (hasBypass) { // Jika punya bypass
+                  geoMessage.innerText = "Anda berada di luar jangkauan lokasi. Fitur bypass Staff aktif, Ceklok hari ini dibuka.";
+                  geoMessage.style.display = 'block';
+                  geoMessage.style.color = '#059669'; // Hijau
+                  geoMessage.style.backgroundColor = '#ECFDF5'; // Hijau muda
+              } else { // Jika tidak punya bypass (perilaku normal)
+                  geoMessage.innerText = "Anda berada di luar jangkauan lokasi. Input Ceklok hari ini dikunci.";
+                  geoMessage.style.display = 'block';
+                  geoMessage.style.color = 'var(--danger-color)';
+                  geoMessage.style.backgroundColor = '#FEF2F2';
+              }
           } else {
               geoMessage.style.display = 'none';
           }
@@ -1936,10 +1953,17 @@
           else {
               saveButton.style.display = 'inline-flex'; // Tampilkan tombol Simpan
               requestButton.style.display = 'none'; // Sembunyikan tombol Ajukan
+              
+              // --- AWAL PERUBAHAN BYPASS ---
               // Tombol Simpan dinonaktifkan jika:
               // 1. Bulan ini terkunci (isLocked = true), ATAU
-              // 2. Geo-lock aktif, DAN ini bulan berjalan, DAN user di luar lokasi
-              saveButton.disabled = isLocked || (isGeoEnabled && isCurrentMonthView && !isUserInLocation);
+              // 2. (SEMUA KONDISI INI):
+              //    a. Geo-lock aktif (isGeoEnabled=true)
+              //    b. Ini bulan berjalan (isCurrentMonthView=true)
+              //    c. User di luar lokasi (!isUserInLocation)
+              //    d. DAN User TIDAK punya bypass (!hasBypass)
+              saveButton.disabled = isLocked || (isGeoEnabled && isCurrentMonthView && !isUserInLocation && !hasBypass);
+              // --- AKHIR PERUBAHAN BYPASS ---
           }
 
           // Logika Menampilkan Detail Penolakan (jika ada)
@@ -2019,15 +2043,26 @@
 
             // Tambahkan Kelas CSS Highlight untuk Hari Ini (jika Geo Aktif)
             if (dateStr === todayStr && isGeoEnabled && !isReqMonth) {
-                rowClassList.push(isUserInLocation ? 'today-row-allowed' : 'today-row-denied'); // Kelas hijau atau merah
+                // --- AWAL PERUBAHAN BYPASS ---
+                // Jika punya bypass, selalu hijau (allowed)
+                if (hasBypass) {
+                  rowClassList.push('today-row-allowed');
+                } else {
+                  rowClassList.push(isUserInLocation ? 'today-row-allowed' : 'today-row-denied'); // Kelas hijau atau merah
+                }
+                // --- AKHIR PERUBAHAN BYPASS ---
             }
 
             // Tentukan apakah input di baris ini harus dinonaktifkan
             // Baris disabled JIKA:
             // 1. Bulan ini terkunci (isLocked=true) DAN BUKAN bulan pengajuan (!isReqMonth)
-            // 2. ATAU ini adalah bulan pengajuan (isReqMonth=true) - input disabled by default
-            // 3. ATAU ini hari ini (dateStr === todayStr), Geo-lock aktif (isGeoEnabled=true), DAN user di luar lokasi (!isUserInLocation)
-            let isRowDisabled = (isLocked && !isReqMonth) || isReqMonth || (isGeoEnabled && dateStr === todayStr && !isUserInLocation);
+            // 2. ATAU ini adalah bulan pengajuan (isReqMonth=true)
+            // 3. ATAU (SEMUA KONDISI INI HARUS TERPENUHI):
+            //    a. Geo-lock aktif (isGeoEnabled=true)
+            //    b. Ini hari ini (dateStr === todayStr)
+            //    c. User di luar lokasi (!isUserInLocation)
+            //    d. DAN User TIDAK punya bypass (!hasBypass)
+            let isRowDisabled = (isLocked && !isReqMonth) || isReqMonth || (isGeoEnabled && dateStr === todayStr && !isUserInLocation && !hasBypass);
 
             // Tentukan Tombol Aksi berdasarkan Kondisi
             if (isSunday || isHoliday) {
@@ -2181,6 +2216,12 @@
           const targetUser = (currentUser.role === 'staff' && selectedTeacherForStaff) ? selectedTeacherForStaff : currentUser;
           const payload = { email: targetUser.email, name: targetUser.name, school: schoolForSave, attendance: {} };
 
+          // --- AWAL PERUBAHAN BYPASS ---
+          // Tentukan email yang akan digunakan untuk cek bypass di server
+          // Kirim email yang login jika itu staff atau admin
+          const staffEmailBypass = (currentUser.role === 'staff' || currentUser.role === 'admin') ? currentUser.email : null;
+          // --- AKHIR PERUBAHAN BYPASS ---
+
           const rows = document.querySelectorAll('#attendance-table-container tbody tr');
           let validationError = false;
           let firstErrorRow = null;
@@ -2265,7 +2306,7 @@
                   
                   monthNavButtons.forEach(btn => btn.disabled = false);
               })
-              .saveMonthlyAttendance(payload);
+              .saveMonthlyAttendance(payload, staffEmailBypass); // <-- Parameter kedua untuk bypass
       }
 
       // --- AWAL FUNGSI BARU UNTUK FITUR PENGAJUAN ---
