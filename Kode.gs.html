@@ -310,8 +310,11 @@ function getAppSettingsForUser(email, school, year, month) {
  * - Bulan lalu terkunci KECUALI ada di 'opened_months'.
  * - Bulan ini terkunci JIKA ada di 'locked_months'.
  * - 'isRequestableMonth' tetap ada untuk fitur pengajuan individual.
+ * --- PERUBAHAN BARU ---
+ * - Menerima parameter 'viewerEmail' untuk mengecek hak bypass.
+ * - Mengembalikan 'hasGeoBypass' ke client.
  */
-function getAttendancePageData(email, school, year, month, token) {
+function getAttendancePageData(email, school, year, month, token, viewerEmail = null) { // <-- 1. Tambah parameter viewerEmail
   try {
     const attendanceData = getMonthlyAttendance(email, school, year, month);
     let lockedMonths = []; // Untuk mengunci bulan berjalan
@@ -442,6 +445,14 @@ function getAttendancePageData(email, school, year, month, token) {
     }
     // --- Akhir Logika Cek Pengajuan ---
 
+    // --- AWAL TAMBAHAN: Cek Geo Bypass untuk Staff ---
+    // Cek apakah 'viewerEmail' (yang sedang login) adalah staff/admin dan punya bypass
+    let hasGeoBypass = false;
+    if (viewerEmail) {
+        hasGeoBypass = checkIfStaffHasGeoBypass_(viewerEmail);
+    }
+    // --- AKHIR TAMBAHAN ---
+
     return {
       attendance: attendanceData,
       // lockedMonths: lockedMonths, // 'lockedMonths' tidak perlu dikirim lagi ke client
@@ -454,7 +465,8 @@ function getAttendancePageData(email, school, year, month, token) {
       isRequestableMonth: isRequestableMonth, // <-- Tetap kirim ini
       pendingChanges: pendingChanges, // <-- Tetap kirim ini
       rejectionInfo: rejectionInfo, // <-- Tetap kirim ini
-      rejectedChanges: rejectedChanges // <-- Tetap kirim ini
+      rejectedChanges: rejectedChanges, // <-- Tetap kirim ini
+      hasGeoBypass: hasGeoBypass // <-- 2. Kirim status bypass ke client
     };
   } catch (error) {
      Logger.log(`CRITICAL ERROR in getAttendancePageData for ${email}, ${school}, ${year}-${month}: ${error.toString()} \nStack: ${error.stack}`);
@@ -462,7 +474,8 @@ function getAttendancePageData(email, school, year, month, token) {
         error: `Terjadi kesalahan saat memuat data absensi (${error.message}). Coba muat ulang halaman.`,
         token: token, attendance: {}, holidays:{}, teacherHolidays: [], announcements: "", schoolSettings: {},
         isMonthLocked: true, // Kunci sebagai fallback jika error
-        isRequestableMonth: false, pendingChanges: {}, rejectionInfo: null, rejectedChanges: []
+        isRequestableMonth: false, pendingChanges: {}, rejectionInfo: null, rejectedChanges: [],
+        hasGeoBypass: false // <-- 3. Tambahkan di error fallback
      };
   }
 }
@@ -523,8 +536,11 @@ function getMonthlyAttendance(email, school, year, month) {
  * ===================================================================
  * - Validasi penguncian menggunakan logika baru (opened_months/locked_months).
  * - Validasi Geo-location tetap ada.
+ * --- PERUBAHAN BARU ---
+ * - Menerima parameter 'staffEmailBypass'.
+ * - Melewati validasi Geo-lock jika staffEmailBypass ada di daftar.
  */
-function saveMonthlyAttendance(payload) {
+function saveMonthlyAttendance(payload, staffEmailBypass = null) { // <-- 1. Tambah parameter staffEmailBypass
   try {
     const { email, name, school, attendance } = payload;
     if (!school) return { status: "error", message: "Informasi sekolah tidak valid." };
@@ -584,12 +600,18 @@ function saveMonthlyAttendance(payload) {
     // --- AWAL VALIDASI GEOLOCATION (TETAP SAMA) ---
     const schoolSettingsMap = getSchoolSettingsMap_();
     const schoolSettings = schoolSettingsMap.get(school) || {};
-    if (schoolSettings.geoEnabled === true) {
+
+    // --- AWAL PERUBAHAN: Cek Bypass untuk Staff ---
+    // Cek apakah 'staffEmailBypass' (yang login) ada di daftar bypass
+    const hasBypass = checkIfStaffHasGeoBypass_(staffEmailBypass);
+    // --- AKHIR PERUBAHAN ---
+
+    if (schoolSettings.geoEnabled === true && !hasBypass) { // <-- 2. TAMBAHKAN !hasBypass
       const todayStr = Utilities.formatDate(new Date(), TIMEZONE, "yyyy-MM-dd");
       const datesToSave = Object.keys(attendance);
       const isTryingToSaveOtherDays = datesToSave.some(date => date !== todayStr);
       if (isTryingToSaveOtherDays) {
-        Logger.log(`REJECTED save for ${email} at ${school}. Reason: Geo-lock enabled, tried to save non-today dates.`);
+        Logger.log(`REJECTED save for ${email} at ${school}. Reason: Geo-lock enabled, tried to save non-today dates. Submitter: ${staffEmailBypass || 'N/A'}`); // Tambah log
         return { status: "error", message: "Validasi Gagal: Sekolah ini menggunakan fitur kunci-lokasi. Anda hanya dapat menyimpan data untuk hari ini." };
       }
     }
@@ -3453,3 +3475,52 @@ function getLKHSheet_(year, month, createIfNotExist = false) {
   
   return sheet; // Akan mengembalikan null jika sheet tidak ditemukan & createIfNotExist = false
 }
+
+// --- AWAL TAMBAHAN: Sheet Baru untuk Geo Bypass ---
+/**
+ * Mendapatkan atau membuat sheet untuk GeoBypassStaff.
+ * Sheet ini berisi daftar email staff/admin yang bisa melewati validasi geolokasi.
+ */
+function getGeoBypassStaffSheet_() {
+  let sheet = ss.getSheetByName("GeoBypassStaff");
+  if (!sheet) {
+    sheet = ss.insertSheet("GeoBypassStaff");
+    sheet.appendRow(["Email", "Nama (Opsional)"]);
+    sheet.setFrozenRows(1);
+    sheet.getRange("A:A").setNumberFormat("@");
+    sheet.appendRow(["staff@email.com", "Contoh Staff"]);
+  }
+  return sheet;
+}
+
+/**
+ * HELPER: Memeriksa apakah staff ada di daftar bypass.
+ * Menggunakan CacheService untuk performa.
+ */
+function checkIfStaffHasGeoBypass_(staffEmail) {
+  if (!staffEmail) return false;
+
+  // Admin selalu punya bypass
+  if (checkIfAdmin(staffEmail)) return true;
+
+  const cache = CacheService.getScriptCache();
+  const CACHE_KEY = `geo_bypass_${staffEmail.toLowerCase()}`;
+  const cachedValue = cache.get(CACHE_KEY);
+
+  if (cachedValue) {
+    return cachedValue === 'true';
+  }
+
+  const sheet = getGeoBypassStaffSheet_();
+  if (sheet.getLastRow() < 2) {
+    cache.put(CACHE_KEY, 'false', 3600); // Cache 'false' selama 1 jam
+    return false;
+  }
+
+  const bypassList = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().flat();
+  const hasBypass = bypassList.some(email => String(email).trim().toLowerCase() === staffEmail.toLowerCase());
+  
+  cache.put(CACHE_KEY, String(hasBypass), 3600); // Cache hasil selama 1 jam
+  return hasBypass;
+}
+// --- AKHIR TAMBAHAN ---
