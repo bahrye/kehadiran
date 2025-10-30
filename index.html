@@ -786,7 +786,6 @@
       }
 
       function showSptjmSettingsPage() {
-          localStorage.setItem('ceklokActivePage', 'sptjm-settings');
           document.getElementById('lkh-sptjm-dashboard-container').style.display = 'none';
 
           // --- TAMBAHAN BARU UNTUK MEMPERBAIKI MASALAH TAMPILAN GANDA ---
@@ -893,7 +892,6 @@
       // --- AKHIR FUNGSI BARU ---
 
       function showSptjmViewPage() {
-          localStorage.setItem('ceklokActivePage', 'sptjm-view');
           document.getElementById('lkh-sptjm-dashboard-container').style.display = 'none';
           document.getElementById('sptjm-view-container').style.display = 'block';
 
@@ -1041,7 +1039,6 @@
       }
 
       function showLkhWeeklyPage() {
-        localStorage.setItem('ceklokActivePage', 'lkh-weekly');
         document.getElementById("lkh-sptjm-dashboard-container").style.display = "none";
         document.getElementById("lkh-weekly-container").style.display = "block";
         generateLkhWeeklyForm();
@@ -1144,58 +1141,20 @@
 
         const token = localStorage.getItem('ceklokAuthToken');
         if (token) {
-          // --- PERUBAHAN DIMULAI (LOGIKA BARU + STATE Halaman) ---
+          // --- PERUBAHAN DIMULAI (LOGIKA BARU) ---
+          // 1. Langsung coba tampilkan dasbor dari localStorage
           try {
             currentUser = JSON.parse(localStorage.getItem('ceklokUser'));
             selectedSchool = localStorage.getItem('ceklokSelectedSchool');
-            
-            // === AWAL MODIFIKASI: Logika State Halaman ===
-            const activePage = localStorage.getItem('ceklokActivePage');
-            // === AKHIR MODIFIKASI ===
 
             if (currentUser && selectedSchool) {
-              
-              // === AWAL MODIFIKASI: Logika Navigasi ===
-              // Cek 'activePage' DULU
-              switch(activePage) {
-                case 'ceklok': showCeklokPage(); break;
-                case 'ceklok-staff': showCeklokPageForStaff(); break;
-                case 'teacher-holiday-settings': showTeacherHolidaySettings(); break;
-                case 'emis-import': showEmisImportPage(); break;
-                case 'emis-import-staff': showEmisImportPageForStaff(); break;
-                case 'emis-export': showEmisExportPage(); break;
-                case 'emis-export-staff': showEmisExportPageForStaff(); break;
-                case 'all-teachers-summary': showAllTeacherSummary(); break;
-                case 'change-request': showChangeRequestPage(); break;
-                case 'lkh-sptjm-dashboard': showLkhSptjmDashboard(); break;
-                case 'sptjm-settings': showSptjmSettingsPage(); break;
-                case 'sptjm-view': showSptjmViewPage(); break;
-                case 'lkh': showLkhPage(); break;
-                case 'lkh-view': showLkhViewPage(); break;
-                case 'lkh-weekly': showLkhWeeklyPage(); break;
-                
-                // Halaman Dasbor (atau default)
-                case 'admin-dashboard':
-                  showAdminDashboard(currentUser);
-                  break;
-                case 'staff-dashboard':
-                  showStaffDashboard(currentUser);
-                  break;
-                case 'guru-dashboard':
-                  showGuruDashboard(currentUser);
-                  break;
-                default:
-                  // Default kembali ke dasbor sesuai peran
-                  if (currentUser.role === 'admin') {
-                    showAdminDashboard(currentUser);
-                  } else if (currentUser.role === 'staff') {
-                    showStaffDashboard(currentUser);
-                  } else {
-                    showGuruDashboard(currentUser);
-                  }
+              if (currentUser.role === 'admin') {
+                showAdminDashboard(currentUser);
+              } else if (currentUser.role === 'staff') {
+                showStaffDashboard(currentUser);
+              } else {
+                showGuruDashboard(currentUser);
               }
-              // === AKHIR MODIFIKASI ===
-              
             } else {
                 // Jika data di localStorage tidak lengkap, tampilkan login
                 document.getElementById("login-container").style.display = 'block';
@@ -1204,7 +1163,7 @@
               // Jika ada error saat parsing, fallback ke halaman login
               document.getElementById("login-container").style.display = 'block';
           }
-          // --- AKHIR PERUBAHAN (LOGIKA BARU + STATE Halaman) ---
+          // --- AKHIR PERUBAHAN (LOGIKA BARU) ---
 
           // 2. Lakukan verifikasi token di latar belakang
           google.script.run
@@ -1340,7 +1299,7 @@
         }
       }
 
-      // ===================================================================
+// ===================================================================
       // 4. GANTI FUNGSI LAMA (handleLogout) DENGAN INI
       // ===================================================================
       function handleLogout() {
@@ -1351,7 +1310,6 @@
         localStorage.removeItem('ceklokUser');
         localStorage.removeItem('ceklokSelectedSchool');
         localStorage.removeItem('ceklokAuthToken');
-        localStorage.removeItem('ceklokActivePage'); // <-- TAMBAHKAN BARIS INI
 
         currentUser = null;
         selectedSchool = null;
@@ -1461,7 +1419,6 @@
       // LOGIKA UNTUK GURU
       // ===================================================================
       function showGuruDashboard(userData) {
-          localStorage.setItem('ceklokActivePage', 'guru-dashboard');
           if (userData) currentUser = userData;
           document.getElementById("login-container").style.display = "none";
           document.getElementById("school-selection-container").style.display = "none";
@@ -1577,7 +1534,6 @@
       }
 
       function showLkhSptjmDashboard() {
-        localStorage.setItem('ceklokActivePage', 'lkh-sptjm-dashboard');
         document.getElementById("guru-dashboard-container").style.display = "none";
         document.getElementById("lkh-sptjm-dashboard-container").style.display = "block";
         document.getElementById("sptjm-settings-container").style.display = "none";
@@ -1588,7 +1544,6 @@
       }
 
       function showCeklokPage() {
-        localStorage.setItem('ceklokActivePage', 'ceklok');
         document.getElementById("guru-dashboard-container").style.display = "none";
         document.getElementById("emis-import-container").style.display = "none";
         document.getElementById("ceklok-container").style.display = "block";
@@ -1623,7 +1578,6 @@
       }
 
       function showTeacherHolidaySettings() {
-          localStorage.setItem('ceklokActivePage', 'teacher-holiday-settings');
           document.getElementById("guru-dashboard-container").style.display = "none";
           document.getElementById("ceklok-container").style.display = "none";
           document.getElementById("emis-import-container").style.display = "none";
@@ -1635,7 +1589,6 @@
       }
 
       function showEmisImportPage() {
-        localStorage.setItem('ceklokActivePage', 'emis-import');
         document.getElementById("guru-dashboard-container").style.display = "none";
         document.getElementById("emis-import-container").style.display = "block";
         document.getElementById('emis-import-teacher-name').innerText = '';
@@ -1643,7 +1596,6 @@
       }
 
       function showEmisExportPage() {
-        localStorage.setItem('ceklokActivePage', 'emis-export');
         document.getElementById("guru-dashboard-container").style.display = "none";
         document.getElementById("emis-export-container").style.display = "block";
         document.getElementById('emis-export-teacher-name').innerText = '';
@@ -2402,7 +2354,6 @@
        * (STAFF) Menampilkan halaman daftar pengajuan.
        */
       function showChangeRequestPage() {
-        localStorage.setItem('ceklokActivePage', 'change-request');
         document.getElementById("staff-dashboard-container").style.display = "none";
         document.getElementById("change-request-container").style.display = "block";
 
@@ -3148,7 +3099,6 @@
       // LOGIKA UNTUK RINGKASAN SEMUA GURU (DARI AKUN GURU)
       // ===================================================================
       function showAllTeacherSummary() {
-        localStorage.setItem('ceklokActivePage', 'all-teachers-summary');
         document.getElementById("guru-dashboard-container").style.display = "none";
         document.getElementById("all-teachers-summary-container").style.display = "block";
         document.getElementById("all-teachers-summary-title").innerText = `Ringkasan Kehadiran - ${selectedSchool}`;
@@ -3241,7 +3191,6 @@
       // LOGIKA UNTUK STAFF
       // ===================================================================
       function showStaffDashboard(userData) {
-          localStorage.setItem('ceklokActivePage', 'staff-dashboard');
           if (userData) currentUser = userData;
           document.getElementById("login-container").style.display = "none";
           document.getElementById("guru-dashboard-container").style.display = "none";
@@ -3379,9 +3328,6 @@
        * tersimpan di 'selectedTeacherForStaff'.
        */
       function showCeklokPageForStaff(forceReload = false) {
-        // 1. Simpan state halaman aktif (sesuai permintaan Anda sebelumnya)
-        localStorage.setItem('ceklokActivePage', 'ceklok-staff');
-
         // 2. Cek guru yang dipilih
         if (!forceReload) {
           // Jika ini BUKAN reload paksa, ambil guru dari dropdown Ceklok
@@ -3422,7 +3368,6 @@
       }
 
       function showEmisImportPageForStaff() {
-          localStorage.setItem('ceklokActivePage', 'emis-import-staff');
           selectedTeacherForStaff = getSelectedTeacher('staff-teacher-select-emis');
           if (!selectedTeacherForStaff) {
             displayMessage('staff-emis-message', 'Silakan pilih seorang guru terlebih dahulu untuk import.');
@@ -3436,7 +3381,6 @@
       }
 
       function showEmisExportPageForStaff() {
-          localStorage.setItem('ceklokActivePage', 'emis-export-staff');
           selectedTeacherForStaff = getSelectedTeacher('staff-teacher-select-emis');
           if (!selectedTeacherForStaff) {
             displayMessage('staff-emis-message', 'Silakan pilih seorang guru terlebih dahulu untuk eksport.');
@@ -3488,7 +3432,6 @@
       // LOGIKA UNTUK ADMIN
       // ===================================================================
       function showAdminDashboard(userData) {
-        localStorage.setItem('ceklokActivePage', 'admin-dashboard');
         if (userData) currentUser = userData;
         document.getElementById("login-container").style.display = "none";
         document.getElementById("guru-dashboard-container").style.display = "none";
@@ -3894,7 +3837,6 @@
       // PERUBAHAN SELESAI
 
       function showLkhPage() {
-        localStorage.setItem('ceklokActivePage', 'lkh');
         document.getElementById("lkh-sptjm-dashboard-container").style.display = "none";
         document.getElementById("lkh-container").style.display = "block";
         const lkhMonthInput = document.getElementById('lkh-month-input');
@@ -4046,7 +3988,6 @@
       }
 
       function showLkhViewPage() {
-          localStorage.setItem('ceklokActivePage', 'lkh-view');
           document.getElementById('lkh-sptjm-dashboard-container').style.display = 'none';
           document.getElementById('lkh-view-container').style.display = 'block';
 
