@@ -1104,12 +1104,22 @@
         google.script.run
           .withSuccessHandler(response => {
             if(response.status === 'success') {
-              displayMessage('lkh-weekly-message', response.message, { isSuccess: true });
+              displayMessage('lkh-message', response.message, { isSuccess: true });
+
+              // HAPUS DUA BARIS PENYEBAB KEDIPAN:
+              // button.disabled = false;
+              // button.querySelector('span').textContent = "Simpan LKH";
+
+              // Langsung panggil muat ulang. 
+              // Fungsi ini yang akan mengurus status tombol setelah datanya siap.
+              handleLkhMonthChange(); 
+
             } else {
-              displayMessage('lkh-weekly-message', response.message);
+              displayMessage('lkh-message', response.message);
+              // Jika GAGAL, baru aktifkan tombolnya lagi di sini
+              button.disabled = false;
+              button.querySelector('span').textContent = "Simpan LKH";
             }
-            button.disabled = false;
-            button.querySelector('span').textContent = "Simpan LKH Mingguan";
           })
           .withFailureHandler(error => {
             displayMessage('lkh-weekly-message', 'Error: ' + error.message);
