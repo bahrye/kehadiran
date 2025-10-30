@@ -3389,12 +3389,12 @@ function getSchoolSettingsSheet_() {
     sheet.getRange(2, 1, 2, 8).setValues(exampleData);
     
     sheet.getRange("A:D").setNumberFormat("@"); // Nama, ID, ID, GeoEnabled -> Teks
-    sheet.getRange("E:H").setNumberFormat("@"); // Latitude, Longitude, Radius, ViewDashboard -> Teks (@)
+    sheet.getRange("E:G").setNumberFormat("@"); // Latitude, Longitude, Radius, ViewDashboard -> Teks (@)
     
   } else {
      // Pastikan format kolom benar jika sheet sudah ada
      try {
-       sheet.getRange("E:H").setNumberFormat("@"); 
+       sheet.getRange("E:G").setNumberFormat("@"); 
      } catch(e) {
        Logger.log("Gagal set format teks untuk kolom E-H di SchoolSettings");
      }
