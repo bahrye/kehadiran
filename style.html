@@ -59,6 +59,7 @@
     position: relative;
 
     /* === AWAL TAMBAHAN BARU === */
+    width: 100%; /* <-- TAMBAHKAN BARIS INI */
     max-width: 650px;  /* Atur max-width DEFAULT untuk SEMUA card */
     margin-left: auto;   /* Pusatkan card */
     margin-right: auto;  /* Pusatkan card */
@@ -1849,7 +1850,8 @@
   }
 
   /* Gaya untuk pesan bulan dibuka (hijau info) */
-  #global-lock-message.info-message {
+  #global-lock-message.info-message,
+  #lkh-lock-message.info-message {
     color: #059669; /* Warna hijau info */
     background-color: #ECFDF5; /* Background hijau sangat muda */
     border: 1px solid #A7F3D0;
@@ -1859,7 +1861,8 @@
   }
 
   /* Gaya untuk pesan klik ubah (kuning peringatan) */
-  #global-lock-message.warning-message {
+  #global-lock-message.warning-message,
+  #lkh-lock-message.warning-message {
     color: #92400E; /* Warna kuning tua */
     background-color: #FEF9C3; /* Background kuning sangat muda */
     border: 1px solid #FDE68A;
@@ -1869,7 +1872,8 @@
   }
 
   /* Gaya untuk pesan terkunci (merah bahaya) */
-  #global-lock-message.danger-message {
+  #global-lock-message.danger-message,
+  #lkh-lock-message.danger-message {
     color: #991B1B; /* Warna merah tua (teks) */
     background-color: #FEF2F2; /* Background merah sangat muda */
     border: 1px solid #FCA5A5; /* Border merah muda */
