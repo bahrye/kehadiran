@@ -4105,6 +4105,16 @@
 
       function handleLkhMonthChange() {
         const monthInputValue = document.getElementById('lkh-month-input').value;
+
+        // --- TAMBAHAN BARU ---
+        // Bersihkan pesan lock/error lama saat bulan diganti
+        const lockMessageEl = document.getElementById('lkh-lock-message');
+        if (lockMessageEl) {
+          lockMessageEl.innerText = "";
+          lockMessageEl.className = "message";
+        }
+        // --- AKHIR TAMBAHAN ---
+
         if (monthInputValue) {
           const [year, month] = monthInputValue.split('-').map(Number);
           generateLkhForm(year, month);
@@ -4118,6 +4128,11 @@
           // === AWAL PERUBAHAN ===
           const applyWeeklyButton = document.getElementById('apply-weekly-data-button');
           const clearButton = document.getElementById('clear-lkh-data-button'); // Ambil tombol baru
+          const lockMessageEl = document.getElementById('lkh-lock-message'); // <-- Ambil elemen pesan
+
+          // Reset pesan kunci
+          lockMessageEl.innerText = "";
+          lockMessageEl.className = "message";
 
           applyWeeklyButton.disabled = true; // Pindahkan ini ke atas
           clearButton.disabled = true;     // Nonaktifkan tombol baru saat loading
@@ -4130,30 +4145,53 @@
               <p>Memuat formulir LKH...</p>
             </div>`;
           saveButton.disabled = true;
-          applyWeeklyButton.disabled = true; // 2. Langsung nonaktifkan tombol
+          // applyWeeklyButton.disabled = true; (Sudah di atas)
 
           google.script.run
             .withSuccessHandler(response => {
               if (response.success) {
-                renderLkhTable(response.workingDays, response.existingData);
-                saveButton.disabled = false;
-                applyWeeklyButton.disabled = false; // 3. Aktifkan kembali setelah sukses
+                // --- AWAL PERUBAHAN: Kirim status kunci ke renderLkhTable ---
+                renderLkhTable(response.workingDays, response.existingData, response.isLocked);
+                
+                // Nonaktifkan tombol berdasarkan status kunci
+                saveButton.disabled = response.isLocked;
+                applyWeeklyButton.disabled = response.isLocked; 
+                // (Tombol clear akan di-handle oleh updateClearLkhButtonStatus)
+                
+                // Tampilkan pesan jika terkunci
+                if (response.isLocked && response.lockMessage) {
+                  lockMessageEl.innerText = response.lockMessage;
+                  lockMessageEl.classList.add('danger-message');
+                }
+                // --- AKHIR PERUBAHAN ---
               } else {
                 container.innerHTML = `<p style="color: var(--danger-color);">Gagal memuat data: ${response.error}</p>`;
-                // Tombol akan tetap nonaktif jika gagal
+                // --- AWAL PERUBAHAN ---
+                // Tampilkan error di pesan kunci juga
+                lockMessageEl.innerText = response.error;
+                lockMessageEl.classList.add('danger-message');
+                // --- AKHIR PERUBAHAN ---
               }
             })
             .withFailureHandler(err => {
               container.innerHTML = `<p style="color: var(--danger-color);">Gagal memuat: ${err.message}</p>`;
-              // Tombol akan tetap nonaktif jika gagal
+              // --- AWAL PERUBAHAN ---
+              lockMessageEl.innerText = err.message;
+              lockMessageEl.classList.add('danger-message');
+              // --- AKHIR PERUBAHAN ---
             })
             .getLKHData(currentUser.email, selectedSchool, year, month);
       }
 
-      function renderLkhTable(workingDays, existingData) {
+      // --- PERUBAHAN DI SINI: Tambahkan parameter 'isLocked' ---
+      function renderLkhTable(workingDays, existingData, isLocked) {
         const container = document.getElementById('lkh-table-container');
         // Menambahkan header kolom "AKSI"
         let tableHTML = '<table><thead><tr><th>HARI / TANGGAL</th><th>URAIAN KEGIATAN</th><th>HASIL / OUTPUT</th><th>VOL</th><th>AKSI</th></tr></thead><tbody>';
+        
+        // --- BUAT ATRIBUT DISABLED ---
+        const disabledAttr = isLocked ? 'disabled' : '';
+
         if (workingDays && workingDays.length > 0) {
           workingDays.forEach(day => {
             const data = existingData[day.date] || {};
@@ -4161,10 +4199,12 @@
               <tr data-date="${day.date}">
                 
                 <td>${day.dayName},<br>${day.formattedDate}</td>
-                <td><textarea rows="3" id="uraian-${day.date}" oninput="updateClearLkhButtonStatus()">${data.uraian || ''}</textarea></td>
-                <td><textarea rows="3" id="hasil-${day.date}" oninput="updateClearLkhButtonStatus()">${data.hasil || ''}</textarea></td>
-                <td><textarea id="vol-${day.date}" oninput="updateClearLkhButtonStatus()">${data.vol || ''}</textarea></td>
-                <td><button class="clear-btn" onclick="handleClearLkhRow(event)">Hapus</button></td>
+                
+                <td><textarea rows="3" id="uraian-${day.date}" oninput="updateClearLkhButtonStatus()" ${disabledAttr}>${data.uraian || ''}</textarea></td>
+                <td><textarea rows="3" id="hasil-${day.date}" oninput="updateClearLkhButtonStatus()" ${disabledAttr}>${data.hasil || ''}</textarea></td>
+                <td><textarea id="vol-${day.date}" oninput="updateClearLkhButtonStatus()" ${disabledAttr}>${data.vol || ''}</textarea></td>
+                <td><button class="clear-btn" onclick="handleClearLkhRow(event)" ${disabledAttr}>Hapus</button></td>
+
               </tr>
             `;
           });
@@ -4486,6 +4526,22 @@
       function updateClearLkhButtonStatus() {
         const clearButton = document.getElementById('clear-lkh-data-button');
         if (!clearButton) return; // Keluar jika elemen tidak ditemukan
+
+        // --- AWAL TAMBAHAN ---
+        // Periksa kunci utama. Jika tombol Simpan nonaktif (karena terkunci),
+        // maka tombol Bersihkan juga harus nonaktif.
+        const saveButton = document.getElementById('save-lkh-button');
+        if (saveButton && saveButton.disabled) {
+            clearButton.disabled = true;
+            clearButton.classList.remove('warning');
+    
+            // Pastikan kelas 'secondary' ada jika nonaktif
+            if (!clearButton.classList.contains('secondary')) {
+                clearButton.classList.add('secondary');
+            }
+            return; // Hentikan fungsi
+        }
+        // --- AKHIR TAMBAHAN ---
 
         const rows = document.querySelectorAll('#lkh-table-container tbody tr');
         let hasData = false;
@@ -5053,9 +5109,8 @@
           // ==========================================================
           // LOGIKA 1: Pengingat Pelengkapan Ceklok Bulan Lalu (Tgl 1-bebas)
           // ==========================================================
-          
-          // (Prioritas 1: Tampil selama grace period)
-          if (currentDay >= 1 && currentDay <= ceklokGraceDayLimit) {
+          // UBAH: currentDay <= 5 menjadi currentDay <= ceklokGraceDayLimit
+          if (currentDay >= 1 && currentDay <= ceklokGraceDayLimit && summary.persentase < 100) {
               
               const isPastMonthLocked = appSettings.isMonthLocked; // Cek status kunci bulan lalu (sudah dikunci Admin)
               const isPastMonthOpened = appSettings.openedMonths.includes(`${lastMonthYear}-${String(lastMonth).padStart(2, '0')}`);
@@ -5065,10 +5120,10 @@
                   
                   reminderBox.style.display = 'block';
                   reminderBox.className = `card-section warning`;
+                  messageEl.innerText = `Lengkapi Ceklok ${lastMonthName} Segera!`;
                   
-                  // Pesan umum untuk semua guru
-                  messageEl.innerText = `Pengisian Ceklok ${lastMonthName}`;
-                  detailsEl.innerHTML = `Periode pengisian ceklok bulan ${lastMonthName} dibuka sampai tanggal <strong>${ceklokGraceDayLimit}</strong>. Klik kotak ini untuk meninjau/melengkapi.`;
+                  // Perubahan: Tambahkan tautan untuk masuk ke bulan lalu
+                  detailsEl.innerHTML = `Kehadiran Anda di bulan lalu masih ${summary.persentase}%. Klik kotak ini untuk melengkapi sampai tanggal <strong>${ceklokGraceDayLimit}</strong>.`;
                   
                   // Set event handler untuk klik kotak (PENTING)
                   reminderBox.onclick = () => {
@@ -5078,19 +5133,15 @@
                       // Hapus event setelah diklik
                       reminderBox.onclick = null; 
                   };
-                  return; // Hentikan di sini (Prioritas 1 terpenuhi)
+                  return; // Hentikan di sini
               }
           }
           
           // ==========================================================
-          // LOGIKA 2: Pemberitahuan Pengajuan Perubahan (Setelah Grace Period s/d Batas)
+          // LOGIKA 2: Pemberitahuan Pengajuan Perubahan (Tgl 6 s/d Batas)
           // ==========================================================
-          
-          // --- PERUBAHAN DI SINI ---
-          // Batas awal (currentDay > 5) diubah menjadi dinamis (currentDay > ceklokGraceDayLimit)
-          // Cek jika: Ini setelah grace period s/d requestDayLimit DAN bulan lalu bisa diajukan
-          if (currentDay > ceklokGraceDayLimit && currentDay <= requestDayLimit && isLastMonthRequestable) {
-          // --- AKHIR PERUBAHAN ---
+          // Cek jika: Ini tgl 6 s/d requestDayLimit DAN bulan lalu bisa diajukan
+          if (currentDay > 5 && currentDay <= requestDayLimit && isLastMonthRequestable) {
               
               const rejectionInfo = appSettings.rejectionInfo;
               const isRequestPending = Object.keys(appSettings.pendingChanges || {}).length > 0;
@@ -5125,13 +5176,13 @@
                   // Hapus event setelah diklik
                   reminderBox.onclick = null;
               };
-              return; // Hentikan di sini (Prioritas 2 terpenuhi)
+              return; // Hentikan di sini
           }
           
           // ==========================================================
           // LOGIKA 3: Pengingat Ceklok Bulan Berjalan (H-7 s/d H-0)
           // ==========================================================
-          // (Logika ini tidak berubah, masih berdasarkan persentase < 100 untuk bulan berjalan)
+          // Jika tidak di Logika 1 atau 2, jalankan logika reminder bulan berjalan (kode lama)
           
           // Cek apakah ringkasan yang sedang dilihat adalah bulan berjalan
           const summaryMonthInput = document.getElementById('summary-month-input').value;
