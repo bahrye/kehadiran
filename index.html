@@ -1639,42 +1639,46 @@
         // --- AKHIR TAMBAHAN ---
       }
 
+      /**
+       * (PERBAIKAN) Fungsi showCeklokPage perlu diubah agar dapat bekerja
+       * dengan `currentDate` global yang sudah disetel ke bulan lalu/pengajuan.
+       * Tombol `retry-geo-button` dan pesan `geo-lock-message` juga perlu diatur.
+       */
       function showCeklokPage() {
-        document.getElementById("guru-dashboard-container").style.display = "none";
-        document.getElementById("emis-import-container").style.display = "none";
-        document.getElementById("ceklok-container").style.display = "block";
-        document.getElementById('ceklok-teacher-name').innerText = '';
-        document.getElementById('ceklok-title').innerText = `Formulir Kehadiran - ${selectedSchool}`;
+          document.getElementById("guru-dashboard-container").style.display = "none";
+          document.getElementById("emis-import-container").style.display = "none";
+          document.getElementById("ceklok-container").style.display = "block";
+          document.getElementById('ceklok-teacher-name').innerText = '';
+          document.getElementById('ceklok-title').innerText = `Formulir Kehadiran - ${selectedSchool}`;
 
-        // --- TAMBAHKAN BARIS INI ---
-        history.pushState(null, null, location.href);
-        // --- AKHIR TAMBAHAN ---
+          // --- TAMBAHKAN BARIS INI ---
+          history.pushState(null, null, location.href);
+          // --- AKHIR TAMBAHAN ---
 
-        // === LOGIKA BARU: Cek status global ===
-        const isGeoEnabled = currentSchoolSettings.geoEnabled === true;
-        const geoMessage = document.getElementById('geo-lock-message');
-        
-        // --- AWAL PERBAIKAN (Goal 3) ---
-        // Cek apakah kita sedang melihat bulan berjalan
-        const today = new Date();
-        const isCurrentMonthView = currentDate.getFullYear() === today.getFullYear() &&
-                                   currentDate.getMonth() === today.getMonth();
+          // === LOGIKA BARU: Cek status global ===
+          const isGeoEnabled = currentSchoolSettings.geoEnabled === true;
+          const geoMessage = document.getElementById('geo-lock-message');
+          
+          // Cek apakah yang sedang dilihat adalah bulan berjalan (berdasarkan currentDate)
+          const today = new Date();
+          const isCurrentMonthView = currentDate.getFullYear() === today.getFullYear() &&
+                                    currentDate.getMonth() === today.getMonth();
 
-        if (isGeoEnabled && !isUserInLocation && isCurrentMonthView) {
-        // --- AKHIR PERBAIKAN ---
-            
-            // Jika geo aktif DAN status global "di luar lokasi" DAN ini bulan berjalan
-            geoMessage.innerText = "Anda berada di luar jangkauan lokasi. Input Ceklok hari ini dikunci.";
-            geoMessage.style.display = 'block';
-            geoMessage.style.color = 'var(--danger-color)';
-            geoMessage.style.backgroundColor = '#FEF2F2';
-        } else {
-            // Jika geo nonaktif ATAU pengguna di dalam lokasi ATAU ini bulan lalu/depan
-            geoMessage.style.display = 'none';
-        }
-        // ====================================
+          if (isGeoEnabled && !isUserInLocation && isCurrentMonthView) {
+              
+              // Jika geo aktif DAN status global "di luar lokasi" DAN ini bulan berjalan
+              geoMessage.innerText = "Anda berada di luar jangkauan lokasi. Input Ceklok hari ini dikunci.";
+              geoMessage.style.display = 'block';
+              geoMessage.style.color = 'var(--danger-color)';
+              geoMessage.style.backgroundColor = '#FEF2F2';
+          } else {
+              // Jika geo nonaktif ATAU pengguna di dalam lokasi ATAU ini bulan lalu/depan
+              geoMessage.style.display = 'none';
+          }
+          // ====================================
 
-        loadMonthData(currentDate);
+          // Panggil loadMonthData dengan 'currentDate' global
+          loadMonthData(currentDate);
       }
 
       function showTeacherHolidaySettings() {
@@ -4979,63 +4983,145 @@
           const messageEl = document.getElementById('reminder-box-message');
           const detailsEl = document.getElementById('reminder-box-details');
           
-          // 1. Cek apakah ini bulan berjalan
+          // Default: Sembunyikan kotak
+          reminderBox.style.display = 'none';
+          
+          // Data Tanggal Hari Ini
           const today = new Date();
-          // Menggunakan currentDate global untuk menentukan bulan yang sedang dilihat
-          const targetDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1); 
-          const isCurrentMonth = today.getFullYear() === targetDate.getFullYear() && today.getMonth() === targetDate.getMonth();
-          
-          // Jika bukan bulan berjalan, sembunyikan kotak dan keluar
-          if (!isCurrentMonth) {
-              reminderBox.style.display = 'none';
-              return;
-          }
-          
-          // 2. Cek apakah kehadiran sudah 100%
-          const percentage = parseInt(summary.persentase);
-          if (percentage === 100) {
-              reminderBox.style.display = 'none';
-              return;
-          }
-          
-          // 3. Hitung sisa hari
-          const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-          const remainingDays = lastDayOfMonth - today.getDate(); // 0 adalah hari terakhir
-          
-          // 4. Tentukan status & styling berdasarkan sisa hari
-          let statusClass = '';
-          let messageText = '';
-          // Menggunakan alpa (jumlah hari belum diisi) untuk detail
-          let detailText = `Kehadiran Anda saat ini: ${percentage}%. Total hari kerja yang belum diisi: ${summary.alpa}.`;
+          const currentYear = today.getFullYear();
+          const currentMonth = today.getMonth() + 1;
+          const currentDay = today.getDate();
 
-          // Catatan: Jika sisa 7 hari (remainingDays=7), maka HARI-7. Jika remainingDays=0, maka HARI TERAKHIR.
-          // Logika Anda: H-7 s/d H-4 = Kuning. H-3 s/d H-0 = Merah.
-          if (remainingDays >= 4 && remainingDays <= 7) {
-              // Sisa 4, 5, 6, 7 hari
-              statusClass = 'warning';
-              messageText = `Sisa ${remainingDays} Hari Pengisian Ceklok`; 
-          } else if (remainingDays >= 0 && remainingDays <= 3) {
-              // Sisa 0, 1, 2, 3 hari
-              statusClass = 'danger';
-              if (remainingDays === 0) {
-                  messageText = `Hari Terakhir Pengisian Ceklok!`;
-                  detailText = `Kehadiran Anda saat ini: ${percentage}%. Hari ini adalah batas akhir pengisian.`;
-              } else {
-                  messageText = `Sisa ${remainingDays} Hari Pengisian Ceklok`;
+          // Data Bulan Lalu
+          const lastMonthDate = new Date(today);
+          lastMonthDate.setMonth(today.getMonth() - 1);
+          const lastMonthYear = lastMonthDate.getFullYear();
+          const lastMonth = lastMonthDate.getMonth() + 1;
+          const lastMonthName = lastMonthDate.toLocaleDateString('id-ID', { month: 'long' });
+
+          // Status Penguncian & Pengajuan Bulan Lalu
+          const isLastMonthRequestable = appSettings.isRequestableMonth;
+          const requestDayLimit = currentSchoolSettings.requestDayLimit || 10;
+          
+          // ==========================================================
+          // LOGIKA 1: Pengingat Pelengkapan Ceklok Bulan Lalu (Tgl 1-5)
+          // ==========================================================
+          // Cek jika: Ini tgl 1-5 DAN persentase bulan ini (yang sedang dilihat) < 100%
+          if (currentDay >= 1 && currentDay <= 5 && summary.persentase < 100) {
+              
+              const isPastMonthLocked = appSettings.isMonthLocked; // Cek status kunci bulan lalu (sudah dikunci Admin)
+              const isPastMonthOpened = appSettings.openedMonths.includes(`${lastMonthYear}-${String(lastMonth).padStart(2, '0')}`);
+
+              // Jika bulan lalu TERKUNCI OLEH SISTEM & BELUM DIBUKA OLEH ADMIN (Ini adalah periode GRACE yang Anda maksud)
+              if (isPastMonthLocked && !isPastMonthOpened) {
+                  
+                  reminderBox.style.display = 'block';
+                  reminderBox.className = `card-section warning`;
+                  messageEl.innerText = `Lengkapi Ceklok ${lastMonthName} Segera!`;
+                  
+                  // Perubahan: Tambahkan tautan untuk masuk ke bulan lalu
+                  detailsEl.innerHTML = `Kehadiran Anda di bulan lalu masih ${summary.persentase}%. Klik kotak ini untuk melengkapi sampai tanggal <strong>5</strong>.`;
+                  
+                  // Set event handler untuk klik kotak (PENTING)
+                  reminderBox.onclick = () => {
+                      // Set 'currentDate' ke bulan lalu
+                      currentDate = lastMonthDate; 
+                      showCeklokPage(); // Masuk ke halaman ceklok
+                      // Hapus event setelah diklik
+                      reminderBox.onclick = null; 
+                  };
+                  return; // Hentikan di sini
               }
-          } else {
-              // Di luar H-7 (sembunyikan)
-              reminderBox.style.display = 'none';
-              return;
           }
           
-          // 5. Update UI
-          reminderBox.style.display = 'block';
-          reminderBox.className = `card-section ${statusClass}`;
-          messageEl.innerText = messageText;
-          detailsEl.innerText = detailText;
+          // ==========================================================
+          // LOGIKA 2: Pemberitahuan Pengajuan Perubahan (Tgl 6 s/d Batas)
+          // ==========================================================
+          // Cek jika: Ini tgl 6 s/d requestDayLimit DAN bulan lalu bisa diajukan
+          if (currentDay > 5 && currentDay <= requestDayLimit && isLastMonthRequestable) {
+              
+              const rejectionInfo = appSettings.rejectionInfo;
+              const isRequestPending = Object.keys(appSettings.pendingChanges || {}).length > 0;
+              
+              reminderBox.style.display = 'block';
+              
+              // Tentukan warna dan pesan berdasarkan status ajuan
+              if (isRequestPending) {
+                  // Pengajuan sedang ditinjau
+                  reminderBox.className = `card-section warning`;
+                  messageEl.innerText = `Pengajuan ${lastMonthName} Sedang Ditinjau`;
+                  detailsEl.innerText = `Ajuan perubahan data Anda untuk bulan ${lastMonthName} sedang menunggu persetujuan Staff.`;
+                  
+              } else if (rejectionInfo) {
+                  // Pengajuan ditolak
+                  reminderBox.className = `card-section danger`;
+                  messageEl.innerText = `Pengajuan ${lastMonthName} Ditolak!`;
+                  detailsEl.innerText = `Beberapa ajuan Anda untuk bulan ${lastMonthName} ditolak. Klik kotak ini untuk memperbaiki dan mengajukan ulang.`;
+                  
+              } else {
+                  // Belum ada ajuan (periode ajuan dibuka)
+                  reminderBox.className = `card-section warning`;
+                  messageEl.innerText = `Ajuan Perubahan ${lastMonthName} Dibuka`;
+                  detailsEl.innerHTML = `Ajuan perubahan data untuk bulan ${lastMonthName} dibuka sampai tanggal <strong>${requestDayLimit}</strong>. Klik kotak ini untuk mengajukan.`;
+              }
+
+              // Set event handler untuk klik kotak (PENTING)
+              reminderBox.onclick = () => {
+                  // Set 'currentDate' ke bulan lalu
+                  currentDate = lastMonthDate; 
+                  showCeklokPage(); // Masuk ke halaman ceklok (yang akan otomatis masuk mode pengajuan)
+                  // Hapus event setelah diklik
+                  reminderBox.onclick = null;
+              };
+              return; // Hentikan di sini
+          }
+          
+          // ==========================================================
+          // LOGIKA 3: Pengingat Ceklok Bulan Berjalan (H-7 s/d H-0)
+          // ==========================================================
+          // Jika tidak di Logika 1 atau 2, jalankan logika reminder bulan berjalan (kode lama)
+          
+          // Cek apakah ringkasan yang sedang dilihat adalah bulan berjalan
+          const summaryMonthInput = document.getElementById('summary-month-input').value;
+          if (!summaryMonthInput) return; // Keluar jika input kosong
+          const [summaryYear, summaryMonth] = summaryMonthInput.split('-').map(Number);
+          
+          if (currentYear === summaryYear && currentMonth === summaryMonth) {
+              
+              // Cek apakah kehadiran sudah 100%
+              if (summary.persentase === 100) return;
+              
+              // Hitung sisa hari
+              const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+              const remainingDays = lastDayOfMonth - currentDay; // 0 adalah hari terakhir
+              
+              let statusClass = '';
+              let messageText = '';
+              let detailText = `Kehadiran Anda saat ini: ${summary.persentase}%. Total hari kerja yang belum diisi: ${summary.alpa}.`;
+
+              if (remainingDays >= 4 && remainingDays <= 7) {
+                  statusClass = 'warning';
+                  messageText = `Sisa ${remainingDays} Hari Pengisian Ceklok`; 
+              } else if (remainingDays >= 0 && remainingDays <= 3) {
+                  statusClass = 'danger';
+                  if (remainingDays === 0) {
+                      messageText = `Hari Terakhir Pengisian Ceklok!`;
+                      detailText = `Kehadiran Anda saat ini: ${summary.persentase}%. Hari ini adalah batas akhir pengisian.`;
+                  } else {
+                      messageText = `Sisa ${remainingDays} Hari Pengisian Ceklok`;
+                  }
+              } else {
+                  return; // Di luar H-7 (sembunyikan)
+              }
+              
+              // Update UI untuk reminder bulan berjalan
+              reminderBox.style.display = 'block';
+              reminderBox.className = `card-section ${statusClass}`;
+              messageEl.innerText = messageText;
+              detailsEl.innerText = detailText;
+              reminderBox.onclick = null; // Hapus onclick jika ada dari logika lain
+          }
       }
-      // --- AKHIR TAMBAHAN: Logika Pengingat Ceklok ---
 
     </script>
   </body>
