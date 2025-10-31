@@ -309,67 +309,33 @@ function getAppSettingsForUser(email, school, year, month) {
 
 /**
  * ===================================================================
- * FUNGSI getAttendancePageData DIMODIFIKASI
+ * FUNGSI getAttendancePageData DIMODIFIKASI (Solusi 2)
  * ===================================================================
- * - Membaca 'opened_months' dari Settings.
- * - Logika 'isMonthLocked' diperbarui:
- * - Bulan lalu terkunci KECUALI ada di 'opened_months'.
- * - Bulan ini terkunci JIKA ada di 'locked_months'.
- * - 'isRequestableMonth' tetap ada untuk fitur pengajuan individual.
- * --- PERUBAHAN BARU ---
- * - Menerima parameter 'viewerEmail' untuk mengecek hak bypass.
- * - Mengembalikan 'hasGeoBypass' ke client.
+ * - Menggunakan helper cache: getGlobalSettings_(), getHolidays_(), getTeacherHolidays()
+ * - Menghapus pembacaan 'settingsSheet' dan 'holidaysSheet' secara manual.
  */
 function getAttendancePageData(email, school, year, month, token, viewerEmail = null) { // <-- 1. Tambah parameter viewerEmail
   try {
+    // 1. Panggilan ini sudah di-cache (Bagus!)
     const attendanceData = getMonthlyAttendance(email, school, year, month);
-    let lockedMonths = []; // Untuk mengunci bulan berjalan
-    let openedMonths = []; // Untuk membuka bulan lalu
-    let requestDayLimit = 10;
-    let lastMonthCeklokDayLimit = 5;
 
-    // --- AWAL PEMBACAAN SETTINGS BARU ---
-    try {
-      const settingsData = settingsSheet.getDataRange().getValues();
-      settingsData.forEach(row => {
-        if (row[0] === 'locked_months' && row[1]) {
-          try { lockedMonths = JSON.parse(row[1]); } catch(e){}
-        }
-        // Baca key baru 'opened_months'
-        if (row[0] === 'opened_months' && row[1]) {
-          try { openedMonths = JSON.parse(row[1]); } catch(e){}
-        }
-        if (row[0] === 'request_day_limit' && row[1]) {
-          const parsedLimit = parseInt(row[1], 10);
-          if (!isNaN(parsedLimit) && parsedLimit > 0) {
-            requestDayLimit = parsedLimit;
-          }
-        }
-        if (row[0] === 'last_month_ceklok_day_limit' && row[1]) {
-          const parsedLimit = parseInt(row[1], 10);
-          if (!isNaN(parsedLimit) && parsedLimit > 0) {
-            lastMonthCeklokDayLimit = parsedLimit;
-          }
-        }
-      });
-    } catch (e) {
-      Logger.log(`Error parsing settings in getAttendancePageData: ${e.toString()}`);
-    }
-    // --- AKHIR PEMBACAAN SETTINGS BARU ---
+    // --- AWAL OPTIMASI ---
+    // 2. Panggil helper yang sudah di-cache (super cepat)
+    const globalSettings = getGlobalSettings_();
+    const holidays = getHolidays_();
+    const teacherHolidays = getTeacherHolidays(email); // Ini sekarang juga cepat
 
-    const holidays = {};
-    try {
-      const holidaysData = holidaysSheet.getDataRange().getValues().slice(1);
-      holidaysData.forEach(row => {
-        if (row[0] instanceof Date && row[1]) holidays[Utilities.formatDate(row[0], "Asia/Makassar", "yyyy-MM-dd")] = row[1];
-      });
-    } catch (e) {
-      Logger.log(`Error parsing holidays in getAttendancePageData: ${e.toString()}`);
-    }
+    // 3. Ambil nilai dari helper
+    let lockedMonths = globalSettings.lockedMonths;
+    let openedMonths = globalSettings.openedMonths;
+    let requestDayLimit = globalSettings.requestDayLimit;
+    let lastMonthCeklokDayLimit = globalSettings.lastMonthCeklokDayLimit;
+    
+    // HAPUS SEMUA blok try-catch yang membaca 'settingsSheet' dan 'holidaysSheet' secara manual
+    // --- AKHIR OPTIMASI ---
 
-    const teacherHolidays = getTeacherHolidays(email);
-    const announcements = getAnnouncements();
-    const schoolSettingsMap = getSchoolSettingsMap_();
+    const announcements = getAnnouncements(); // Ini cepat (1 sel)
+    const schoolSettingsMap = getSchoolSettingsMap_(); // Ini di-cache
     
     // --- AWAL TAMBAHAN ---
     // Ambil timestamp pengumuman untuk auto-reload
@@ -493,9 +459,8 @@ function getAttendancePageData(email, school, year, month, token, viewerEmail = 
 
     return {
       attendance: attendanceData,
-      // lockedMonths: lockedMonths, // 'lockedMonths' tidak perlu dikirim lagi ke client
-      holidays: holidays,
-      teacherHolidays: teacherHolidays,
+      holidays: holidays, // <-- Kirim data dari helper
+      teacherHolidays: teacherHolidays, // <-- Kirim data dari helper
       token: token,
       announcements: announcements,
       announcementTimestamp: announcementTimestamp, // <-- 1. Kirim timestamp
@@ -506,7 +471,7 @@ function getAttendancePageData(email, school, year, month, token, viewerEmail = 
       rejectionInfo: rejectionInfo, // <-- Tetap kirim ini
       rejectedChanges: rejectedChanges, // <-- Tetap kirim ini
       hasGeoBypass: hasGeoBypass, // <-- 2. Kirim status bypass ke client
-      lastMonthCeklokDayLimit: lastMonthCeklokDayLimit
+      lastMonthCeklokDayLimit: lastMonthCeklokDayLimit // <-- Kirim data dari helper
     };
   } catch (error) {
      Logger.log(`CRITICAL ERROR in getAttendancePageData for ${email}, ${school}, ${year}-${month}: ${error.toString()} \nStack: ${error.stack}`);
@@ -574,15 +539,14 @@ function getMonthlyAttendance(email, school, year, month) {
   }
 }
 
+// GANTI FUNGSI LAMA saveMonthlyAttendance DENGAN INI
 /**
  * ===================================================================
- * FUNGSI saveMonthlyAttendance DIMODIFIKASI
+ * FUNGSI saveMonthlyAttendance DIMODIFIKASI (Solusi 4)
  * ===================================================================
- * - Validasi penguncian menggunakan logika baru (opened_months/locked_months).
- * - Validasi Geo-location tetap ada.
- * --- PERUBAHAN BARU ---
- * - Menerima parameter 'staffEmailBypass'.
- * - Melewati validasi Geo-lock jika staffEmailBypass ada di daftar.
+ * - Validasi penguncian menggunakan helper cache 'getGlobalSettings_()'.
+ * - Perhitungan summary 100% menggunakan data 'payload.attendance' dari klien,
+ * bukan membaca ulang sheet.
  */
 function saveMonthlyAttendance(payload, staffEmailBypass = null) { // <-- 1. Tambah parameter staffEmailBypass
   try {
@@ -598,23 +562,21 @@ function saveMonthlyAttendance(payload, staffEmailBypass = null) { // <-- 1. Tam
     const TIMEZONE = "Asia/Makassar";
     const monthStr = `${year}-${String(month).padStart(2, '0')}`; // Format YYYY-MM bulan data
 
-    // --- AWAL VALIDASI PENGUNCIAN BARU ---
+    // --- AWAL OPTIMASI 1: Validasi Penguncian (Menggunakan Cache) ---
+    // 1. Panggil helper cache (super cepat)
+    const globalSettings = getGlobalSettings_();
+    
     const today = new Date();
     const currentYear = today.getFullYear();
     const currentMonth = today.getMonth() + 1;
+    const currentDayOfMonth = today.getDate(); // Tambahan untuk cek grace period
     const isPastMonth = year < currentYear || (year === currentYear && month < currentMonth);
     const isCurrentMonthView = (year === currentYear && month === currentMonth);
 
     let isSavingLockedMonth = false;
-    let lockedMonths = [];
-    let openedMonths = [];
-    try {
-        const settingsData = settingsSheet.getDataRange().getValues();
-        settingsData.forEach(row => {
-          if (row[0] === 'locked_months' && row[1]) { try { lockedMonths = JSON.parse(row[1]); } catch(e){} }
-          if (row[0] === 'opened_months' && row[1]) { try { openedMonths = JSON.parse(row[1]); } catch(e){} }
-        });
-    } catch (e) {}
+    let lockedMonths = globalSettings.lockedMonths; // Ambil dari helper
+    let openedMonths = globalSettings.openedMonths; // Ambil dari helper
+    let lastMonthCeklokDayLimit = globalSettings.lastMonthCeklokDayLimit; // Ambil dari helper
 
     if (isCurrentMonthView) {
       // Jika ini bulan berjalan, cek 'locked_months'
@@ -622,9 +584,20 @@ function saveMonthlyAttendance(payload, staffEmailBypass = null) { // <-- 1. Tam
         isSavingLockedMonth = true;
       }
     } else if (isPastMonth) {
-      // Jika ini bulan lalu, cek apakah TIDAK ada di 'opened_months'
-      if (!openedMonths.includes(monthStr)) {
-        isSavingLockedMonth = true;
+      // Jika ini bulan lalu/lampau
+      const lastMonthDateCheck = new Date();
+      lastMonthDateCheck.setMonth(lastMonthDateCheck.getMonth() - 1);
+      const lastMonthStrCheck = `${lastMonthDateCheck.getFullYear()}-${String(lastMonthDateCheck.getMonth() + 1).padStart(2, '0')}`;
+      const isTargetMonthLastMonth = (monthStr === lastMonthStrCheck);
+
+      // Cek apakah di dalam GRACE PERIOD
+      if (isTargetMonthLastMonth && currentDayOfMonth <= lastMonthCeklokDayLimit && currentDayOfMonth >= 1) {
+          isSavingLockedMonth = false; // BUKA
+      } else {
+          // Jika di luar grace period, cek apakah 'dibuka'
+          if (!openedMonths.includes(monthStr)) {
+            isSavingLockedMonth = true; // Terkunci jika tidak ada di 'openedMonths'
+          }
       }
     } else {
        // Bulan depan, otomatis terkunci
@@ -639,7 +612,7 @@ function saveMonthlyAttendance(payload, staffEmailBypass = null) { // <-- 1. Tam
          message: "Gagal Menyimpan: Absensi untuk bulan ini telah dikunci oleh Admin."
        };
     }
-    // --- AKHIR VALIDASI PENGUNCIAN BARU ---
+    // --- AKHIR OPTIMASI 1 ---
 
     // --- AWAL VALIDASI GEOLOCATION (TETAP SAMA) ---
     const schoolSettingsMap = getSchoolSettingsMap_();
@@ -662,6 +635,7 @@ function saveMonthlyAttendance(payload, staffEmailBypass = null) { // <-- 1. Tam
     // --- AKHIR VALIDASI GEOLOCATION ---
 
     // --- Proses penyimpanan (TIDAK BERUBAH) ---
+    // (Ini adalah satu-satunya .getValues() yang diperlukan)
     const sheet = getAttendanceSheet_(year, month, true);
     const allData = sheet.getDataRange().getValues();
     const existingRecords = {};
@@ -688,24 +662,42 @@ function saveMonthlyAttendance(payload, staffEmailBypass = null) { // <-- 1. Tam
     if (rowsToUpdate.length > 0) rowsToUpdate.forEach(update => sheet.getRange(update.range).setValues(update.values));
     // --- Akhir Proses penyimpanan ---
 
-    // --- Logika Notifikasi 100% (TIDAK BERUBAH) ---
+    // --- AWAL OPTIMASI 2: Logika Notifikasi 100% ---
     try {
-      const holidaysData = holidaysSheet.getDataRange().getValues().slice(1); const nationalHolidays = {};
-      holidaysData.forEach(row => { if (row[0] instanceof Date && row[1]) nationalHolidays[Utilities.formatDate(row[0], "Asia/Makassar", "yyyy-MM-dd")] = row[1]; });
-      const userCacheKey_temp = `data_${email}_${school}_${year}_${month}`; CacheService.getScriptCache().remove(userCacheKey_temp);
-      const teacherHolidays = getTeacherHolidays(email); const freshAttendanceData = getMonthlyAttendance(email, school, year, month);
-      const summary = calculateSummaryForUser_(freshAttendanceData, teacherHolidays, nationalHolidays, year, month);
-      const notificationKey = `completion_notif_${email}_${school}_${monthStr}`; const userProperties = PropertiesService.getUserProperties();
-      const notificationSent = userProperties.getProperty(notificationKey); const monthName = new Date(year, month - 1, 1).toLocaleString('id-ID', { month: 'long', year: 'numeric', timeZone: 'Asia/Makassar' });
+      // 1. Panggil helper cache (super cepat)
+      const nationalHolidays = getHolidays_();
+      const teacherHolidays = getTeacherHolidays(email); // Ini juga cepat
+
+      // 2. Hapus cache (OK)
+      const userCacheKey_temp = `data_${email}_${school}_${year}_${month}`; 
+      CacheService.getScriptCache().remove(userCacheKey_temp);
+      
+      // 3. JANGAN MEMBACA SHEET LAGI!
+      // HAPUS: const freshAttendanceData = getMonthlyAttendance(email, school, year, month);
+      
+      // 4. GUNAKAN data 'attendance' dari 'payload' yang dikirim klien
+      // Ini adalah data paling update yang baru saja Anda simpan.
+      const summary = calculateSummaryForUser_(attendance, teacherHolidays, nationalHolidays, year, month);
+      
+      const notificationKey = `completion_notif_${email}_${school}_${monthStr}`; 
+      const userProperties = PropertiesService.getUserProperties();
+      const notificationSent = userProperties.getProperty(notificationKey); 
+      const monthName = new Date(year, month - 1, 1).toLocaleString('id-ID', { month: 'long', timeZone: 'Asia/Makassar' });
+      
       if (summary.persentase === 100) {
         if (notificationSent !== 'sent') {
           const subject = `Ceklok Selesai: Kehadiran ${school} Anda 100%`;
           const body = `<p>Halo ${name},</p><p>Luar biasa! Pengisian ceklok kehadiran Anda untuk <strong>${school}</strong> bulan <strong>${monthName}</strong> telah lengkap (100%).</p><p>Berikut adalah ringkasan Anda:</p><ul><li>Hari Kerja: ${summary.hariKerja}</li><li>Kehadiran: ${summary.kehadiran}</li><li>Alpa: ${summary.alpa}</li><li>Alasan (Libur Sekolah/Lainnya): ${summary.alasan}</li><li>Total Ceklok: ${summary.ceklok}</li><li><strong>Persentase: ${summary.persentase}%</strong></li></ul><p>Terima kasih atas kedisiplinan Anda.</p><br><p><em>(Ini adalah notifikasi otomatis...)</em></p>`;
-          MailApp.sendEmail({ to: email, subject: subject, htmlBody: body, name: "Sistem Ceklok Otomatis" }); userProperties.setProperty(notificationKey, 'sent');
+          MailApp.sendEmail({ to: email, subject: subject, htmlBody: body, name: "Sistem Ceklok Otomatis" }); 
+          userProperties.setProperty(notificationKey, 'sent');
         }
-      } else { if (notificationSent === 'sent') userProperties.deleteProperty(notificationKey); }
-    } catch (e) { Logger.log(`Gagal mengirim notifikasi penyelesaian 100% untuk ${email} di ${school}: ${e.message}`); }
-    // --- Akhir Logika Notifikasi ---
+      } else { 
+        if (notificationSent === 'sent') userProperties.deleteProperty(notificationKey); 
+      }
+    } catch (e) { 
+      Logger.log(`Gagal mengirim notifikasi 100% (Optimized) untuk ${email}: ${e.message}`); 
+    }
+    // --- AKHIR OPTIMASI 2 ---
 
     // --- Hapus Cache (TIDAK BERUBAH) ---
     const cache = CacheService.getScriptCache();
@@ -715,7 +707,7 @@ function saveMonthlyAttendance(payload, staffEmailBypass = null) { // <-- 1. Tam
 
     return { status: "success", message: "Absensi bulan ini berhasil diperbarui!" };
   } catch (e) {
-    Logger.log(`Error di saveMonthlyAttendance: ${e.toString()}`);
+    Logger.log(`Error di saveMonthlyAttendance: ${e.toString()} \nStack: ${e.stack}`);
     return { status: "error", message: "Gagal menyimpan absensi. Terjadi kesalahan server." };
   }
 }
@@ -804,15 +796,21 @@ function getAttendanceSummary(userEmail, school, year, month) {
   }
 }
 
+// GANTI FUNGSI LAMA getSchoolAttendanceSummary DENGAN INI
 function getSchoolAttendanceSummary(userEmail, school, year, month) {
   try {
-    const teachers = getSchoolTeachers(userEmail, school);
+    const teachers = getSchoolTeachers(userEmail, school); // OK (Baca: usersSheet, urutanNamaSheet)
     if (!school || teachers.length === 0) return [];
 
-    const holidaysData = holidaysSheet.getDataRange().getValues().slice(1);
-    const teacherHolidaysData = teacherHolidaysSheet.getDataRange().getValues().slice(1);
+    // --- AWAL OPTIMASI (Solusi 3) ---
+    // HAPUS pembacaan 'holidaysData' dan 'teacherHolidaysData'
     
-    // --- CACHE LOGIC ---
+    // 1. Panggil helper cache (super cepat)
+    const nationalHolidays = getHolidays_();
+    const teacherHolidaysMap = getTeacherHolidaysMap_();
+    // --- AKHIR OPTIMASI ---
+
+    // --- CACHE LOGIC (Bagian ini sudah bagus, biarkan) ---
     const cache = CacheService.getScriptCache();
     const rawCacheKey = `raw_display_attendance_${school}_${year}_${month}`; 
     let allAttendanceValues;
@@ -826,33 +824,27 @@ function getSchoolAttendanceSummary(userEmail, school, year, month) {
       allAttendanceValues = JSON.parse(cachedData);
     } else {
       Logger.log(`Membaca summary mentah dari sheet: ${rawCacheKey}`);
-      const attendanceSheet = getAttendanceSheet_(year, month, false);
+      const attendanceSheet = getAttendanceSheet_(year, month, false); // OK (Baca: attendanceSheet)
 
       // --- AWAL PERBAIKAN UTAMA: Menggunakan getValues() ---
-      // Mengganti getDisplayValues() yang tidak stabil
+      // (Kode ini sudah ada di file Anda dan sudah benar)
       allAttendanceValues = attendanceSheet && attendanceSheet.getLastRow() > 1
         ? attendanceSheet.getRange(2, 1, attendanceSheet.getLastRow() - 1, 8).getValues() 
         : [];
       // --- AKHIR PERBAIKAN UTAMA ---
       
       // Simpan data mentah dari getValues() ke cache
-      // Kita perlu JSON.stringify khusus untuk Objek Tanggal
-      cache.put(rawCacheKey, JSON.stringify(allAttendanceValues), 21600);
+      cache.put(rawCacheKey, JSON.stringify(allAttendanceValues), 21600); // Simpan ke cache
     }
     // --- AKHIR CACHE LOGIC ---
 
-    const nationalHolidays = {};
-    holidaysData.forEach(row => {
-      if (row[0] instanceof Date && row[1]) {
-        nationalHolidays[Utilities.formatDate(row[0], "Asia/Makassar", "yyyy-MM-dd")] = row[1];
-      }
-    });
-
-    const teacherHolidaysMap = new Map(teacherHolidaysData.map(row => [row[0].toLowerCase(), row.slice(1, 7)]));
+    // HAPUS loop 'holidaysData' (sudah di-handle 'getHolidays_')
+    // HAPUS pembuatan 'teacherHolidaysMap' manual (sudah di-handle 'getTeacherHolidaysMap_')
     
     const attendanceByEmail = {};
     
     allAttendanceValues.forEach(row => {
+      if (!row[1] || !row[3]) return; // Proteksi tambahan
       const recordEmail = row[1].toLowerCase();
       const recordSchool = row[3];
       
@@ -863,7 +855,7 @@ function getSchoolAttendanceSummary(userEmail, school, year, month) {
         }
         
         // --- AWAL PERBAIKAN KEDUA: Membaca data dari getValues() ---
-        // row[4] sekarang adalah Objek Tanggal, bukan string
+        // (Kode ini sudah ada di file Anda dan sudah benar)
         const recordDate = new Date(row[4]);
         if (!recordDate || isNaN(recordDate)) return; // Lewati jika tanggal tidak valid
         const formattedDate = Utilities.formatDate(recordDate, TIMEZONE, "yyyy-MM-dd");
@@ -871,8 +863,7 @@ function getSchoolAttendanceSummary(userEmail, school, year, month) {
 
         if (formattedDate) {
           // --- AWAL PERBAIKAN KETIGA: Membaca waktu dari getValues() ---
-          // row[5] (JamMasuk) dan row[6] (JamPulang) bisa jadi Objek Tanggal atau string
-          // Kita gunakan helper baru 'formatTimeFromValue_'
+          // (Kode ini sudah ada di file Anda dan sudah benar)
           let checkIn = formatTimeFromValue_(row[5], TIMEZONE);
           let checkOut = formatTimeFromValue_(row[6], TIMEZONE);
           // --- AKHIR PERBAIKAN KETIGA ---
@@ -882,10 +873,12 @@ function getSchoolAttendanceSummary(userEmail, school, year, month) {
       }
     });
 
-    // Sisa fungsi (kalkulasi summary) tidak berubah
+    // Sisa fungsi (kalkulasi summary)
     const summaries = teachers.map(teacher => {
         const teacherEmail = teacher.email.toLowerCase();
         const teacherAttendance = attendanceByEmail[teacherEmail] || {};
+        
+        // MODIFIKASI: 'teacherHolidaysMap' dan 'nationalHolidays' sekarang berasal dari helper cache
         const teacherHolidays = teacherHolidaysMap.get(teacherEmail) || Array(6).fill(false);
         const summaryResult = calculateSummaryForUser_(teacherAttendance, teacherHolidays, nationalHolidays, year, month);
         
@@ -1748,12 +1741,16 @@ function getSchoolTeachers(userEmail, selectedSchool) {
   return teachers;
 }
 
+/**
+ * FUNGSI DIPERBARUI (dari Solusi 1): Gunakan helper cache.
+ */
 function getTeacherHolidays(email) {
   if (!email) return Array(6).fill(false);
   try {
-    const data = teacherHolidaysSheet.getDataRange().getValues();
-    const userRow = data.find(row => row[0].toLowerCase() === email.toLowerCase());
-    return userRow ? userRow.slice(1, 7) : Array(6).fill(false);
+    // MODIFIKASI: Panggil helper cache
+    const teacherHolidaysMap = getTeacherHolidaysMap_(); 
+    // Ambil data dari Map (super cepat)
+    return teacherHolidaysMap.get(email.toLowerCase()) || Array(6).fill(false);
   } catch (e) {
     Logger.log(`Error getting teacher holidays: ${e.toString()}`);
     return Array(6).fill(false);
@@ -1787,6 +1784,7 @@ function saveTeacherHolidays(email, settings) {
 }
 
 // --- AWAL PERUBAHAN BESAR: Logika Notifikasi Email ---
+// GANTI FUNGSI LAMA ANDA DENGAN YANG INI
 function sendIncompleteAttendanceReminders() {
   const today = new Date();
   const year = today.getFullYear();
@@ -1796,23 +1794,66 @@ function sendIncompleteAttendanceReminders() {
 
   // PERUBAHAN 1: Update hari pengingat (H-7, H-5 s/d H-0)
   const reminderDays = [7, 5, 4, 3, 2, 1, 0]; 
-  if (!reminderDays.includes(remainingDays)) return;
+  if (!reminderDays.includes(remainingDays)) return; // Hentikan jika bukan hari pengingat
 
-  // Cek apakah notifikasi 100% sudah pernah terkirim (agar tidak kirim pengingat jika sudah 100%)
+  Logger.log(`Menjalankan pengingat harian untuk H-${remainingDays}`);
+
+  // --- AWAL OPTIMASI (BATCH READ) ---
+  // 1. Baca semua data yang diperlukan SATU KALI di luar loop
   const userProperties = PropertiesService.getUserProperties();
-
   const allUsers = usersSheet.getDataRange().getValues().slice(1);
   const teachers = allUsers.filter(user => user[4] === 'guru');
   const monthName = new Date(year, month - 1, 1).toLocaleString('id-ID', { month: 'long', year: 'numeric', timeZone: 'Asia/Makassar' });
+  const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+  const TIMEZONE = "Asia/Makassar";
+  
+  // 2. Gunakan helper cache yang baru dibuat (super cepat)
+  const nationalHolidays = getHolidays_(); 
+  const teacherHolidaysMap = getTeacherHolidaysMap_();
+
+  // 3. Baca data absensi bulan ini SATU KALI
+  const attendanceSheet = getAttendanceSheet_(year, month, false);
+  // Jika sheet absensi belum ada / masih kosong, hentikan trigger
+  if (!attendanceSheet || attendanceSheet.getLastRow() < 2) {
+    Logger.log("Tidak ada data absensi untuk bulan ini, trigger dihentikan.");
+    return; 
+  }
+  const allAttendanceValues = attendanceSheet.getDataRange().getValues().slice(1); // Skip header
+
+  // 4. Kelompokkan data absensi ke dalam Map agar cepat dicari
+  const attendanceByEmailSchool = new Map();
+  allAttendanceValues.forEach(row => {
+    try {
+      if (!row[1] || !row[3]) return; // Lewati jika email atau sekolah kosong
+      const email = String(row[1]).toLowerCase();
+      const school = String(row[3]);
+      const key = `${email}_${school}`;
+      
+      if (!attendanceByEmailSchool.has(key)) {
+        attendanceByEmailSchool.set(key, {});
+      }
+      
+      const formattedDate = Utilities.formatDate(new Date(row[4]), TIMEZONE, "yyyy-MM-dd");
+      let checkIn = formatTimeFromValue_(row[5], TIMEZONE); // Gunakan helper formatTime
+      let checkOut = formatTimeFromValue_(row[6], TIMEZONE); // Gunakan helper formatTime
+      
+      attendanceByEmailSchool.get(key)[formattedDate] = { checkIn, checkOut, reason: row[7] || "" };
+    } catch(e) {
+      Logger.log(`Error parsing baris absensi saat batch reminder: ${e.message} - Data: ${row}`);
+    }
+  });
+  // --- AKHIR OPTIMASI (BATCH READ) ---
 
   teachers.forEach(teacher => {
     const teacherEmail = teacher[0];
     const teacherName = teacher[2];
     const teacherSchools = (teacher[3] || "").split(',').map(s => s.trim()).filter(Boolean);
+    
+    // Ambil data libur guru dari Map (super cepat)
+    const teacherHolidays = teacherHolidaysMap.get(teacherEmail.toLowerCase()) || Array(6).fill(false);
 
     teacherSchools.forEach(school => {
-      // PERUBAHAN 2: Cek properti notifikasi 100%
-      const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+      // Cek apakah notifikasi 100% sudah terkirim
       const notificationKey = `completion_notif_${teacherEmail}_${school}_${monthStr}`;
       const completionNotificationSent = userProperties.getProperty(notificationKey);
 
@@ -1821,11 +1862,16 @@ function sendIncompleteAttendanceReminders() {
         return; 
       }
 
-      const summaryResult = getAttendanceSummary(teacherEmail, school, year, month);
+      // --- PERUBAHAN UTAMA ---
+      // Ambil data absensi dari Map (super cepat), BUKAN panggil getAttendanceSummary()
+      const attendanceData = attendanceByEmailSchool.get(`${teacherEmail.toLowerCase()}_${school}`) || {};
+      
+      // Hitung summary secara manual (in-memory) menggunakan helper kalkulasi
+      const summary = calculateSummaryForUser_(attendanceData, teacherHolidays, nationalHolidays, year, month);
+      // --- AKHIR PERUBAHAN UTAMA ---
       
       // Jika persentase kurang dari 100% (dan notifikasi 100% belum terkirim)
-      if (summaryResult.success && summaryResult.summary.persentase < 100) {
-        const summary = summaryResult.summary;
+      if (summary.persentase < 100) {
         
         // PERUBAHAN 3: Update Subjek dan Isi Email
         let sisaWaktu;
@@ -3642,4 +3688,110 @@ function clearSchoolSettingsCacheManual(token) {
     Logger.log(`Failed to clear school settings cache manually: ${err.message}`);
     return { success: false, error: err.message };
   }
+}
+
+/**
+ * HELPER (dari Solusi 1): Mengambil hari libur nasional dari cache.
+ * Cache 6 jam.
+ */
+function getHolidays_() {
+  const cache = CacheService.getScriptCache();
+  const CACHE_KEY = "national_holidays_v2";
+  const cached = cache.get(CACHE_KEY);
+  if (cached) {
+    return JSON.parse(cached);
+  }
+
+  const holidays = {};
+  try {
+    // Pastikan sheet libur ada dan punya data
+    if (holidaysSheet.getLastRow() > 1) {
+      const holidaysData = holidaysSheet.getDataRange().getValues().slice(1);
+      holidaysData.forEach(row => {
+        if (row[0] instanceof Date && row[1]) {
+          holidays[Utilities.formatDate(row[0], "Asia/Makassar", "yyyy-MM-dd")] = row[1];
+        }
+      });
+    }
+  } catch (e) {
+    Logger.log(`Error parsing holidays in getHolidays_: ${e.toString()}`);
+  }
+  
+  cache.put(CACHE_KEY, JSON.stringify(holidays), 21600); // Cache selama 6 jam
+  return holidays;
+}
+
+/**
+ * HELPER (dari Solusi 1): Mengambil SELURUH data libur guru dan menyimpannya di cache.
+ * Cache 1 jam.
+ */
+function getTeacherHolidaysMap_() {
+  const cache = CacheService.getScriptCache();
+  const CACHE_KEY = "all_teacher_holidays_v2";
+  const cached = cache.get(CACHE_KEY);
+  if (cached) {
+    return new Map(JSON.parse(cached)); // Buat ulang Map dari data cache
+  }
+
+  const teacherHolidaysMap = new Map();
+  try {
+    // Pastikan sheet libur guru ada dan punya data
+    if (teacherHolidaysSheet.getLastRow() > 1) {
+      const data = teacherHolidaysSheet.getDataRange().getValues().slice(1); // Baca 1x
+      data.forEach(row => {
+        if(row[0]) { // Pastikan email ada
+          teacherHolidaysMap.set(String(row[0]).toLowerCase(), row.slice(1, 7)); // Simpan data libur [senin...sabtu]
+        }
+      });
+    }
+  } catch (e) {
+    Logger.log(`Error parsing teacher holidays in getTeacherHolidaysMap_: ${e.toString()}`);
+  }
+  
+  // Ubah Map jadi Array untuk disimpan di cache
+  cache.put(CACHE_KEY, JSON.stringify(Array.from(teacherHolidaysMap.entries())), 3600); // Cache 1 jam
+  return teacherHolidaysMap;
+}
+
+/**
+ * HELPER BARU: Mengambil pengaturan global (locked/opened months) dari cache.
+ * Cache 1 jam.
+ */
+function getGlobalSettings_() {
+  const cache = CacheService.getScriptCache();
+  const CACHE_KEY = "global_settings_v2";
+  const cached = cache.get(CACHE_KEY);
+  if (cached) {
+    return JSON.parse(cached);
+  }
+
+  let lockedMonths = [];
+  let openedMonths = [];
+  let requestDayLimit = 10;
+  let lastMonthCeklokDayLimit = 5;
+
+  try {
+    // Pastikan sheet pengaturan ada dan punya data
+    if (settingsSheet.getLastRow() > 1) {
+      const settingsData = settingsSheet.getDataRange().getValues();
+      settingsData.forEach(row => {
+        if (row[0] === 'locked_months' && row[1]) { try { lockedMonths = JSON.parse(row[1]); } catch(e){} }
+        if (row[0] === 'opened_months' && row[1]) { try { openedMonths = JSON.parse(row[1]); } catch(e){} }
+        if (row[0] === 'request_day_limit' && row[1]) {
+          const parsedLimit = parseInt(row[1], 10);
+          if (!isNaN(parsedLimit) && parsedLimit > 0) requestDayLimit = parsedLimit;
+        }
+        if (row[0] === 'last_month_ceklok_day_limit' && row[1]) {
+          const parsedLimit = parseInt(row[1], 10);
+          if (!isNaN(parsedLimit) && parsedLimit > 0) lastMonthCeklokDayLimit = parsedLimit;
+        }
+      });
+    }
+  } catch (e) {
+    Logger.log(`Error parsing settings in getGlobalSettings_: ${e.toString()}`);
+  }
+  
+  const settings = { lockedMonths, openedMonths, requestDayLimit, lastMonthCeklokDayLimit };
+  cache.put(CACHE_KEY, JSON.stringify(settings), 3600); // Cache selama 1 jam
+  return settings;
 }
