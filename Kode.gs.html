@@ -326,6 +326,7 @@ function getAttendancePageData(email, school, year, month, token, viewerEmail = 
     let lockedMonths = []; // Untuk mengunci bulan berjalan
     let openedMonths = []; // Untuk membuka bulan lalu
     let requestDayLimit = 10;
+    let lastMonthCeklokDayLimit = 5;
 
     // --- AWAL PEMBACAAN SETTINGS BARU ---
     try {
@@ -342,6 +343,12 @@ function getAttendancePageData(email, school, year, month, token, viewerEmail = 
           const parsedLimit = parseInt(row[1], 10);
           if (!isNaN(parsedLimit) && parsedLimit > 0) {
             requestDayLimit = parsedLimit;
+          }
+        }
+        if (row[0] === 'last_month_ceklok_day_limit' && row[1]) {
+          const parsedLimit = parseInt(row[1], 10);
+          if (!isNaN(parsedLimit) && parsedLimit > 0) {
+            lastMonthCeklokDayLimit = parsedLimit;
           }
         }
       });
@@ -377,17 +384,36 @@ function getAttendancePageData(email, school, year, month, token, viewerEmail = 
     const currentDayOfMonth = today.getDate();
     const monthStr = `${year}-${String(month).padStart(2, '0')}`; // Format YYYY-MM bulan yang diminta
 
-    // --- AWAL LOGIKA PENGUNCIAN BARU ---
+    // --- AWAL LOGIKA PENGUNCIAN BARU (Menggantikan logika lama yang keras) ---
     let isMonthLocked;
     const isPastMonth = year < currentYear || (year === currentYear && month < currentMonth);
     const isCurrentMonthView = (year === currentYear && month === currentMonth);
-
+    
     if (isCurrentMonthView) {
       // Jika ini bulan berjalan, cek apakah ada di 'locked_months'
       isMonthLocked = lockedMonths.includes(monthStr);
+
     } else if (isPastMonth) {
-      // Jika ini bulan lalu, cek apakah TIDAK ada di 'opened_months'
-      isMonthLocked = !openedMonths.includes(monthStr);
+      // Jika ini bulan lalu/lampau
+      
+      const lastMonthDateCheck = new Date();
+      lastMonthDateCheck.setMonth(lastMonthDateCheck.getMonth() - 1);
+      const lastMonthStrCheck = `${lastMonthDateCheck.getFullYear()}-${String(lastMonthDateCheck.getMonth() + 1).padStart(2, '0')}`;
+      
+      // 1. Cek apakah ini BULAN LALU (berdasarkan hari ini)
+      const isTargetMonthLastMonth = (monthStr === lastMonthStrCheck);
+      
+      // 2. Tentukan status kunci
+      if (isTargetMonthLastMonth && currentDayOfMonth <= lastMonthCeklokDayLimit && currentDayOfMonth >= 1) {
+          // Jika ini bulan lalu DAN masih di dalam GRACE PERIOD (Tgl 1 s/d limit)
+          isMonthLocked = false; // BUKA
+          
+      } else {
+          // Jika ini bulan yang lebih lampau ATAU bulan lalu tapi sudah melewati GRACE PERIOD
+          // Cek apakah TIDAK ada di 'opened_months'
+          isMonthLocked = !openedMonths.includes(monthStr);
+      }
+      
     } else {
       // Jika ini bulan depan, anggap terkunci
       isMonthLocked = true;
@@ -479,7 +505,8 @@ function getAttendancePageData(email, school, year, month, token, viewerEmail = 
       pendingChanges: pendingChanges, // <-- Tetap kirim ini
       rejectionInfo: rejectionInfo, // <-- Tetap kirim ini
       rejectedChanges: rejectedChanges, // <-- Tetap kirim ini
-      hasGeoBypass: hasGeoBypass // <-- 2. Kirim status bypass ke client
+      hasGeoBypass: hasGeoBypass, // <-- 2. Kirim status bypass ke client
+      lastMonthCeklokDayLimit: lastMonthCeklokDayLimit
     };
   } catch (error) {
      Logger.log(`CRITICAL ERROR in getAttendancePageData for ${email}, ${school}, ${year}-${month}: ${error.toString()} \nStack: ${error.stack}`);
@@ -491,7 +518,8 @@ function getAttendancePageData(email, school, year, month, token, viewerEmail = 
         schoolSettings: {},
         isMonthLocked: true, // Kunci sebagai fallback jika error
         isRequestableMonth: false, pendingChanges: {}, rejectionInfo: null, rejectedChanges: [],
-        hasGeoBypass: false // <-- 5. Tambahkan di error fallback
+        hasGeoBypass: false, // <-- 5. Tambahkan di error fallback
+        lastMonthCeklokDayLimit: 5
      };
   }
 }
@@ -1575,16 +1603,18 @@ function setSetting_(key, value) {
 function getSettings(adminEmail) {
   if (!checkIfAdmin(adminEmail)) throw new Error("Akses ditolak.");
 
-  let lockedMonthsStr = "[]"; // Untuk bulan berjalan
-  let openedMonthsStr = "[]"; // Untuk bulan lalu
-  let requestDayLimit = "10"; // Default
+  let lockedMonthsStr = "[]";
+  let openedMonthsStr = "[]";
+  let requestDayLimit = "10";
+  let lastMonthCeklokDayLimit = "5"; // <-- TAMBAHKAN DEFAULT
 
   try {
     const settingsData = settingsSheet.getDataRange().getValues();
     settingsData.forEach(row => {
       if (row[0] === 'locked_months') lockedMonthsStr = row[1] || "[]";
-      if (row[0] === 'opened_months') openedMonthsStr = row[1] || "[]"; // Baca opened_months
+      if (row[0] === 'opened_months') openedMonthsStr = row[1] || "[]";
       if (row[0] === 'request_day_limit') requestDayLimit = String(row[1] || "10");
+      if (row[0] === 'last_month_ceklok_day_limit') lastMonthCeklokDayLimit = String(row[1] || "5"); // <-- BACA KUNCI BARU
     });
   } catch (e) {}
 
@@ -1603,6 +1633,7 @@ function getSettings(adminEmail) {
     lockedMonths: lockedMonthsParsed,
     openedMonths: openedMonthsParsed, // <-- Kirim ke client
     requestDayLimit: requestDayLimit,
+    lastMonthCeklokDayLimit: lastMonthCeklokDayLimit,
     holidays: holidays,
     announcements: announcements
   };
@@ -1626,6 +1657,18 @@ function saveRequestDayLimit(adminEmail, dayLimit) {
   setSetting_("request_day_limit", limit);
   return { status: "success", message: "Batas tanggal pengajuan berhasil disimpan." };
 }
+
+// TEMPATKAN FUNGSI BARU INI (Mirip dengan saveRequestDayLimit)
+function saveLastMonthCeklokLimit(adminEmail, dayLimit) {
+  if (!checkIfAdmin(adminEmail)) throw new Error("Akses ditolak.");
+  const limit = parseInt(dayLimit, 10);
+  if (isNaN(limit) || limit < 1 || limit > 31) {
+    return { status: "error", message: "Batas tanggal harus angka antara 1 dan 31." };
+  }
+  setSetting_("last_month_ceklok_day_limit", limit); // Kunci pengaturan baru
+  return { status: "success", message: "Batas tanggal pengisian bulan lalu berhasil disimpan." };
+}
+// AKHIR FUNGSI BARU
 // --- AKHIR FUNGSI BARU ---
 
 function saveHolidays(adminEmail, holidays) {
