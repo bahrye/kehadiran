@@ -353,6 +353,10 @@
     padding: 16px 20px;
     margin-bottom: 24px;
     text-align: left;
+    /* --- AWAL TAMBAHAN --- */
+    transition: background-color 0.3s, border-color 0.3s;
+    /* (cursor: pointer; akan ditambahkan oleh JS jika perlu) */
+    /* --- AKHIR TAMBAHAN --- */
   }
   #announcement-section h3, #staff-announcement-section h3 {
     margin-top: 0;
@@ -366,6 +370,46 @@
     white-space: pre-wrap;
   }
 
+  /* --- AWAL TAMBAHAN BARU: Gaya Pengumuman Dinamis --- */
+  /* (Info/Biru adalah default di atas) */
+  
+  /* Warning (Kuning/Jingga) */
+  #announcement-section.announcement-warning, 
+  #staff-announcement-section.announcement-warning {
+    border-color: var(--warning-color);
+    background-color: #FEF9C3; /* Kuning Pucat */
+    /* --- TAMBAHKAN BARIS INI --- */
+    animation: pulse-warning 2.5s infinite;
+    /* --- AKHIR TAMBAHAN --- */
+  }
+  #announcement-section.announcement-warning h3, 
+  #staff-announcement-section.announcement-warning h3 { 
+    color: #92400E; 
+  }
+  #announcement-section.announcement-warning p, 
+  #staff-announcement-section.announcement-warning p { 
+    color: #B45309; 
+  }
+
+  /* Danger (Merah) */
+  #announcement-section.announcement-danger, 
+  #staff-announcement-section.announcement-danger {
+    border-color: var(--danger-color);
+    background-color: #FEF2F2; /* Merah Pucat */
+    /* --- TAMBAHKAN BARIS INI --- */
+    animation: pulse-danger 2.5s infinite;
+    /* --- AKHIR TAMBAHAN --- */
+  }
+  #announcement-section.announcement-danger h3, 
+  #staff-announcement-section.announcement-danger h3 { 
+    color: #991B1B; 
+  }
+  #announcement-section.announcement-danger p, 
+  #staff-announcement-section.announcement-danger p { 
+    color: #B91C1C; 
+  }
+  /* --- AKHIR TAMBAHAN BARU --- */
+
   textarea {
     width: 100%;
     padding: 12px 15px;
@@ -375,6 +419,7 @@
     font-family: 'Poppins', sans-serif;
     transition: border-color 0.3s, box-shadow 0.3s;
     resize: vertical;
+    margin-bottom: 15px; /* Pastikan margin tetap ada */
   }
   textarea:focus {
     outline: none;
@@ -1882,56 +1927,30 @@
     margin-bottom: 15px; /* Pastikan margin tetap ada */
   }
 
-  /* ================================== */
-  /* === STATUS REMINDER CEKLOK (BARU) === */
-  /* ================================== */
-  #reminder-box {
-    border: 1px solid var(--border-color);
-    background-color: #F9FAFB;
-    border-radius: 12px;
-    padding: 20px;
-    margin-bottom: 25px;
-    text-align: left;
-    display: none; /* Sembunyi secara default */
-    transition: background-color 0.3s, border-color 0.3s;
+  /* --- AWAL TAMBAHAN: Animasi Pulse untuk Pengingat --- */
+  @keyframes pulse-warning {
+    0% {
+      box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.5); /* Warna kuning (warning) */
+    }
+    70% {
+      box-shadow: 0 0 0 12px rgba(245, 158, 11, 0); /* Ukuran glow */
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+    }
   }
 
-  #reminder-box h3 {
-    margin: 0;
-    font-size: 16px;
-    color: var(--text-primary-color);
-    display: flex;
-    align-items: center;
-    gap: 8px;
+  @keyframes pulse-danger {
+    0% {
+      box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); /* Warna merah (danger) */
+    }
+    70% {
+      box-shadow: 0 0 0 12px rgba(239, 68, 68, 0); /* Ukuran glow */
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+    }
   }
-
-  #reminder-box-message {
-    font-size: 18px;
-    font-weight: 700;
-    margin: 12px 0 5px 0;
-  }
-
-  #reminder-box-details {
-    font-size: 14px;
-    margin: 0;
-  }
-
-  /* Status Peringatan (Kuning/Jingga) H-7 s/d H-4 */
-  #reminder-box.warning {
-    border-color: var(--warning-color);
-    background-color: #FEF9C3; /* Kuning Pucat */
-  }
-  #reminder-box.warning h3 { color: #92400E; }
-  #reminder-box.warning #reminder-box-message { color: #92400E; }
-  #reminder-box.warning #reminder-box-details { color: #B45309; }
-
-  /* Status Bahaya (Merah) H-3 s/d H-0 */
-  #reminder-box.danger {
-    border-color: var(--danger-color);
-    background-color: #FEF2F2; /* Merah Pucat */
-  }
-  #reminder-box.danger h3 { color: #991B1B; }
-  #reminder-box.danger #reminder-box-message { color: #991B1B; }
-  #reminder-box.danger #reminder-box-details { color: #B91C1C; }
+  /* --- AKHIR TAMBAHAN --- */
 
 </style>
