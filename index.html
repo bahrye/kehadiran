@@ -65,12 +65,6 @@
             <p id="geo-status-details">Mencari pengaturan sekolah...</p>
           </div>
 
-          <div id="reminder-box">
-            <h3><i class="fa-solid fa-clock"></i> Pengingat Ceklok</h3>
-            <h4 id="reminder-box-message"></h4>
-            <p id="reminder-box-details"></p>
-          </div>
-
           <div id="summary-section">
               <div class="summary-title">
                   <h3>Ringkasan Bulanan</h3>
@@ -563,6 +557,9 @@
         teacherHolidays: [],
         isMonthLocked: true, // Tambahkan boolean ini
         isRequestableMonth: false,
+        // --- AWAL PERUBAHAN ---
+        requestDayLimit: 10, // <-- TAMBAHKAN BARIS INI (Default value)
+        // --- AKHIR PERUBAHAN ---
         pendingChanges: {},
         rejectionInfo: null,
         rejectedChanges: [],
@@ -585,6 +582,8 @@
       let currentSchoolSettings = {};
       let isUserInLocation = false;
       let settingsPollInterval = null;
+
+      let currentSummary = null;
 
       // --- AWAL TAMBAHAN BARU (CACHE PENGUMUMAN) ---
       let cachedAnnouncements = null; // Cache untuk teks pengumuman
@@ -1569,8 +1568,9 @@
                 currentAnnouncementTimestamp = response.announcementTimestamp || '0';
                 // === AKHIR SIMPAN KE CACHE ===
 
-                // Render pengumuman dari cache
-                renderAnnouncements(cachedAnnouncements);
+                // --- HAPUS BARIS INI ---
+                // renderAnnouncements(cachedAnnouncements);
+                // --- AKHIR PENGHAPUSAN ---
                 
                 runDashboardGeoCheck(); 
                 startSettingsPolling(); // Mulai polling SETELAH semua data awal dimuat
@@ -1585,8 +1585,9 @@
             // Ini adalah *kembali* ke dasbor (cache SUDAH ADA)
             console.log("Menggunakan cache pengumuman.");
             
-            // Langsung render dari cache, TIDAK perlu panggil server
-            renderAnnouncements(cachedAnnouncements);
+            // --- HAPUS BARIS INI ---
+            // renderAnnouncements(cachedAnnouncements);
+            // --- AKHIR PENGHAPUSAN ---
             
             // (Logika Geo dan Polling sudah berjalan dari load pertama,
             // jadi kita hanya perlu me-refresh UI Geo)
@@ -2818,7 +2819,10 @@
           google.script.run
               .withSuccessHandler(response => {
                   if (response.success) {
-                      renderSummary(response.summary);
+                      // --- AWAL PERUBAHAN ---
+                      currentSummary = response.summary; // Simpan summary ke global
+                      renderSummary(currentSummary);
+                      // --- AKHIR PERUBAHAN ---
                       
                       // --- PERBAIKAN: Sukses, sembunyikan pesan loading ---
                       calendarLoadingP.style.display = 'none'; // Sembunyikan pesan
@@ -2831,6 +2835,12 @@
                           appSettings.teacherHolidays
                       );
                       // --- AKHIR PERBAIKAN ---
+                      
+                      // --- AWAL PERUBAHAN ---
+                      // Panggil fungsi pengumuman/pengingat dinamis
+                      // Kirim appSettings global dan summary yang baru didapat
+                      renderDynamicAnnouncements(appSettings, currentSummary);
+                      // --- AKHIR PERUBAHAN ---
                       
                   } else {
                       console.error("Gagal memuat ringkasan:", response.error);
@@ -2924,9 +2934,9 @@
           persentaseEl.style.color = persentaseColor;
           ceklokEl.style.color = persentaseColor;
 
-          // --- AWAL TAMBAHAN: Panggil fungsi reminder ---
-          renderCeklokReminder(summary); 
-          // --- AKHIR TAMBAHAN ---
+          // --- HAPUS BARIS DI BAWAH INI ---
+          // renderCeklokReminder(summary); 
+          // --- AKHIR PENGHAPUSAN ---
       }
 
       // --- TAMBAHAN BARU: Fungsi untuk Render Kalender ---
@@ -4818,88 +4828,65 @@
           return d;
       }
 
-      // [MODIFIKASI] Fungsi ini sekarang memanggil runPrimaryGeoCheck
+      // [MODIFIKASI] Fungsi ini sekarang memanggil getDashboardStatus
       function runDashboardGeoCheck() {
           if (!currentUser) return; 
 
           const statusBox = document.getElementById('geo-status-box');
           if (!statusBox) return; // Keluar jika tidak di dasbor guru
 
-          // 1. Set UI ke status loading (langkah pertama)
+          // 1. Set UI ke status loading
           statusBox.style.display = 'block';
           statusBox.className = 'card-section processing';
           document.getElementById('geo-status-message').innerText = 'Memperbarui pengaturan...';
-          document.getElementById('geo-status-details').innerText = 'Menghapus cache dan mengambil setelan terbaru...';
+          document.getElementById('geo-status-details').innerText = 'Mengambil setelan geo-lock terbaru...';
           document.getElementById('refresh-geo-button').disabled = true;
 
-          // Dapatkan token dari localStorage
-          const token = localStorage.getItem('ceklokAuthToken');
-
-          // 2. Panggil fungsi BARU untuk menghapus cache di server
+          // 2. Panggil fungsi 'getDashboardStatus' yang ringan (bukan clear cache)
           google.script.run
-              .withSuccessHandler(clearResponse => {
+              .withSuccessHandler(response => {
                   
-                  if (clearResponse && clearResponse.success) {
-                      console.log("Cache pengaturan sekolah berhasil dihapus.");
-                  } else {
-                      console.warn("Gagal menghapus cache, mungkin menampilkan data lama.");
-                  }
-
-                  // 3. SETELAH cache dihapus (baik sukses atau gagal),
-                  //    LANJUTKAN ke panggilan untuk mengambil data baru
-                  runPrimaryGeoCheck(); // <-- Ganti dari runFallbackGeoCheck
-
-              })
-              .withFailureHandler(clearError => {
-                  // Jika panggilan hapus cache GAGAL TOTAL (jarang terjadi)
-                  console.error("Gagal total menghubungi server untuk hapus cache:", clearError.message);
-                  // Tetap jalankan proses utama
-                  runPrimaryGeoCheck(); // <-- Ganti dari runFallbackGeoCheck
-              })
-              .clearSchoolSettingsCacheManual(token); // Panggil fungsi baru di server
-      }
-
-      // [NAMA DIGANTI & DIMODIFIKASI] Fungsi ini (sebelumnya runFallbackGeoCheck)
-      // sekarang menjadi Pengecekan Prioritas 1 (High Accuracy)
-      function runPrimaryGeoCheck() {
-          const dummyDate = new Date();
-          google.script.run
-              // !!! PASTIKAN 'response' ADA DI SINI !!!
-              .withSuccessHandler(response => { 
-                  
-                  // Baris ini (atau di sekitarnya) adalah tempat error Anda terjadi
                   if (response && response.error) {
                       handleGeoError({ code: -1, message: "Gagal mengambil pengaturan: " + response.error });
                       return;
                   }
-
-                  // SUKSES: Perbarui variabel global dengan pengaturan BARU dari server
+                  
+                  // 3. SUKSES: Perbarui variabel global dengan pengaturan BARU dari server
                   currentSchoolSettings = response.schoolSettings || {};
 
-                  // Lanjutkan ke pengecekan GPS
-                  document.getElementById('geo-status-message').innerText = 'Sedang memverifikasi lokasi Anda...';
-                  document.getElementById('geo-status-details').innerText = 'Prioritas 1: Menggunakan GPS (Akurasi Tinggi)...';
-
-                  if ("geolocation" in navigator) {
-                      navigator.geolocation.getCurrentPosition(
-                          handleGeoSuccess, // Sukses: Panggil handleGeoSuccess
-                          runFallbackGeoCheck, // GAGAL: Panggil FALLBACK (Prioritas 2)
-                          {
-                              enableHighAccuracy: true, // Prioritas 1
-                              timeout: 20000, // Timeout 20 detik untuk GPS
-                              maximumAge: 0  
-                          }
-                      );
-                  } else {
-                      // Kirim error buatan jika browser tidak support
-                      handleGeoError({ code: -1, message: "Browser tidak mendukung Geolocation." });
-                  }
+                  // 4. Lanjutkan ke pengecekan GPS (hanya di sisi client)
+                  runPrimaryGeoCheck(); 
               })
               .withFailureHandler(error => {
                   // Gagal menghubungi server
                   handleGeoError({ code: -1, message: "Error server: " + error.message });
               })
-              .getAttendancePageData(currentUser.email, selectedSchool, dummyDate.getFullYear(), dummyDate.getMonth() + 1, 0);
+              .getDashboardStatus(currentUser.email, selectedSchool); // Panggil fungsi ringan
+      }
+
+      // [NAMA DIGANTI & DIMODIFIKASI] Fungsi ini (sebelumnya runFallbackGeoCheck)
+      // sekarang menjadi Pengecekan Prioritas 1 (High Accuracy)
+      // --- PERUBAHAN BESAR: HAPUS SEMUA 'google.script.run' DARI SINI ---
+      function runPrimaryGeoCheck() {
+          
+          // Langsung ke pengecekan GPS
+          document.getElementById('geo-status-message').innerText = 'Sedang memverifikasi lokasi Anda...';
+          document.getElementById('geo-status-details').innerText = 'Prioritas 1: Menggunakan GPS (Akurasi Tinggi)...';
+
+          if ("geolocation" in navigator) {
+              navigator.geolocation.getCurrentPosition(
+                  handleGeoSuccess, // Sukses: Panggil handleGeoSuccess
+                  runFallbackGeoCheck, // GAGAL: Panggil FALLBACK (Prioritas 2)
+                  {
+                      enableHighAccuracy: true, // Prioritas 1
+                      timeout: 20000, // Timeout 20 detik untuk GPS
+                      maximumAge: 0  
+                  }
+              );
+          } else {
+              // Kirim error buatan jika browser tidak support
+              handleGeoError({ code: -1, message: "Browser tidak mendukung Geolocation." });
+          }
       }
 
       // [FUNGSI BARU] Ini adalah Pengecekan Prioritas 2 (Low Accuracy)
@@ -4935,22 +4922,21 @@
           settingsPollInterval = null;
         }
 
-        // Mulai polling baru setiap 30 detik (30000 ms)
+        // Mulai polling baru setiap 3 menit (180000 ms)
         settingsPollInterval = setInterval(() => {
-          // --- AWAL PERUBAHAN: Cek di dasbor mana kita berada ---
+          
           const isGuruDashboard = document.getElementById('guru-dashboard-container').style.display === 'block';
           const isStaffDashboard = document.getElementById('staff-dashboard-container').style.display === 'block';
           
           // 1. Pastikan kita masih di dasbor (Guru ATAU Staff) dan ada user
           if (!currentUser || !selectedSchool || (!isGuruDashboard && !isStaffDashboard)) {
-          // --- AKHIR PERUBAHAN ---
             // Jika tidak, hentikan polling
             clearInterval(settingsPollInterval);
             settingsPollInterval = null;
             return;
           }
 
-          // 2. Panggil fungsi server yang ringan (YANG BARU)
+          // 2. Panggil fungsi server yang ringan
           google.script.run
             .withSuccessHandler(response => {
               if (response.success) {
@@ -4961,36 +4947,57 @@
                   // Bandingkan dengan pengaturan 'currentSchoolSettings' yang ada
                   if (hasSettingsChanged(currentSchoolSettings, newSettings)) {
                     console.log("Deteksi perubahan pengaturan GEO server. Memperbarui UI...");
-                    // a. Perbarui pengaturan global
                     currentSchoolSettings = newSettings; 
-                    // b. Panggil fungsi refresh UI
                     refreshGeoUI(); 
                   }
                 }
                 
-                // 4. Logika Pengumuman (BARU - Untuk Guru & Staff)
+                // 4. Logika Pengumuman (Untuk Guru & Staff)
                 const newTimestamp = response.announcementTimestamp;
                 
-                // Cek jika timestamp baru, tidak '0', dan beda dari yang kita punya
                 if (newTimestamp && newTimestamp !== '0' && newTimestamp !== currentAnnouncementTimestamp) {
                   console.log("Deteksi perubahan PENGUMUMAN. Mengambil data baru...");
-                  
-                  // Update timestamp global kita
                   currentAnnouncementTimestamp = newTimestamp; 
-                  
-                  // Panggil fungsi baru untuk ambil teks pengumuman
                   fetchLatestAnnouncements(); 
                 }
+
+                // --- AWAL TAMBAHAN: Logika Pengaturan Ceklok (HANYA untuk GURU) ---
+                if (isGuruDashboard) {
+                  const newGraceLimit = parseInt(response.lastMonthCeklokDayLimit, 10);
+                  const newRequestLimit = parseInt(response.requestDayLimit, 10);
+                  
+                  let settingsChanged = false;
+
+                  // Cek perubahan Grace Limit (Batas Awal Bulan)
+                  if (newGraceLimit && !isNaN(newGraceLimit) && appSettings.lastMonthCeklokDayLimit !== newGraceLimit) {
+                      console.log(`Deteksi perubahan Grace Limit: ${appSettings.lastMonthCeklokDayLimit} -> ${newGraceLimit}`);
+                      appSettings.lastMonthCeklokDayLimit = newGraceLimit; // Update variabel global
+                      settingsChanged = true;
+                  }
+                  
+                  // Cek perubahan Request Limit (Batas Pengajuan)
+                  if (newRequestLimit && !isNaN(newRequestLimit) && appSettings.requestDayLimit !== newRequestLimit) {
+                      console.log(`Deteksi perubahan Request Limit: ${appSettings.requestDayLimit} -> ${newRequestLimit}`);
+                      appSettings.requestDayLimit = newRequestLimit; // Update variabel global
+                      settingsChanged = true;
+                  }
+
+                  // Jika salah satu batas tanggal berubah, render ulang kotak pengumuman
+                  if (settingsChanged) {
+                      console.log("Me-render ulang pengumuman dinamis dengan batas tanggal baru.");
+                      renderDynamicAnnouncements(appSettings, currentSummary);
+                  }
+                }
+                // --- AKHIR TAMBAHAN ---
 
               }
             })
             .withFailureHandler(err => {
               console.error("Gagal polling status: ", err.message);
             })
-            // --- PANGGIL FUNGSI BARU DI SERVER ---
             .getDashboardStatus(currentUser.email, selectedSchool); 
 
-        }, 30000); // Poll setiap 30 detik
+        }, 180000); // Poll setiap 3 menit
       }
 
       /**
@@ -5059,7 +5066,11 @@
             const isStaffDashboard = document.getElementById('staff-dashboard-container').style.display === 'block';
             
             if (isGuruDashboard) {
-              renderAnnouncements(cachedAnnouncements, false);
+              // --- AWAL PERUBAHAN ---
+              // Panggil fungsi dinamis untuk mengevaluasi ulang
+              // (kirim appSettings global dan currentSummary global)
+              renderDynamicAnnouncements(appSettings, currentSummary);
+              // --- AKHIR PERUBAHAN ---
             } else if (isStaffDashboard) {
               const staffAnnounceP = document.getElementById('staff-announcement-text');
               staffAnnounceP.innerText = (cachedAnnouncements && cachedAnnouncements.trim() !== "") ? cachedAnnouncements : "Tidak ada pengumuman saat ini.";
@@ -5077,153 +5088,147 @@
       // --- AKHIR FUNGSI BARU ---
 
       // --- TAMBAHAN BARU: Logika Pengingat Ceklok ---
-      function renderCeklokReminder(summary) {
-          const reminderBox = document.getElementById('reminder-box');
-          const messageEl = document.getElementById('reminder-box-message');
-          const detailsEl = document.getElementById('reminder-box-details');
+      /**
+       * (MODIFIKASI) Mengatur kotak pengumuman berdasarkan prioritas:
+       * 1. Pengingat Awal Bulan (Tgl 1 s/d graceLimit)
+       * 2. Pengingat Ajuan (Tgl graceLimit+1 s/d requestLimit)
+       * 3. Pengingat Akhir Bulan (H-7 s/d H-0)
+       * 4. Pengumuman Standar
+       * * @param {object} settings - Objek appSettings global
+       * @param {object} summary - Objek currentSummary global
+       */
+      function renderDynamicAnnouncements(settings, summary) {
+          const announceBox = document.getElementById('announcement-section');
+          if (!announceBox) return; // Keluar jika tidak di dasbor guru
           
-          // Default: Sembunyikan kotak
-          reminderBox.style.display = 'none';
+          const announceTitle = announceBox.querySelector('h3');
+          const announceText = announceBox.querySelector('p');
           
-          // Data Tanggal Hari Ini
-          const today = new Date();
-          const currentYear = today.getFullYear();
-          const currentMonth = today.getMonth() + 1;
-          const currentDay = today.getDate();
+          // --- Fungsi Helper untuk kembali ke pengumuman standar ---
+          const setDefaultAnnouncement = () => {
+              announceBox.className = 'announcement-info'; // Kelas CSS biru
+              announceBox.style.cursor = 'default';
+              announceBox.onclick = null;
+              announceTitle.innerHTML = '<i class="fa-solid fa-bullhorn"></i> Pengumuman';
+              announceText.innerText = (cachedAnnouncements && cachedAnnouncements.trim() !== "") ? cachedAnnouncements : "Tidak ada pengumuman saat ini.";
+          };
 
-          // Data Bulan Lalu
+          // --- Kumpulkan Data Tanggal & Pengaturan ---
+          if (!settings) { // Fallback jika settings belum dimuat
+            setDefaultAnnouncement();
+            return;
+          }
+
+          const today = new Date();
+          const currentDay = today.getDate();
+          const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+          const remainingDays = lastDayOfMonth - currentDay; // 0 = hari terakhir
+
           const lastMonthDate = new Date(today);
           lastMonthDate.setMonth(today.getMonth() - 1);
-          const lastMonthYear = lastMonthDate.getFullYear();
-          const lastMonth = lastMonthDate.getMonth() + 1;
           const lastMonthName = lastMonthDate.toLocaleDateString('id-ID', { month: 'long' });
 
-          // Status Penguncian & Pengajuan Bulan Lalu
-          const isLastMonthRequestable = appSettings.isRequestableMonth;
-          const requestDayLimit = currentSchoolSettings.requestDayLimit || 10;
-          
-          // --- AMBIL BATAS BARU DI SINI ---
-          const ceklokGraceDayLimit = appSettings.lastMonthCeklokDayLimit || 5; 
-          // --- AKHIR AMBIL BATAS BARU ---
+          // Ambil batas hari dari objek settings
+          const graceLimit = settings.lastMonthCeklokDayLimit || 5;
+          const requestLimit = settings.requestDayLimit || 10;
 
           // ==========================================================
-          // LOGIKA 1: Pengingat Pelengkapan Ceklok Bulan Lalu (Tgl 1-bebas)
+          // LOGIKA 1: Pengingat Ceklok Awal Bulan (Tgl 1 s/d `graceLimit`)
           // ==========================================================
-          // UBAH: currentDay <= 5 menjadi currentDay <= ceklokGraceDayLimit
-          if (currentDay >= 1 && currentDay <= ceklokGraceDayLimit && summary.persentase < 100) {
+          if (currentDay >= 1 && currentDay <= graceLimit) {
               
-              const isPastMonthLocked = appSettings.isMonthLocked; // Cek status kunci bulan lalu (sudah dikunci Admin)
-              const isPastMonthOpened = appSettings.openedMonths.includes(`${lastMonthYear}-${String(lastMonth).padStart(2, '0')}`);
+              // --- AWAL PERUBAHAN ---
+              // Buat objek tanggal untuk hari H batas pengisian
+              const deadlineDate = new Date(today.getFullYear(), today.getMonth(), graceLimit);
+              // Format menjadi "2 November 2025"
+              const formattedDeadline = deadlineDate.toLocaleDateString('id-ID', {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric'
+              });
+              // --- AKHIR PERUBAHAN ---
 
-              // Jika bulan lalu TERKUNCI OLEH SISTEM & BELUM DIBUKA OLEH ADMIN (Ini adalah periode GRACE yang Anda maksud)
-              if (isPastMonthLocked && !isPastMonthOpened) {
-                  
-                  reminderBox.style.display = 'block';
-                  reminderBox.className = `card-section warning`;
-                  messageEl.innerText = `Lengkapi Ceklok ${lastMonthName} Segera!`;
-                  
-                  // Perubahan: Tambahkan tautan untuk masuk ke bulan lalu
-                  detailsEl.innerHTML = `Kehadiran Anda di bulan lalu masih ${summary.persentase}%. Klik kotak ini untuk melengkapi sampai tanggal <strong>${ceklokGraceDayLimit}</strong>.`;
-                  
-                  // Set event handler untuk klik kotak (PENTING)
-                  reminderBox.onclick = () => {
-                      // Set 'currentDate' ke bulan lalu
-                      currentDate = lastMonthDate; 
-                      showCeklokPage(); // Masuk ke halaman ceklok
-                      // Hapus event setelah diklik
-                      reminderBox.onclick = null; 
-                  };
-                  return; // Hentikan di sini
-              }
-          }
-          
-          // ==========================================================
-          // LOGIKA 2: Pemberitahuan Pengajuan Perubahan (Tgl 6 s/d Batas)
-          // ==========================================================
-          // Cek jika: Ini tgl 6 s/d requestDayLimit DAN bulan lalu bisa diajukan
-          if (currentDay > 5 && currentDay <= requestDayLimit && isLastMonthRequestable) {
+              announceBox.className = 'announcement-warning'; // Kuning
+              announceBox.style.cursor = 'pointer';
+              announceTitle.innerHTML = '<i class="fa-solid fa-hourglass-start"></i> Pengingat Pengisian Ceklok';
               
-              const rejectionInfo = appSettings.rejectionInfo;
-              const isRequestPending = Object.keys(appSettings.pendingChanges || {}).length > 0;
+              // --- GANTI BARIS DI BAWAH INI ---
+              // Teks lama: ... sampai tanggal <strong>${graceLimit}</strong>.
+              announceText.innerHTML = `Pengisian ceklok bulan <strong>${lastMonthName}</strong> masih dibuka sampai tanggal <strong>${formattedDeadline}</strong>. Klik di sini untuk melengkapi.`;
+              // --- AKHIR PENGGANTIAN ---
               
-              reminderBox.style.display = 'block';
-              
-              // Tentukan warna dan pesan berdasarkan status ajuan
-              if (isRequestPending) {
-                  // Pengajuan sedang ditinjau
-                  reminderBox.className = `card-section warning`;
-                  messageEl.innerText = `Pengajuan ${lastMonthName} Sedang Ditinjau`;
-                  detailsEl.innerText = `Ajuan perubahan data Anda untuk bulan ${lastMonthName} sedang menunggu persetujuan Staff.`;
-                  
-              } else if (rejectionInfo) {
-                  // Pengajuan ditolak
-                  reminderBox.className = `card-section danger`;
-                  messageEl.innerText = `Pengajuan ${lastMonthName} Ditolak!`;
-                  detailsEl.innerText = `Beberapa ajuan Anda untuk bulan ${lastMonthName} ditolak. Klik kotak ini untuk memperbaiki dan mengajukan ulang.`;
-                  
-              } else {
-                  // Belum ada ajuan (periode ajuan dibuka)
-                  reminderBox.className = `card-section warning`;
-                  messageEl.innerText = `Ajuan Perubahan ${lastMonthName} Dibuka`;
-                  detailsEl.innerHTML = `Ajuan perubahan data untuk bulan ${lastMonthName} dibuka sampai tanggal <strong>${requestDayLimit}</strong>. Klik kotak ini untuk mengajukan.`;
-              }
-
-              // Set event handler untuk klik kotak (PENTING)
-              reminderBox.onclick = () => {
-                  // Set 'currentDate' ke bulan lalu
-                  currentDate = lastMonthDate; 
-                  showCeklokPage(); // Masuk ke halaman ceklok (yang akan otomatis masuk mode pengajuan)
-                  // Hapus event setelah diklik
-                  reminderBox.onclick = null;
+              announceBox.onclick = () => {
+                  currentDate = lastMonthDate; // Set tanggal global ke bulan lalu
+                  showCeklokPage();
               };
-              return; // Hentikan di sini
+              return; // Prioritas 1: Selesai
           }
-          
-          // ==========================================================
-          // LOGIKA 3: Pengingat Ceklok Bulan Berjalan (H-7 s/d H-0)
-          // ==========================================================
-          // Jika tidak di Logika 1 atau 2, jalankan logika reminder bulan berjalan (kode lama)
-          
-          // Cek apakah ringkasan yang sedang dilihat adalah bulan berjalan
-          const summaryMonthInput = document.getElementById('summary-month-input').value;
-          if (!summaryMonthInput) return; // Keluar jika input kosong
-          const [summaryYear, summaryMonth] = summaryMonthInput.split('-').map(Number);
-          
-          if (currentYear === summaryYear && currentMonth === summaryMonth) {
-              
-              // Cek apakah kehadiran sudah 100%
-              if (summary.persentase === 100) return;
-              
-              // Hitung sisa hari
-              const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-              const remainingDays = lastDayOfMonth - currentDay; // 0 adalah hari terakhir
-              
-              let statusClass = '';
-              let messageText = '';
-              let detailText = `Kehadiran Anda saat ini: ${summary.persentase}%. Total hari kerja yang belum diisi: ${summary.alpa}.`;
 
-              if (remainingDays >= 4 && remainingDays <= 7) {
-                  statusClass = 'warning';
-                  messageText = `Sisa ${remainingDays} Hari Pengisian Ceklok`; 
-              } else if (remainingDays >= 0 && remainingDays <= 3) {
-                  statusClass = 'danger';
-                  if (remainingDays === 0) {
-                      messageText = `Hari Terakhir Pengisian Ceklok!`;
-                      detailText = `Kehadiran Anda saat ini: ${summary.persentase}%. Hari ini adalah batas akhir pengisian.`;
-                  } else {
-                      messageText = `Sisa ${remainingDays} Hari Pengisian Ceklok`;
-                  }
-              } else {
-                  return; // Di luar H-7 (sembunyikan)
-              }
+          // ==========================================================
+          // LOGIKA 2: Pengingat Pengajuan Perubahan (Tgl `graceLimit`+1 s/d `requestLimit`)
+          // ==========================================================
+          if (currentDay > graceLimit && currentDay <= requestLimit) {
               
-              // Update UI untuk reminder bulan berjalan
-              reminderBox.style.display = 'block';
-              reminderBox.className = `card-section ${statusClass}`;
-              messageEl.innerText = messageText;
-              detailsEl.innerText = detailText;
-              reminderBox.onclick = null; // Hapus onclick jika ada dari logika lain
+              // --- AWAL PERUBAHAN (Tambahkan juga di sini agar konsisten) ---
+              const requestDeadlineDate = new Date(today.getFullYear(), today.getMonth(), requestLimit);
+              const formattedRequestDeadline = requestDeadlineDate.toLocaleDateString('id-ID', {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric'
+              });
+              // --- AKHIR PERUBAHAN ---
+              
+              announceBox.className = 'announcement-warning'; // Kuning
+              announceBox.style.cursor = 'pointer';
+              announceTitle.innerHTML = '<i class="fa-solid fa-file-circle-question"></i> Pengajuan Perubahan Data';
+              
+              // --- GANTI BARIS DI BAWAH INI ---
+              // Teks lama: ... dibuka sampai tanggal <strong>${requestLimit}</strong>.
+              announceText.innerHTML = `Pengisian ceklok ${lastMonthName} sudah ditutup. Mode <strong>Pengajuan Perubahan Data</strong> dibuka sampai tanggal <strong>${formattedRequestDeadline}</strong>. Klik di sini untuk mengajukan.`;
+              // --- AKHIR PENGGANTIAN ---
+              
+              announceBox.onclick = () => {
+                  currentDate = lastMonthDate; // Set tanggal global ke bulan lalu
+                  showCeklokPage();
+              };
+              return; // Prioritas 2: Selesai
           }
+
+          // ==========================================================
+          // LOGIKA 3: Pengingat Ceklok Akhir Bulan (H-7 s/d H-0)
+          // ==========================================================
+          
+          // Cek apakah summary yang aktif adalah untuk bulan berjalan
+          const summaryMonthInput = document.getElementById('summary-month-input').value;
+          if (!summaryMonthInput) { // Jika input belum siap
+              setDefaultAnnouncement(); // Tampilkan default
+              return;
+          }
+          const [summaryYear, summaryMonth] = summaryMonthInput.split('-').map(Number);
+          const isSummaryForCurrentMonth = (today.getFullYear() === summaryYear && (today.getMonth() + 1) === summaryMonth);
+
+          // Cek jika: Ini ringkasan bulan ini, H-7 s/d H-0, DAN persentase < 100%
+          if (isSummaryForCurrentMonth && summary && summary.persentase < 100 && remainingDays >= 0 && remainingDays <= 7) {
+              
+              let statusClass = (remainingDays <= 3) ? 'announcement-danger' : 'announcement-warning'; // Merah atau Kuning
+              let messageText = (remainingDays === 0) ? 'Hari Terakhir Pengisian Ceklok!' : `Sisa ${remainingDays} Hari Pengisian Ceklok`;
+              
+              announceBox.className = statusClass;
+              announceBox.style.cursor = 'pointer';
+              announceTitle.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Pengingat Ceklok Akhir Bulan';
+              announceText.innerHTML = `<strong>${messageText}</strong> Kehadiran Anda bulan ini masih ${summary.persentase}%. Klik di sini untuk melengkapi.`;
+              
+              announceBox.onclick = () => {
+                  currentDate = today; // Set tanggal global ke bulan ini
+                  showCeklokPage();
+              };
+              return; // Prioritas 3: Selesai
+          }
+
+          // ==========================================================
+          // LOGIKA 4: Default (Pengumuman Standar)
+          // ==========================================================
+          setDefaultAnnouncement();
       }
 
       // --- FUNGSI BARU UNTUK ADMIN: Menyimpan batas hari pengisian bulan lalu ---
