@@ -5053,8 +5053,9 @@
           // ==========================================================
           // LOGIKA 1: Pengingat Pelengkapan Ceklok Bulan Lalu (Tgl 1-bebas)
           // ==========================================================
-          // UBAH: currentDay <= 5 menjadi currentDay <= ceklokGraceDayLimit
-          if (currentDay >= 1 && currentDay <= ceklokGraceDayLimit && summary.persentase < 100) {
+          
+          // (Prioritas 1: Tampil selama grace period)
+          if (currentDay >= 1 && currentDay <= ceklokGraceDayLimit) {
               
               const isPastMonthLocked = appSettings.isMonthLocked; // Cek status kunci bulan lalu (sudah dikunci Admin)
               const isPastMonthOpened = appSettings.openedMonths.includes(`${lastMonthYear}-${String(lastMonth).padStart(2, '0')}`);
@@ -5064,10 +5065,10 @@
                   
                   reminderBox.style.display = 'block';
                   reminderBox.className = `card-section warning`;
-                  messageEl.innerText = `Lengkapi Ceklok ${lastMonthName} Segera!`;
                   
-                  // Perubahan: Tambahkan tautan untuk masuk ke bulan lalu
-                  detailsEl.innerHTML = `Kehadiran Anda di bulan lalu masih ${summary.persentase}%. Klik kotak ini untuk melengkapi sampai tanggal <strong>${ceklokGraceDayLimit}</strong>.`;
+                  // Pesan umum untuk semua guru
+                  messageEl.innerText = `Pengisian Ceklok ${lastMonthName}`;
+                  detailsEl.innerHTML = `Periode pengisian ceklok bulan ${lastMonthName} dibuka sampai tanggal <strong>${ceklokGraceDayLimit}</strong>. Klik kotak ini untuk meninjau/melengkapi.`;
                   
                   // Set event handler untuk klik kotak (PENTING)
                   reminderBox.onclick = () => {
@@ -5077,15 +5078,19 @@
                       // Hapus event setelah diklik
                       reminderBox.onclick = null; 
                   };
-                  return; // Hentikan di sini
+                  return; // Hentikan di sini (Prioritas 1 terpenuhi)
               }
           }
           
           // ==========================================================
-          // LOGIKA 2: Pemberitahuan Pengajuan Perubahan (Tgl 6 s/d Batas)
+          // LOGIKA 2: Pemberitahuan Pengajuan Perubahan (Setelah Grace Period s/d Batas)
           // ==========================================================
-          // Cek jika: Ini tgl 6 s/d requestDayLimit DAN bulan lalu bisa diajukan
-          if (currentDay > 5 && currentDay <= requestDayLimit && isLastMonthRequestable) {
+          
+          // --- PERUBAHAN DI SINI ---
+          // Batas awal (currentDay > 5) diubah menjadi dinamis (currentDay > ceklokGraceDayLimit)
+          // Cek jika: Ini setelah grace period s/d requestDayLimit DAN bulan lalu bisa diajukan
+          if (currentDay > ceklokGraceDayLimit && currentDay <= requestDayLimit && isLastMonthRequestable) {
+          // --- AKHIR PERUBAHAN ---
               
               const rejectionInfo = appSettings.rejectionInfo;
               const isRequestPending = Object.keys(appSettings.pendingChanges || {}).length > 0;
@@ -5120,13 +5125,13 @@
                   // Hapus event setelah diklik
                   reminderBox.onclick = null;
               };
-              return; // Hentikan di sini
+              return; // Hentikan di sini (Prioritas 2 terpenuhi)
           }
           
           // ==========================================================
           // LOGIKA 3: Pengingat Ceklok Bulan Berjalan (H-7 s/d H-0)
           // ==========================================================
-          // Jika tidak di Logika 1 atau 2, jalankan logika reminder bulan berjalan (kode lama)
+          // (Logika ini tidak berubah, masih berdasarkan persentase < 100 untuk bulan berjalan)
           
           // Cek apakah ringkasan yang sedang dilihat adalah bulan berjalan
           const summaryMonthInput = document.getElementById('summary-month-input').value;
