@@ -392,6 +392,18 @@
                       <button onclick="saveRequestDayLimitSettings()" style="width: auto; margin-top: 10px;"><i class="fa-solid fa-floppy-disk"></i> <span>Simpan Batas Tanggal</span></button>
                       <p id="request-day-limit-message" class="message"></p>
                   </div>
+
+                  <hr style="margin: 25px 0;">
+                  <h3>Batas Waktu Pengisian</h3>
+                  
+                  <div class="input-group">
+                      <label for="last-month-ceklok-day-limit">Batas Tanggal Pengisian Bulan Lalu (Grace Period)</label>
+                      <input type="number" id="last-month-ceklok-day-limit" placeholder="Contoh: 5" min="1" max="31">
+                      <p style="font-size: 12px; margin-top: 5px; color: var(--text-secondary-color);">Guru dapat mengisi ceklok untuk bulan lalu hingga tanggal ini di bulan berjalan (Default: 5).</p>
+                      <button onclick="saveLastMonthCeklokLimit()" style="width: auto; margin-top: 10px;"><i class="fa-solid fa-floppy-disk"></i> <span>Simpan Batas Hari</span></button>
+                      <p id="last-month-ceklok-message" class="message"></p>
+                  </div>
+
                   <hr style="margin: 25px 0;">
                   <h3>Hari Libur Nasional</h3>
                   <div id="holidays-container"></div>
@@ -554,7 +566,8 @@
         pendingChanges: {},
         rejectionInfo: null,
         rejectedChanges: [],
-        hasGeoBypass: false // <-- TAMBAHKAN INI
+        hasGeoBypass: false, // <-- TAMBAHKAN INI
+        lastMonthCeklokDayLimit: 5
       };
       // --- AKHIR MODIFIKASI ---
 
@@ -1809,6 +1822,7 @@
                   appSettings.rejectionInfo = response.rejectionInfo; // Info penolakan
                   appSettings.rejectedChanges = response.rejectedChanges || []; // Detail ajuan ditolak
                   appSettings.hasGeoBypass = response.hasGeoBypass; // <-- 2. SIMPAN STATUS BYPASS
+                  appSettings.lastMonthCeklokDayLimit = response.lastMonthCeklokDayLimit;
                   currentSchoolSettings = response.schoolSettings || {}; // Pengaturan sekolah (termasuk Geo)
               }
 
@@ -3760,6 +3774,7 @@
         displayMessage('locked-months-message', 'Memuat...', { isProcessing: true });
         displayMessage('opened-months-message', 'Memuat...', { isProcessing: true }); // Pesan loading baru
         displayMessage('request-day-limit-message', 'Memuat...', { isProcessing: true });
+        displayMessage('last-month-ceklok-message', 'Memuat...', { isProcessing: true }); // <-- TAMBAHKAN PESAN LOADING
         displayMessage('holidays-message', 'Memuat...', { isProcessing: true });
         loadJamRegulerSettings();
 
@@ -3767,6 +3782,7 @@
           document.getElementById('locked-months').value = settings.lockedMonths.join(',');
           document.getElementById('opened-months').value = settings.openedMonths.join(','); // Tampilkan opened_months
           document.getElementById('request-day-limit').value = settings.requestDayLimit || '10';
+          document.getElementById('last-month-ceklok-day-limit').value = settings.lastMonthCeklokDayLimit || '5'; // <-- MUAT NILAI BARU
           document.getElementById('announcement-input').value = settings.announcements || "";
           const holidaysContainer = document.getElementById('holidays-container');
           holidaysContainer.innerHTML = '';
@@ -3778,6 +3794,7 @@
           displayMessage('locked-months-message', '');
           displayMessage('opened-months-message', ''); // Hapus pesan loading baru
           displayMessage('request-day-limit-message', '');
+          displayMessage('last-month-ceklok-message', ''); // <-- HAPUS PESAN LOADING INI
           displayMessage('holidays-message', '');
         }).getSettings(currentUser.email);
       }
@@ -5029,11 +5046,15 @@
           const isLastMonthRequestable = appSettings.isRequestableMonth;
           const requestDayLimit = currentSchoolSettings.requestDayLimit || 10;
           
+          // --- AMBIL BATAS BARU DI SINI ---
+          const ceklokGraceDayLimit = appSettings.lastMonthCeklokDayLimit || 5; 
+          // --- AKHIR AMBIL BATAS BARU ---
+
           // ==========================================================
-          // LOGIKA 1: Pengingat Pelengkapan Ceklok Bulan Lalu (Tgl 1-5)
+          // LOGIKA 1: Pengingat Pelengkapan Ceklok Bulan Lalu (Tgl 1-bebas)
           // ==========================================================
-          // Cek jika: Ini tgl 1-5 DAN persentase bulan ini (yang sedang dilihat) < 100%
-          if (currentDay >= 1 && currentDay <= 5 && summary.persentase < 100) {
+          // UBAH: currentDay <= 5 menjadi currentDay <= ceklokGraceDayLimit
+          if (currentDay >= 1 && currentDay <= ceklokGraceDayLimit && summary.persentase < 100) {
               
               const isPastMonthLocked = appSettings.isMonthLocked; // Cek status kunci bulan lalu (sudah dikunci Admin)
               const isPastMonthOpened = appSettings.openedMonths.includes(`${lastMonthYear}-${String(lastMonth).padStart(2, '0')}`);
@@ -5148,6 +5169,18 @@
               reminderBox.onclick = null; // Hapus onclick jika ada dari logika lain
           }
       }
+
+      // --- FUNGSI BARU UNTUK ADMIN: Menyimpan batas hari pengisian bulan lalu ---
+      function saveLastMonthCeklokLimit() {
+        const dayLimit = document.getElementById('last-month-ceklok-day-limit').value;
+        displayMessage('last-month-ceklok-message', 'Menyimpan...', { isProcessing: true });
+        google.script.run
+          .withSuccessHandler(r => {
+            displayMessage('last-month-ceklok-message', r.message, { isSuccess: r.status === 'success' });
+          })
+          .saveLastMonthCeklokLimit(currentUser.email, dayLimit); // <-- Panggil fungsi di Kode.gs
+      }
+      // --- AKHIR FUNGSI BARU ---
 
     </script>
   </body>
