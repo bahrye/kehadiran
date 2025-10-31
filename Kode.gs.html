@@ -467,6 +467,9 @@ function getAttendancePageData(email, school, year, month, token, viewerEmail = 
       schoolSettings: schoolSettings,
       isMonthLocked: isMonthLocked, // <-- Kirim status boolean baru
       isRequestableMonth: isRequestableMonth, // <-- Tetap kirim ini
+      // --- AWAL PERUBAHAN ---
+      requestDayLimit: requestDayLimit, // <-- TAMBAHKAN BARIS INI
+      // --- AKHIR PERUBAHAN ---
       pendingChanges: pendingChanges, // <-- Tetap kirim ini
       rejectionInfo: rejectionInfo, // <-- Tetap kirim ini
       rejectedChanges: rejectedChanges, // <-- Tetap kirim ini
@@ -484,6 +487,9 @@ function getAttendancePageData(email, school, year, month, token, viewerEmail = 
         isMonthLocked: true, // Kunci sebagai fallback jika error
         isRequestableMonth: false, pendingChanges: {}, rejectionInfo: null, rejectedChanges: [],
         hasGeoBypass: false, // <-- 5. Tambahkan di error fallback
+        // --- AWAL PERUBAHAN ---
+        requestDayLimit: 10, // <-- TAMBAHKAN FALLBACK DI SINI
+        // --- AKHIR PERUBAHAN ---
         lastMonthCeklokDayLimit: 5
      };
   }
@@ -3604,6 +3610,7 @@ function handleSheetEdit(e) {
  * (BARU) Fungsi ringan yang dipanggil oleh client polling.
  * Menggantikan getLatestSchoolSettings.
  * Memeriksa status Geo-settings DAN status pengumuman.
+ * --- FUNGSI INI DIMODIFIKASI ---
  */
 function getDashboardStatus(email, school) {
   try {
@@ -3614,10 +3621,19 @@ function getDashboardStatus(email, school) {
     // 2. Logika baru untuk pengumuman
     const announcementTimestamp = PropertiesService.getScriptProperties().getProperty('announcement_timestamp') || '0';
 
+    // --- AWAL TAMBAHAN ---
+    // 3. Ambil pengaturan global (ter-cache)
+    const globalSettings = getGlobalSettings_();
+    // --- AKHIR TAMBAHAN ---
+
     return { 
       success: true, 
       schoolSettings: schoolSettings,
-      announcementTimestamp: announcementTimestamp 
+      announcementTimestamp: announcementTimestamp,
+      // --- AWAL TAMBAHAN ---
+      lastMonthCeklokDayLimit: globalSettings.lastMonthCeklokDayLimit, // Kirim batas hari
+      requestDayLimit: globalSettings.requestDayLimit // Kirim batas hari
+      // --- AKHIR TAMBAHAN ---
     };
   } catch (e) {
     Logger.log(`Error di getDashboardStatus: ${e.message}`);
@@ -3625,7 +3641,11 @@ function getDashboardStatus(email, school) {
       success: false, 
       error: e.message, 
       schoolSettings: {}, 
-      announcementTimestamp: '0' 
+      announcementTimestamp: '0',
+      // --- AWAL TAMBAHAN ---
+      lastMonthCeklokDayLimit: 5, // Fallback
+      requestDayLimit: 10 // Fallback
+      // --- AKHIR TAMBAHAN ---
     };
   }
 }
