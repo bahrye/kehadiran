@@ -2933,53 +2933,53 @@ function notifyGuruOfDecision(guruEmail, guruName, school, year, month, action, 
 }
 
 /**
- * Helper: Memperbarui sheet Attendance utama setelah disetujui.
+ * HELPER (OPTIMIZED): Memperbarui sheet Attendance utama setelah disetujui.
+ * VERSI BATCH: Fungsi ini memodifikasi array 'allAttendanceData' di memori.
  */
-function updateMainAttendanceSheet_(requestRow) {
+function batchUpdateAttendanceSheet_(requestRow, allAttendanceData, allUsersMap, TIMEZONE) {
   try {
     const email = requestRow[2];
     const school = requestRow[3];
-    const year = parseInt(requestRow[4]);
-    const month = parseInt(requestRow[5]);
-    const date = requestRow[6]; // yyyy-mm-dd
+    const dateToFind = requestRow[6]; // yyyy-mm-dd
     const newCheckIn = requestRow[10].replace(/^'/, "");
     const newCheckOut = requestRow[11].replace(/^'/, "");
     const newReason = requestRow[12];
     
-    const sheet = getAttendanceSheet_(year, month, true);
-    const allData = sheet.getDataRange().getValues();
-    const TIMEZONE = "Asia/Makassar";
-    
     let rowIndex = -1;
-    // Cari data yang ada
-    for (let i = 1; i < allData.length; i++) {
-      const row = allData[i];
+    
+    // Cari data yang ada di dalam array 'allAttendanceData'
+    // 'allAttendanceData' adalah array 0-indexed dari baris 2 (data saja)
+    for (let i = 0; i < allAttendanceData.length; i++) {
+      const row = allAttendanceData[i];
+      // Kolom data: [0:Timestamp, 1:Email, 2:Nama, 3:Sekolah, 4:Tanggal, 5:Masuk, 6:Pulang, 7:Keterangan]
       const dateStr = Utilities.formatDate(new Date(row[4]), TIMEZONE, "yyyy-MM-dd");
-      if (row[1] === email && row[3] === school && dateStr === date) {
-        rowIndex = i + 1; // 1-based index
+      if (row[1] === email && row[3] === school && dateStr === dateToFind) {
+        rowIndex = i; // 0-based index
         break;
       }
     }
 
     if (rowIndex > 0) {
-      // Data ditemukan, update baris itu
-      sheet.getRange(rowIndex, 6, 1, 3).setValues([[`'${newCheckIn || ""}`, `'${newCheckOut || ""}`, newReason || ""]]);
+      // Data ditemukan, update array di memori
+      // [5:Masuk, 6:Pulang, 7:Keterangan]
+      allAttendanceData[rowIndex][5] = `'${newCheckIn || ""}`;
+      allAttendanceData[rowIndex][6] = `'${newCheckOut || ""}`;
+      allAttendanceData[rowIndex][7] = newReason || "";
     } else {
-      // Data tidak ditemukan (misal, guru tadinya alpa/kosong)
-      // Buat baris baru
-      const allUsers = usersSheet.getDataRange().getValues();
-      const userName = allUsers.find(u => u[0].toLowerCase() === email.toLowerCase())?.[2] || email;
+      // Data tidak ditemukan (kasus alpa/kosong)
+      // Buat baris baru dan tambahkan ke array
+      const userName = allUsersMap.get(email.toLowerCase()) || email;
       
-      sheet.appendRow([
-        new Date(), email, userName, school, new Date(date),
+      allAttendanceData.push([
+        new Date(), email, userName, school, new Date(dateToFind),
         `'${newCheckIn || ""}`, `'${newCheckOut || ""}`, newReason || ""
       ]);
     }
   } catch(e) {
-    Logger.log(`Gagal updateMainAttendanceSheet_ untuk ${email} tanggal ${date}: ${e.message}`);
+    // Log error tapi jangan hentikan proses batch utama
+    Logger.log(`Gagal update batchUpdateAttendanceSheet_ untuk ${email} tanggal ${dateToFind}: ${e.message}`);
   }
 }
-
 
 /**
  * (GURU) Dipanggil saat guru menekan "Ajukan Perubahan".
@@ -3152,10 +3152,11 @@ function getPendingRequests(staffEmail, school) {
   }
 }
 
-
 /**
  * (STAFF) Dipanggil saat staff menekan "Setujui" atau "Tolak".
- * Memproses semua request ID yang dikirim dalam satu aksi.
+ * (VERSI OPTIMIZED)
+ * Memproses semua request ID yang dikirim dalam satu aksi
+ * dengan BATCH UPDATE ke sheet Attendance.
  */
 function processChangeRequest(staffEmail, requestIds, action, rejectionReason) {
   if (!checkIfAdminOrStaff(staffEmail)) return { status: "error", message: "Akses ditolak." };
@@ -3164,8 +3165,8 @@ function processChangeRequest(staffEmail, requestIds, action, rejectionReason) {
 
   try {
     const reqSheet = getChangeRequestsSheet_();
-    const data = reqSheet.getDataRange().getValues();
-    const headers = data[0];
+    const allReqData = reqSheet.getDataRange().getValues(); // Baca SEMUA data ajuan 1x
+    const headers = allReqData[0];
     
     // Cari index kolom berdasarkan nama header (lebih aman)
     const idIndex = headers.indexOf("RequestID");
@@ -3181,39 +3182,86 @@ function processChangeRequest(staffEmail, requestIds, action, rejectionReason) {
     let guruEmail = "";
     let guruName = "";
     let school = "";
+    
+    // 1. Temukan request pertama HANYA untuk mendapatkan info bulan/tahun
+    for (const requestId of requestIds) {
+       for (let i = 1; i < allReqData.length; i++) {
+         if (allReqData[i][idIndex] === requestId) {
+            firstRequestInfo = {
+              year: allReqData[i][yearIndex],
+              month: allReqData[i][monthIndex],
+              email: allReqData[i][emailIndex],
+              school: allReqData[i][schoolIndex]
+            };
+            guruEmail = firstRequestInfo.email;
+            school = firstRequestInfo.school;
+            break;
+         }
+       }
+       if (firstRequestInfo) break;
+    }
+
+    if (!firstRequestInfo) {
+      throw new Error("Tidak ada data pengajuan yang valid ditemukan.");
+    }
+    
+    // --- AWAL OPTIMASI BATCH ---
+    
+    // 2. Siapkan data untuk batch update
+    const TIMEZONE = "Asia/Makassar";
+    const sheet = getAttendanceSheet_(firstRequestInfo.year, firstRequestInfo.month, true);
+    
+    // 3. Baca SEMUA data absensi 1x
+    const allAttendanceData = sheet.getLastRow() > 1 
+      ? sheet.getRange(2, 1, sheet.getLastRow() - 1, 8).getValues() 
+      : [];
+      
+    // 4. Baca data Users 1x (untuk kasus ajuan baru/alpa)
+    const allUsers = usersSheet.getDataRange().getValues();
+    const allUsersMap = new Map(allUsers.map(u => [u[0].toLowerCase(), u[2]]));
+
+    const rowsToUpdateInReqSheet = [];
+    let approvalCount = 0;
+    
+    // --- AKHIR OPTIMASI BATCH ---
 
     for (const requestId of requestIds) {
       let found = false;
-      for (let i = 1; i < data.length; i++) { // Loop data (mulai dari 1)
-        if (data[i][idIndex] === requestId) { // Cek ID
-          const row = data[i];
+      for (let i = 1; i < allReqData.length; i++) { // Loop data ajuan (mulai dari 1)
+        const row = allReqData[i];
+        if (row[idIndex] === requestId) { // Cek ID
           if (row[statusIndex] !== 'pending') {
-            throw new Error(`Pengajuan ${requestId} sudah diproses.`);
+            Logger.log(`Pengajuan ${requestId} sudah diproses, dilewati.`);
+            continue; // Lewati jika sudah diproses
           }
 
-          if (!firstRequestInfo) { // Ambil info dari request pertama
-            firstRequestInfo = {
-              year: row[yearIndex],
-              month: row[monthIndex],
-              email: row[emailIndex],
-              school: row[schoolIndex]
-            };
-            guruEmail = row[emailIndex];
-            school = row[schoolIndex];
-            const allUsers = usersSheet.getDataRange().getValues();
-            guruName = allUsers.find(u => u[0].toLowerCase() === guruEmail.toLowerCase())?.[2] || guruEmail;
+          if (!guruName) { // Ambil nama guru dari data pertama
+             guruName = allUsersMap.get(row[emailIndex].toLowerCase()) || row[emailIndex];
           }
 
           // Dapatkan baris di sheet (1-based index)
-          const rowIndex = i + 1;
-          const rangeToUpdate = reqSheet.getRange(rowIndex, statusIndex + 1, 1, 3);
+          const rowIndexInReqSheet = i + 1;
           
           if (action === 'approve') {
-            rangeToUpdate.setValues([[ "approved", staffEmail, "" ]]);
-            // JALANKAN LOGIKA UPDATE SHEET UTAMA
-            updateMainAttendanceSheet_(row); 
+            // Panggil helper BATCH (modifikasi array 'allAttendanceData' di memori)
+            batchUpdateAttendanceSheet_(row, allAttendanceData, allUsersMap, TIMEZONE); 
+            approvalCount++;
+            
+            // Simpan info untuk update sheet 'ChangeRequests'
+            rowsToUpdateInReqSheet.push({ 
+              index: rowIndexInReqSheet, 
+              status: "approved", 
+              handler: staffEmail, 
+              reason: "" 
+            });
+            
           } else { // 'reject'
-            rangeToUpdate.setValues([[ "rejected", staffEmail, rejectionReason || "" ]]);
+            rowsToUpdateInReqSheet.push({ 
+              index: rowIndexInReqSheet, 
+              status: "rejected", 
+              handler: staffEmail, 
+              reason: rejectionReason || "" 
+            });
           }
           found = true;
           break; // Lanjut ke request ID berikutnya
@@ -3222,32 +3270,43 @@ function processChangeRequest(staffEmail, requestIds, action, rejectionReason) {
       if (!found) Logger.log(`Request ID ${requestId} not found.`);
     }
 
-    if (!firstRequestInfo) {
-      throw new Error("Tidak ada data pengajuan yang valid ditemukan.");
-    }
+    // --- PROSES SETELAH LOOP ---
 
-    // Hapus cache untuk guru yang bersangkutan agar datanya refresh
+    // 5. Tulis ke sheet Attendance (HANYA JIKA ADA YANG DISETUJUI)
+    if (approvalCount > 0) {
+      // Hapus data lama
+      if (sheet.getLastRow() > 1) {
+        sheet.getRange(2, 1, sheet.getLastRow() - 1, 8).clearContent();
+      }
+      // Tulis data baru (yang sudah dimodifikasi) 1x
+      if (allAttendanceData.length > 0) {
+        sheet.getRange(2, 1, allAttendanceData.length, 8).setValues(allAttendanceData);
+      }
+    }
+    
+    // 6. Tulis status baru ke sheet 'ChangeRequests' (ini tetap multiple-call, tapi aman)
+    rowsToUpdateInReqSheet.forEach(update => {
+      const rangeToUpdate = reqSheet.getRange(update.index, statusIndex + 1, 1, 3);
+      rangeToUpdate.setValues([[ update.status, update.handler, update.reason ]]);
+    });
+    
+    // 7. Hapus cache (logika lama sudah benar)
     const cache = CacheService.getScriptCache();
-    
-    // --- AWAL PERBAIKAN ---
-    // Kunci cache harus menyertakan 'school'
     const rawCacheKey = `raw_display_attendance_${firstRequestInfo.school}_${firstRequestInfo.year}_${firstRequestInfo.month}`;
-    // --- AKHIR PERBAIKAN ---
-    
     cache.remove(rawCacheKey);
-    Logger.log(`Cache (raw) cleared: ${rawCacheKey}`); // Tambah log
+    Logger.log(`Cache (raw) cleared: ${rawCacheKey}`);
     
     const userCacheKey = `data_${firstRequestInfo.email}_${firstRequestInfo.school}_${firstRequestInfo.year}_${firstRequestInfo.month}`;
     cache.remove(userCacheKey);
-    Logger.log(`Cache (user) cleared: ${userCacheKey}`); // Tambah log
+    Logger.log(`Cache (user) cleared: ${userCacheKey}`);
 
-    // Kirim notifikasi ke Guru
+    // 8. Kirim notifikasi (logika lama sudah benar)
     notifyGuruOfDecision(guruEmail, guruName, school, firstRequestInfo.year, firstRequestInfo.month, action, rejectionReason);
     
     return { status: "success", message: `Pengajuan berhasil di-${action}.` };
     
   } catch (e) {
-    Logger.log(`Error di processChangeRequest: ${e.message}`);
+    Logger.log(`Error di processChangeRequest (Optimized): ${e.message} \nStack: ${e.stack}`);
     return { status: "error", message: `Gagal memproses: ${e.message}` };
   }
 }
