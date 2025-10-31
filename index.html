@@ -5067,7 +5067,7 @@
                   messageEl.innerText = `Lengkapi Ceklok ${lastMonthName} Segera!`;
                   
                   // Perubahan: Tambahkan tautan untuk masuk ke bulan lalu
-                  detailsEl.innerHTML = `Kehadiran Anda di bulan lalu masih ${summary.persentase}%. Klik kotak ini untuk melengkapi sampai tanggal <strong>5</strong>.`;
+                  detailsEl.innerHTML = `Kehadiran Anda di bulan lalu masih ${summary.persentase}%. Klik kotak ini untuk melengkapi sampai tanggal <strong>${ceklokGraceDayLimit}</strong>.`;
                   
                   // Set event handler untuk klik kotak (PENTING)
                   reminderBox.onclick = () => {
