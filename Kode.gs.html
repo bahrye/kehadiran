@@ -2204,8 +2204,37 @@ function getLKHData(email, school, year, month) {
         });
       }
     }
+
+    // --- AWAL LOGIKA PENGUNCIAN BARU ---
+    const globalSettings = getGlobalSettings_();
+    const requestDayLimit = globalSettings.requestDayLimit; // Cth: 5
+    const today = new Date();
+    const currentDay = today.getDate();
+    const currentMonth = today.getMonth() + 1;
+    const currentYear = today.getFullYear();
     
-    // --- Bagian 2: Memuat data LKH (Logika BARU dengan Caching) ---
+    const lastMonthDate = new Date();
+    lastMonthDate.setMonth(today.getMonth() - 1);
+    const lastMonth = lastMonthDate.getMonth() + 1;
+    const lastMonthYear = lastMonthDate.getFullYear();
+
+    const isCurrentMonth = (year === currentYear && month === currentMonth);
+    const isLastMonth = (year === lastMonthYear && month === lastMonth);
+    const isLastMonthGracePeriod = (isLastMonth && currentDay <= requestDayLimit);
+
+    let isLocked = !(isCurrentMonth || isLastMonthGracePeriod);
+    let lockMessage = "";
+
+    if (isLocked) {
+      if (isLastMonth) {
+        lockMessage = `LKH untuk bulan lalu hanya bisa diisi sampai tanggal ${requestDayLimit} bulan ini.`;
+      } else if (!isCurrentMonth) {
+        lockMessage = "LKH hanya bisa diisi untuk bulan berjalan dan bulan lalu (selama masa tenggang).";
+      }
+    }
+    // --- AKHIR LOGIKA PENGUNCIAN BARU ---
+    
+    // --- Bagian 2: Memuat data LKH (Logika Caching tidak berubah) ---
     const TIMEZONE = "Asia/Makassar";
     const cache = CacheService.getScriptCache();
     // Buat cache key yang unik per user, per sekolah, per bulan
@@ -2214,9 +2243,12 @@ function getLKHData(email, school, year, month) {
 
     if (cachedData) {
       Logger.log(`Mengambil LKH dari cache: ${cacheKey}`);
-      // Jika ada di cache, langsung kembalikan.
-      // Kita cache seluruh objek { workingDays, existingData }
-      return JSON.parse(cachedData);
+      // Periksa apakah data cache sudah memiliki status kunci
+      const parsedData = JSON.parse(cachedData);
+      if (parsedData.hasOwnProperty('isLocked')) {
+         return parsedData;
+      }
+      // Jika cache lama (belum ada 'isLocked'), kita paksakan baca ulang
     }
     
     Logger.log(`Membaca LKH dari sheet: ${cacheKey}`);
@@ -2245,7 +2277,13 @@ function getLKHData(email, school, year, month) {
       });
     }
 
-    const result = { success: true, workingDays, existingData };
+    const result = { 
+      success: true, 
+      workingDays, 
+      existingData,
+      isLocked: isLocked,           // <-- TAMBAHKAN
+      lockMessage: lockMessage      // <-- TAMBAHKAN
+    };
     
     // Simpan hasil ke cache selama 6 jam
     cache.put(cacheKey, JSON.stringify(result), 21600);
@@ -2266,6 +2304,29 @@ function saveLKHData(email, school, year, month, lkhData) {
     if (!checkIfLKHUser_(email)) {
       return { status: "error", message: "Akses LKH ditolak." };
     }
+
+    // --- AWAL VALIDASI PENGUNCIAN ---
+    const globalSettings = getGlobalSettings_();
+    const requestDayLimit = globalSettings.requestDayLimit;
+    const today = new Date();
+    const currentDay = today.getDate();
+    const currentMonth = today.getMonth() + 1;
+    const currentYear = today.getFullYear();
+    
+    const lastMonthDate = new Date();
+    lastMonthDate.setMonth(today.getMonth() - 1);
+    const lastMonth = lastMonthDate.getMonth() + 1;
+    const lastMonthYear = lastMonthDate.getFullYear();
+
+    const isCurrentMonth = (year === currentYear && month === currentMonth);
+    const isLastMonth = (year === lastMonthYear && month === lastMonth);
+    const isLastMonthGracePeriod = (isLastMonth && currentDay <= requestDayLimit);
+
+    if (!(isCurrentMonth || isLastMonthGracePeriod)) {
+        Logger.log(`REJECTED LKH save for ${email}. Reason: Month ${year}-${month} is locked.`);
+        return { status: "error", message: "Gagal menyimpan: LKH untuk bulan ini telah dikunci." };
+    }
+    // --- AKHIR VALIDASI PENGUNCIAN ---
     
     // Panggil helper BARU (dengan 'true' agar sheet dibuat jika belum ada)
     const sheet = getLKHSheet_(year, month, true);
