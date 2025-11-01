@@ -78,27 +78,27 @@
               </div>
               <div class="summary-grid">
                   <div class="summary-item">
-                      <span class="summary-value" id="summary-hari-kerja">-</span>
+                      <span class="summary-value" id="summary-hari-kerja">...</span>
                       <span class="summary-label">Hari Kerja</span>
                   </div>
                   <div class="summary-item">
-                      <span class="summary-value" id="summary-kehadiran">-</span>
+                      <span class="summary-value" id="summary-kehadiran">...</span>
                       <span class="summary-label">Hadir</span>
                   </div>
                   <div class="summary-item">
-                      <span class="summary-value" id="summary-alpa">-</span>
+                      <span class="summary-value" id="summary-alpa">...</span>
                       <span class="summary-label">Alpa</span>
                   </div>
                   <div class="summary-item">
-                      <span class="summary-value" id="summary-alasan">-</span>
+                      <span class="summary-value" id="summary-alasan">...</span>
                       <span class="summary-label">Hari Libur Sekolah</span>
                   </div>
                   <div class="summary-item">
-                      <span class="summary-value" id="summary-persentase">-</span>
+                      <span class="summary-value" id="summary-persentase">...</span>
                       <span class="summary-label">Persentase</span>
                   </div>
                   <div class="summary-item">
-                      <span class="summary-value" id="summary-ceklok">-</span>
+                      <span class="summary-value" id="summary-ceklok">...</span>
                       <span class="summary-label">Ceklok</span>
                   </div>
               </div>
@@ -4115,29 +4115,35 @@
         document.getElementById("lkh-sptjm-dashboard-container").style.display = "none";
         document.getElementById("lkh-container").style.display = "block";
 
-        // --- TAMBAHKAN BARIS INI ---
         if (pushState) {
           history.pushState(null, null, location.href);
         }
 
         const lkhMonthInput = document.getElementById('lkh-month-input');
         if (!lkhMonthInput.value) {
-          // --- PERUBAHAN: Logika default bulan berdasarkan tanggal ---
+          // --- (Logika set tanggal default Anda, tidak perlu diubah) ---
           const today = new Date();
-          const targetDate = new Date(); // Salin tanggal hari ini
-          
+          const targetDate = new Date(); 
           if (today.getDate() < 6) {
-              // Jika tanggal 1-5, set ke bulan lalu
               targetDate.setMonth(targetDate.getMonth() - 1);
           }
-          // Jika tanggal 6+, targetDate adalah bulan ini (default)
-          
           const year = targetDate.getFullYear();
           const month = String(targetDate.getMonth() + 1).padStart(2, '0');
           lkhMonthInput.value = `${year}-${month}`;
-          // --- AKHIR PERUBAHAN ---
+          // --- (Akhir logika set tanggal default) ---
         }
-        handleLkhMonthChange();
+        
+        // --- AWAL PERUBAHAN ---
+        // Kita panggil forceUpdateSettings.
+        // Fungsi ini akan membersihkan cache server (memastikan pengaturan tanggal terbaru)
+        // lalu secara internal memanggil handleLkhMonthChange() untuk memuat formulir.
+        
+        // Ganti baris ini:
+        // handleLkhMonthChange(); 
+        
+        // Menjadi baris ini:
+        forceUpdateSettings(null, 'update-settings-button');
+        // --- AKHIR PERUBAHAN ---
       }
 
       function handleLkhMonthChange() {
@@ -5270,28 +5276,69 @@
             event.stopPropagation();
         }
 
+        // --- AWAL PERUBAHAN ---
+        // Pindahkan pengecekan LKH ke paling atas
+        const lkhContainer = document.getElementById('lkh-container');
+        // --- AKHIR PERUBAHAN ---
+
+        // --- AWAL TAMBAHAN: Nonaktifkan semua kontrol LKH ---
+        if (lkhContainer.style.display === 'block') {
+            
+            // 1. Nonaktifkan semua tombol utama dan input bulan
+            const lkhMonthInput = document.getElementById('lkh-month-input');
+            const applyWeeklyButton = document.getElementById('apply-weekly-data-button');
+            const clearButton = document.getElementById('clear-lkh-data-button');
+            const saveButton = document.getElementById('save-lkh-button');
+            
+            if (lkhMonthInput) lkhMonthInput.disabled = true;
+            if (applyWeeklyButton) applyWeeklyButton.disabled = true;
+            if (clearButton) clearButton.disabled = true;
+            if (saveButton) saveButton.disabled = true;
+            
+            // 2. Tampilkan pesan loading di dalam tabel
+            const tableContainer = document.getElementById('lkh-table-container');
+            if (tableContainer) {
+                tableContainer.innerHTML = `
+                  <div class="loader-container">
+                    <div class="loader"><div class="ball"></div><div class="ball"></div><div class="ball"></div></div>
+                    <p>Memperbarui pengaturan tanggal...</p>
+                  </div>`;
+            }
+            
+            // 3. Bersihkan pesan-pesan lama
+            displayMessage('lkh-action-message', ''); // Hapus pesan aksi
+            const lockMessageEl = document.getElementById('lkh-lock-message');
+            if (lockMessageEl) {
+              lockMessageEl.innerText = "";
+              lockMessageEl.className = "message";
+            }
+        }
+        // --- AKHIR TAMBAHAN ---
+
+
         if (!currentUser || !selectedSchool) {
           displayMessage(null, "Gagal: Sesi pengguna tidak ditemukan.");
           return;
         }
         
-        // === 1. Kontrol Tombol ===
         let buttonToDisable = null;
         if (buttonId) {
             buttonToDisable = document.getElementById(buttonId);
         } else {
-            buttonToDisable = document.getElementById('update-settings-button');
+            buttonToDisable = document.getElementById('update-settings-button'); 
         }
         
         if (buttonToDisable) {
-          // --- PERUBAHAN DI SINI ---
-          // Tombol hanya dinonaktifkan (untuk memicu spin), BUKAN disembunyikan.
           buttonToDisable.disabled = true; 
-          // --- AKHIR PERUBAHAN ---
         }
         
-        // 2. Tampilkan Toast Loading
-        displayMessage(null, "Memperbarui setelan & pengumuman...", { isProcessing: true });
+        // --- AWAL PERUBAHAN (Logika Toast) ---
+        // Hanya tampilkan toast melayang jika KITA TIDAK SEDANG DI HALAMAN LKH
+        if (lkhContainer.style.display !== 'block') {
+          // 2. Tampilkan Toast Loading
+          displayMessage(null, "Memperbarui setelan & pengumuman...", { isProcessing: true });
+        }
+        // --- AKHIR PERUBAHAN (Logika Toast) ---
         
         // 3. Hapus Cache di Server
         google.script.run
@@ -5302,7 +5349,7 @@
           .withFailureHandler(err => console.error("Gagal hapus cache lokasi:", err.message))
           .clearSchoolSettingsCacheManual(localStorage.getItem('ceklokAuthToken')); 
 
-        const lkhContainer = document.getElementById('lkh-container');
+        // (Sisa fungsi tidak berubah...)
         if (lkhContainer.style.display === 'block') {
           const lkhMonthInput = document.getElementById('lkh-month-input').value;
           if (lkhMonthInput) {
@@ -5316,21 +5363,15 @@
         // 4. Ambil Data Baru (setelah cache dihapus)
         google.script.run
           .withSuccessHandler(response => {
-            // Aktifkan kembali tombol (secara logis)
             if (buttonToDisable) {
               buttonToDisable.disabled = false; 
             }
 
             if (response.success) {
-              
-              // --- PERUBAHAN DI SINI ---
-              // Sembunyikan tombol HANYA SETELAH BERHASIL
               if (buttonToDisable && (buttonId === 'refresh-dashboard-button' || buttonId === 'refresh-staff-dashboard-button')) {
                   buttonToDisable.style.display = 'none'; 
               }
-              // --- AKHIR PERUBAHAN ---
-
-              // a. Update Setelan Geo
+              
               const newGeoSettings = response.schoolSettings;
               if (hasSettingsChanged(currentSchoolSettings, newGeoSettings)) {
                 currentSchoolSettings = newGeoSettings;
@@ -5338,31 +5379,31 @@
                   refreshGeoUI(); 
                 }
               }
-              
-              // b. Update Setelan Batas Hari (Global)
               appSettings.lastMonthCeklokDayLimit = response.lastMonthCeklokDayLimit;
               appSettings.lkhLastDayLimit = response.lkhLastDayLimit;
               appSettings.requestDayLimit = response.requestDayLimit;
               
-              // c. Update Teks Pengumuman
-              fetchLatestAnnouncements(); // Ini akan update timestamp & toast sukses
+              // --- AWAL PERUBAHAN (Logika Toast) ---
+              // Pindahkan fetchLatestAnnouncements ke sini
+              // (fungsi ini akan menangani toast sukses/gagalnya sendiri)
+              fetchLatestAnnouncements(); 
+              // --- AKHIR PERUBAHAN ---
 
-              // d. Update Pengumuman Dinamis (Pengingat)
               if (document.getElementById('guru-dashboard-container').style.display === 'block') {
                  renderDynamicAnnouncements(appSettings, currentSummary);
               }
               
-              // e. Update Halaman LKH
               if (lkhContainer.style.display === 'block') {
+                const lkhMonthInput = document.getElementById('lkh-month-input');
+                if (lkhMonthInput) lkhMonthInput.disabled = false;
+                
                 handleLkhMonthChange(); 
               }
               
-              // f. MULAI ULANG POLLING
               dashboardTimestamp = response.updateTimestamp || '0'; 
               startSettingsPolling(); 
 
             } else {
-              // Jika GAGAL, tampilkan kembali tombolnya
               displayMessage(null, `Gagal memperbarui: ${response.error || 'Kesalahan server'}`);
               if (buttonToDisable && (buttonId === 'refresh-dashboard-button' || buttonId === 'refresh-staff-dashboard-button')) {
                  buttonToDisable.style.display = 'flex'; 
@@ -5370,7 +5411,6 @@
             }
           })
           .withFailureHandler(err => {
-            // Jika GAGAL, tampilkan kembali tombolnya
             if (buttonToDisable) {
               buttonToDisable.disabled = false;
               if (buttonId === 'refresh-dashboard-button' || buttonId === 'refresh-staff-dashboard-button') {
