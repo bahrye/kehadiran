@@ -4153,7 +4153,7 @@
         // Bersihkan pesan lock/error lama saat bulan diganti
         const lockMessageEl = document.getElementById('lkh-lock-message');
         if (lockMessageEl) {
-          lockMessageEl.innerText = "";
+          lockMessageEl.innerHTML = ""; // <-- PERUBAHAN DI SINI
           lockMessageEl.className = "message";
         }
         // --- AKHIR TAMBAHAN ---
@@ -4174,7 +4174,7 @@
           const lockMessageEl = document.getElementById('lkh-lock-message'); // <-- Ambil elemen pesan
 
           // Reset pesan kunci (pastikan 'message' adalah kelas dasarnya)
-          lockMessageEl.innerText = "";
+          lockMessageEl.innerHTML = ""; // <-- PERUBAHAN DI SINI
           lockMessageEl.className = "message";
 
           applyWeeklyButton.disabled = true; // Pindahkan ini ke atas
@@ -4203,7 +4203,7 @@
                 // --- AWAL PERBAIKAN LOGIKA TAMPILAN PESAN ---
                 // Selalu tampilkan pesan jika ada (tidak kosong)
                 if (response.lockMessage) { 
-                  lockMessageEl.innerText = response.lockMessage;
+                  lockMessageEl.innerHTML = response.lockMessage; // <-- PERUBAHAN DI SINI
                   
                   if (response.isLocked) {
                     // Jika terkunci, beri warna merah (danger)
@@ -4219,13 +4219,13 @@
               } else {
                 container.innerHTML = `<p style="color: var(--danger-color);">Gagal memuat data: ${response.error}</p>`;
                 // Tampilkan error di pesan kunci juga
-                lockMessageEl.innerText = response.error;
+                lockMessageEl.innerHTML = response.error; // <-- PERUBAHAN DI SINI
                 lockMessageEl.classList.add('danger-message');
               }
             })
             .withFailureHandler(err => {
               container.innerHTML = `<p style="color: var(--danger-color);">Gagal memuat: ${err.message}</p>`;
-              lockMessageEl.innerText = err.message;
+              lockMessageEl.innerHTML = err.message; // <-- PERUBAHAN DI SINI
               lockMessageEl.classList.add('danger-message');
             })
             .getLKHData(currentUser.email, selectedSchool, year, month);
@@ -4246,7 +4246,7 @@
             tableHTML += `
               <tr data-date="${day.date}">
                 
-                <td>${day.dayName},<br>${day.formattedDate}</td>
+                <td>${day.dayName},<br><strong>${day.formattedDate}</strong></td>
                 
                 <td><textarea rows="3" id="uraian-${day.date}" oninput="updateClearLkhButtonStatus()" ${disabledAttr}>${data.uraian || ''}</textarea></td>
                 <td><textarea rows="3" id="hasil-${day.date}" oninput="updateClearLkhButtonStatus()" ${disabledAttr}>${data.hasil || ''}</textarea></td>
