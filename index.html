@@ -5134,9 +5134,9 @@
           lastMonthDate.setMonth(today.getMonth() - 1);
           const lastMonthName = lastMonthDate.toLocaleDateString('id-ID', { month: 'long' });
 
-          // Ambil batas hari dari objek settings
-          const graceLimit = settings.lastMonthCeklokDayLimit || 5;
-          const requestLimit = settings.requestDayLimit || 10;
+          // Kode yang BENAR
+          const graceLimit = settings.lastMonthCeklokDayLimit ?? 5;
+          const requestLimit = settings.requestDayLimit ?? 10;
 
           // ==========================================================
           // LOGIKA 1: Pengingat Ceklok Awal Bulan (Tgl 1 s/d `graceLimit`)
