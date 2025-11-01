@@ -49,8 +49,14 @@
           <h2 id="guru-welcome-message"></h2>
 
           <div id="announcement-section">
-            <h3><i class="fa-solid fa-bullhorn"></i> Pengumuman</h3>
-            <p id="announcement-text">Tidak ada pengumuman saat ini.</p>
+            <div id="announcement-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <h3 style="margin: 0;"><i class="fa-solid fa-bullhorn"></i> Pengumuman</h3>
+              <button id="refresh-dashboard-button" onclick="forceUpdateSettings(event, this.id)" style="display:none; width: auto; padding: 8px 12px; font-size: 13px; font-weight: 600; background-color: #fff; color: var(--text-secondary-color); border: 1px solid var(--border-color); box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                <i class="fa-solid fa-rotate" style="margin-right: 6px;"></i>
+                <span>Refresh</span>
+              </button>
+            </div>
+            <p id="announcement-text" style="margin-bottom: 0;">Tidak ada pengumuman saat ini.</p>
           </div>
 
           <div id="geo-status-box" class="card-section processing">
@@ -198,8 +204,14 @@
         <div class="card">
           <h2 id="staff-welcome-message"></h2>
           <div id="staff-announcement-section">
-            <h3><i class="fa-solid fa-bullhorn"></i> Pengumuman</h3>
-            <p id="staff-announcement-text">Tidak ada pengumuman saat ini.</p>
+            <div id="staff-announcement-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <h3 style="margin: 0;"><i class="fa-solid fa-bullhorn"></i> Pengumuman</h3>
+              <button id="refresh-staff-dashboard-button" onclick="forceUpdateSettings(event, this.id)" style="display:none; width: auto; padding: 8px 12px; font-size: 13px; font-weight: 600; background-color: #fff; color: var(--text-secondary-color); border: 1px solid var(--border-color); box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                <i class="fa-solid fa-rotate" style="margin-right: 6px;"></i>
+                <span>Refresh</span>
+              </button>
+            </div>
+            <p id="staff-announcement-text" style="margin-bottom: 0;">Tidak ada pengumuman saat ini.</p>
           </div>
 
           <div id="staff-summary-section">
@@ -591,6 +603,10 @@
 
       // Variabel global untuk melacak toast "processing"
       let processingToastId = null;
+
+      // --- TAMBAHKAN VARIABEL BARU INI ---
+      let dashboardTimestamp = '0'; // Melacak "versi" data yang sedang tampil
+      // --- AKHIR TAMBAHAN ---
 
       // ===================================================================
       // 1. TAMBAHKAN VARIABEL GLOBAL BARU INI
@@ -4849,16 +4865,14 @@
           if (!currentUser) return; 
 
           const statusBox = document.getElementById('geo-status-box');
-          if (!statusBox) return; // Keluar jika tidak di dasbor guru
+          if (!statusBox) return; 
 
-          // 1. Set UI ke status loading
           statusBox.style.display = 'block';
           statusBox.className = 'card-section processing';
           document.getElementById('geo-status-message').innerText = 'Memperbarui pengaturan...';
           document.getElementById('geo-status-details').innerText = 'Mengambil setelan geo-lock terbaru...';
           document.getElementById('refresh-geo-button').disabled = true;
 
-          // 2. Panggil fungsi 'getDashboardStatus' yang ringan (bukan clear cache)
           google.script.run
               .withSuccessHandler(response => {
                   
@@ -4867,17 +4881,19 @@
                       return;
                   }
                   
-                  // 3. SUKSES: Perbarui variabel global dengan pengaturan BARU dari server
                   currentSchoolSettings = response.schoolSettings || {};
+                  
+                  // --- TAMBAHAN BARU: Simpan timestamp awal ---
+                  // Simpan "versi" data yang kita muat pertama kali
+                  dashboardTimestamp = response.updateTimestamp || '0'; 
+                  // --- AKHIR TAMBAHAN ---
 
-                  // 4. Lanjutkan ke pengecekan GPS (hanya di sisi client)
                   runPrimaryGeoCheck(); 
               })
               .withFailureHandler(error => {
-                  // Gagal menghubungi server
                   handleGeoError({ code: -1, message: "Error server: " + error.message });
               })
-              .getDashboardStatus(currentUser.email, selectedSchool); // Panggil fungsi ringan
+              .getDashboardStatus(currentUser.email, selectedSchool); 
       }
 
       // [NAMA DIGANTI & DIMODIFIKASI] Fungsi ini (sebelumnya runFallbackGeoCheck)
@@ -4928,8 +4944,7 @@
       }
 
       /**
-       * (MODIFIKASI) Memulai polling untuk memeriksa perubahan pengaturan server.
-       * Hanya dipanggil sekali saat dasbor guru dimuat.
+       * (MODIFIKASI) Polling cepat untuk memeriksa "bendera" pembaruan.
        */
       function startSettingsPolling() {
         // Hentikan polling lama jika ada
@@ -4938,92 +4953,57 @@
           settingsPollInterval = null;
         }
 
-        // Mulai polling baru setiap 3 menit (180000 ms)
+        // Mulai polling baru setiap 7 detik (7000 ms)
         settingsPollInterval = setInterval(() => {
           
           const isGuruDashboard = document.getElementById('guru-dashboard-container').style.display === 'block';
           const isStaffDashboard = document.getElementById('staff-dashboard-container').style.display === 'block';
           
-          // 1. Pastikan kita masih di dasbor (Guru ATAU Staff) dan ada user
           if (!currentUser || !selectedSchool || (!isGuruDashboard && !isStaffDashboard)) {
-            // Jika tidak, hentikan polling
             clearInterval(settingsPollInterval);
             settingsPollInterval = null;
             return;
           }
 
-          // 2. Panggil fungsi server yang ringan
+          // 2. Panggil fungsi server super ringan 'checkUpdateFlag'
+          // Kirim timestamp "versi" kita saat ini
           google.script.run
             .withSuccessHandler(response => {
-              if (response.success) {
+              if (response.updateAvailable) {
+                // Server bilang ada update!
+                console.log("Pembaruan terdeteksi. Menampilkan tombol refresh.");
                 
-                // 3. Logika Geo (HANYA untuk GURU)
-                if (isGuruDashboard) {
-                  const newSettings = response.schoolSettings;
-                  // Bandingkan dengan pengaturan 'currentSchoolSettings' yang ada
-                  if (hasSettingsChanged(currentSchoolSettings, newSettings)) {
-                    console.log("Deteksi perubahan pengaturan GEO server. Memperbarui UI...");
-                    currentSchoolSettings = newSettings; 
-                    refreshGeoUI(); 
-                  }
-                }
+                // Simpan timestamp baru (agar kita tidak bertanya lagi)
+                dashboardTimestamp = response.newTimestamp; 
                 
-                // 4. Logika Pengumuman (Untuk Guru & Staff)
-                const newTimestamp = response.announcementTimestamp;
+                const guruBtn = document.getElementById('refresh-dashboard-button');
+                const staffBtn = document.getElementById('refresh-staff-dashboard-button');
                 
-                if (newTimestamp && newTimestamp !== '0' && newTimestamp !== currentAnnouncementTimestamp) {
-                  console.log("Deteksi perubahan PENGUMUMAN. Mengambil data baru...");
-                  currentAnnouncementTimestamp = newTimestamp; 
-                  fetchLatestAnnouncements(); 
+                // Tampilkan tombol yang sesuai
+                if (isGuruDashboard && guruBtn) guruBtn.style.display = 'flex';
+                if (isStaffDashboard && staffBtn) staffBtn.style.display = 'flex';
+                
+                // Hentikan polling
+                if (settingsPollInterval) {
+                    clearInterval(settingsPollInterval);
+                    settingsPollInterval = null;
+                    console.log("Polling dihentikan. Menunggu refresh manual.");
                 }
-
-                // --- AWAL PERUBAHAN (Logika LKH) ---
-                if (isGuruDashboard) {
-                  const newGraceLimit = parseInt(response.lastMonthCeklokDayLimit, 10);
-                  const newRequestLimit = parseInt(response.requestDayLimit, 10);
-                  const newLkhLimit = parseInt(response.lkhLastDayLimit, 10); // <-- BARIS BARU
-                  
-                  let settingsChanged = false;
-
-                  // Cek perubahan Grace Limit (Batas Awal Bulan)
-                  if (newGraceLimit && !isNaN(newGraceLimit) && appSettings.lastMonthCeklokDayLimit !== newGraceLimit) {
-                      console.log(`Deteksi perubahan Grace Limit: ${appSettings.lastMonthCeklokDayLimit} -> ${newGraceLimit}`);
-                      appSettings.lastMonthCeklokDayLimit = newGraceLimit; // Update variabel global
-                      settingsChanged = true;
-                  }
-                  
-                  // --- AWAL TAMBAHAN: Cek LKH Limit ---
-                  // (Gunakan >= 0 untuk memperbolehkan nilai 0)
-                  if (newLkhLimit >= 0 && !isNaN(newLkhLimit) && appSettings.lkhLastDayLimit !== newLkhLimit) {
-                      console.log(`Deteksi perubahan LKH Limit: ${appSettings.lkhLastDayLimit} -> ${newLkhLimit}`);
-                      appSettings.lkhLastDayLimit = newLkhLimit; 
-                      settingsChanged = true;
-                  }
-                  // --- AKHIR TAMBAHAN ---
-
-                  // Cek perubahan Request Limit (Batas Pengajuan)
-                  if (newRequestLimit && !isNaN(newRequestLimit) && appSettings.requestDayLimit !== newRequestLimit) {
-                      console.log(`Deteksi perubahan Request Limit: ${appSettings.requestDayLimit} -> ${newRequestLimit}`);
-                      appSettings.requestDayLimit = newRequestLimit; // Update variabel global
-                      settingsChanged = true;
-                  }
-
-                  // Jika salah satu batas tanggal berubah, render ulang kotak pengumuman
-                  if (settingsChanged) {
-                      console.log("Me-render ulang pengumuman dinamis dengan batas tanggal baru.");
-                      renderDynamicAnnouncements(appSettings, currentSummary);
-                  }
-                }
-                // --- AKHIR PERUBAHAN (Logika LKH) ---
-
               }
+              // Jika response.updateAvailable false, tidak terjadi apa-apa
+              // Polling akan lanjut 7 detik lagi
             })
             .withFailureHandler(err => {
-              console.error("Gagal polling status: ", err.message);
+              // Jika polling gagal, hentikan agar tidak error terus-menerus
+              console.error("Gagal polling (checkUpdateFlag): ", err.message);
+              if (settingsPollInterval) {
+                 clearInterval(settingsPollInterval);
+                 settingsPollInterval = null;
+              }
             })
-            .getDashboardStatus(currentUser.email, selectedSchool); 
+            .checkUpdateFlag(dashboardTimestamp); // Kirim 'versi' kita saat ini
 
-        }, 180000); // Poll setiap 3 menit
+        }, 7000); // Poll setiap 7 detik
       }
 
       /**
@@ -5279,111 +5259,124 @@
       }
       // --- AKHIR FUNGSI BARU ---
 
-      // --- FUNGSI BARU UNTUK TOMBOL UPDATE MANUAL ---
       /**
-       * (MODIFIKASI) Dipanggil oleh tombol "Update" di halaman LKH.
-       * Secara manual mengambil pengaturan terbaru dari server.
+       * (MODIFIKASI) Dipanggil oleh tombol "Update" (LKH) atau "Refresh" (Dasbor).
+       * @param {Event} event Objek event klik (bisa null jika dipanggil dari LKH).
+       * @param {string} buttonId ID tombol yang diklik.
        */
-      function forceUpdateSettings() {
+      function forceUpdateSettings(event, buttonId) {
+        
+        if (event) {
+            event.stopPropagation();
+        }
+
         if (!currentUser || !selectedSchool) {
           displayMessage(null, "Gagal: Sesi pengguna tidak ditemukan.");
           return;
         }
         
-        // === AWAL PERUBAHAN (Kontrol Tombol) ===
-        const updateButton = document.getElementById('update-settings-button');
-        if (updateButton) {
-          updateButton.disabled = true; // Nonaktifkan tombol (ini akan memicu CSS spin)
+        // === 1. Kontrol Tombol ===
+        let buttonToDisable = null;
+        if (buttonId) {
+            buttonToDisable = document.getElementById(buttonId);
+        } else {
+            buttonToDisable = document.getElementById('update-settings-button');
         }
-        // === AKHIR PERUBAHAN ===
-
-        // 1. Tampilkan toast loading
-        displayMessage(null, "Memperbarui pengaturan...", { isProcessing: true });
         
-        // 2. Hapus cache pengaturan global di server (agar getDashboardStatus dapat data baru)
+        if (buttonToDisable) {
+          // --- PERUBAHAN DI SINI ---
+          // Tombol hanya dinonaktifkan (untuk memicu spin), BUKAN disembunyikan.
+          buttonToDisable.disabled = true; 
+          // --- AKHIR PERUBAHAN ---
+        }
+        
+        // 2. Tampilkan Toast Loading
+        displayMessage(null, "Memperbarui setelan & pengumuman...", { isProcessing: true });
+        
+        // 3. Hapus Cache di Server
         google.script.run
           .withFailureHandler(err => console.error("Gagal hapus cache global:", err.message))
           .clearGlobalSettingsCache();
-        
-        // 3. Cek apakah kita di halaman LKH, jika ya, hapus cache LKH
+          
+        google.script.run
+          .withFailureHandler(err => console.error("Gagal hapus cache lokasi:", err.message))
+          .clearSchoolSettingsCacheManual(localStorage.getItem('ceklokAuthToken')); 
+
         const lkhContainer = document.getElementById('lkh-container');
         if (lkhContainer.style.display === 'block') {
           const lkhMonthInput = document.getElementById('lkh-month-input').value;
           if (lkhMonthInput) {
             const [year, month] = lkhMonthInput.split('-').map(Number);
-            // Panggil server untuk hapus cache LKH
             google.script.run
               .withFailureHandler(err => console.error("Gagal hapus cache LKH:", err.message))
               .clearLkhCacheForUser(currentUser.email, selectedSchool, year, month);
           }
         }
 
-        // 4. Panggil getDashboardStatus
+        // 4. Ambil Data Baru (setelah cache dihapus)
         google.script.run
           .withSuccessHandler(response => {
-            // === AWAL PERUBAHAN (Kontrol Tombol) ===
-            if (updateButton) {
-              updateButton.disabled = false; // Aktifkan kembali tombol
+            // Aktifkan kembali tombol (secara logis)
+            if (buttonToDisable) {
+              buttonToDisable.disabled = false; 
             }
-            // === AKHIR PERUBAHAN ===
 
             if (response.success) {
-              let settingsChanged = false; 
+              
+              // --- PERUBAHAN DI SINI ---
+              // Sembunyikan tombol HANYA SETELAH BERHASIL
+              if (buttonToDisable && (buttonId === 'refresh-dashboard-button' || buttonId === 'refresh-staff-dashboard-button')) {
+                  buttonToDisable.style.display = 'none'; 
+              }
+              // --- AKHIR PERUBAHAN ---
+
+              // a. Update Setelan Geo
               const newGeoSettings = response.schoolSettings;
               if (hasSettingsChanged(currentSchoolSettings, newGeoSettings)) {
-                console.log("Update Manual: Deteksi perubahan GEO.");
                 currentSchoolSettings = newGeoSettings;
                 if (document.getElementById('guru-dashboard-container').style.display === 'block') {
-                  refreshGeoUI();
+                  refreshGeoUI(); 
                 }
               }
               
-              const newTimestamp = response.announcementTimestamp;
-              if (newTimestamp && newTimestamp !== '0' && newTimestamp !== currentAnnouncementTimestamp) {
-                console.log("Update Manual: Deteksi perubahan PENGUMUMAN.");
-                currentAnnouncementTimestamp = newTimestamp;
-                fetchLatestAnnouncements(); 
-              } else {
-                displayMessage(null, "Pengaturan telah diperbarui.", { isSuccess: true });
+              // b. Update Setelan Batas Hari (Global)
+              appSettings.lastMonthCeklokDayLimit = response.lastMonthCeklokDayLimit;
+              appSettings.lkhLastDayLimit = response.lkhLastDayLimit;
+              appSettings.requestDayLimit = response.requestDayLimit;
+              
+              // c. Update Teks Pengumuman
+              fetchLatestAnnouncements(); // Ini akan update timestamp & toast sukses
+
+              // d. Update Pengumuman Dinamis (Pengingat)
+              if (document.getElementById('guru-dashboard-container').style.display === 'block') {
+                 renderDynamicAnnouncements(appSettings, currentSummary);
               }
               
-              const newGraceLimit = parseInt(response.lastMonthCeklokDayLimit, 10);
-              const newLkhLimit = parseInt(response.lkhLastDayLimit, 10);
-              const newRequestLimit = parseInt(response.requestDayLimit, 10);
-              
-              if (newGraceLimit && !isNaN(newGraceLimit) && appSettings.lastMonthCeklokDayLimit !== newGraceLimit) {
-                appSettings.lastMonthCeklokDayLimit = newGraceLimit; 
-                settingsChanged = true;
-              }
-              if (newLkhLimit >= 0 && !isNaN(newLkhLimit) && appSettings.lkhLastDayLimit !== newLkhLimit) {
-                appSettings.lkhLastDayLimit = newLkhLimit; 
-                settingsChanged = true;
-              }
-              if (newRequestLimit && !isNaN(newRequestLimit) && appSettings.requestDayLimit !== newRequestLimit) {
-                appSettings.requestDayLimit = newRequestLimit; 
-                settingsChanged = true;
-              }
-              
-              if (settingsChanged && document.getElementById('guru-dashboard-container').style.display === 'block') {
-                console.log("Update Manual: Me-render ulang pengumuman dinamis.");
-                renderDynamicAnnouncements(appSettings, currentSummary);
-              }
-              
+              // e. Update Halaman LKH
               if (lkhContainer.style.display === 'block') {
-                console.log("Update Manual: Memuat ulang data LKH...");
                 handleLkhMonthChange(); 
               }
               
+              // f. MULAI ULANG POLLING
+              dashboardTimestamp = response.updateTimestamp || '0'; 
+              startSettingsPolling(); 
+
             } else {
+              // Jika GAGAL, tampilkan kembali tombolnya
               displayMessage(null, `Gagal memperbarui: ${response.error || 'Kesalahan server'}`);
+              if (buttonToDisable && (buttonId === 'refresh-dashboard-button' || buttonId === 'refresh-staff-dashboard-button')) {
+                 buttonToDisable.style.display = 'flex'; 
+              }
             }
           })
           .withFailureHandler(err => {
-            // === AWAL PERUBAHAN (Kontrol Tombol) ===
-            if (updateButton) {
-              updateButton.disabled = false; // Aktifkan kembali tombol jika error
+            // Jika GAGAL, tampilkan kembali tombolnya
+            if (buttonToDisable) {
+              buttonToDisable.disabled = false;
+              if (buttonId === 'refresh-dashboard-button' || buttonId === 'refresh-staff-dashboard-button') {
+                 buttonToDisable.style.display = 'flex';
+              }
             }
-            // === AKHIR PERUBAHAN ===
             displayMessage(null, `Gagal: ${err.message}`);
           })
           .getDashboardStatus(currentUser.email, selectedSchool);
