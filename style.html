@@ -1784,6 +1784,15 @@
     animation: none; /* Matikan animasi jika tidak loading */
   }
 
+  /* ===== AWAL TAMBAHAN BARU (Tombol Update LKH) ===== */
+  #update-settings-button i {
+    transition: transform 0.3s ease; /* Transisi halus saat berhenti */
+  }
+  #update-settings-button:disabled i {
+    animation: spin 1.5s linear infinite; /* Animasi putar saat disabled */
+  }
+  /* ===== AKHIR TAMBAHAN BARU (Tombol Update LKH) ===== */
+
   #geo-status-message {
     font-size: 18px;
     font-weight: 700;
@@ -1926,6 +1935,16 @@
     border-radius: 8px;
     margin-bottom: 15px; /* Pastikan margin tetap ada */
   }
+
+  /* ===== AWAL TAMBAHAN BARU (Sembunyikan Pesan Kosong) ===== */
+  /* Target elemen #global-lock-message dan #lkh-lock-message
+    HANYA ketika mereka tidak memiliki konten (teks kosong).
+  */
+  #global-lock-message:empty,
+  #lkh-lock-message:empty {
+    display: none; /* Sembunyikan elemen, hapus semua margin/padding */
+  }
+  /* ===== AKHIR TAMBAHAN BARU ===== */
 
   /* --- AWAL TAMBAHAN: Animasi Pulse untuk Pengingat --- */
   @keyframes pulse-warning {
