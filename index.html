@@ -388,7 +388,7 @@
                   </div>
 
                   <hr style="margin: 25px 0;">
-                  <h3>Batas Waktu Pengisian</h3>
+                  <h3>Batas Waktu Pengisian Ceklok</h3>
                   
                   <div class="input-group">
                       <label for="last-month-ceklok-day-limit">Batas Tanggal Pengisian Bulan Lalu (Grace Period)</label>
@@ -396,6 +396,21 @@
                       <p style="font-size: 12px; margin-top: 5px; color: var(--text-secondary-color);">Guru dapat mengisi ceklok untuk bulan lalu hingga tanggal ini di bulan berjalan (Default: 5).</p>
                       <button onclick="saveLastMonthCeklokLimit()" style="width: auto; margin-top: 10px;"><i class="fa-solid fa-floppy-disk"></i> <span>Simpan Batas Hari</span></button>
                       <p id="last-month-ceklok-message" class="message"></p>
+                  </div>
+
+                  <hr style="margin: 25px 0;">
+                  <h3>Batas Waktu Pengisian LKH</h3>
+                  
+                  <div class="input-group">
+                      <label for="lkh-last-day-limit">Batas Tanggal Pengisian LKH Bulan Lalu (Grace Period)</label>
+                      <input type="number" id="lkh-last-day-limit" placeholder="Contoh: 5" min="0" max="31">
+                      <p style="font-size: 12px; margin-top: 5px; color: var(--text-secondary-color);">
+                        Guru dapat mengisi LKH bulan lalu hingga tanggal ini di bulan berjalan (Default: 5).
+                        <br><strong>Isi 0</strong> jika LKH bulan lalu harus dikunci langsung mulai tanggal 1.
+                        <br>Pengaturan ini <strong>TIDAK</strong> mempengaruhi LKH bulan berjalan (bulan berjalan selalu bisa diisi).
+                      </p>
+                      <button onclick="saveLkhLastDayLimit()" style="width: auto; margin-top: 10px;"><i class="fa-solid fa-floppy-disk"></i> <span>Simpan Batas Hari LKH</span></button>
+                      <p id="lkh-last-day-message" class="message"></p>
                   </div>
 
                   <hr style="margin: 25px 0;">
@@ -564,7 +579,8 @@
         rejectionInfo: null,
         rejectedChanges: [],
         hasGeoBypass: false, // <-- TAMBAHKAN INI
-        lastMonthCeklokDayLimit: 5
+        lastMonthCeklokDayLimit: 5,
+        lkhLastDayLimit: 5 // <-- BARIS BARU
       };
       // --- AKHIR MODIFIKASI ---
 
@@ -1816,6 +1832,7 @@
                   appSettings.rejectedChanges = response.rejectedChanges || []; // Detail ajuan ditolak
                   appSettings.hasGeoBypass = response.hasGeoBypass; // <-- 2. SIMPAN STATUS BYPASS
                   appSettings.lastMonthCeklokDayLimit = response.lastMonthCeklokDayLimit;
+                  appSettings.lkhLastDayLimit = response.lkhLastDayLimit; // <-- BARIS BARU
                   currentSchoolSettings = response.schoolSettings || {}; // Pengaturan sekolah (termasuk Geo)
               }
 
@@ -3776,7 +3793,8 @@
         displayMessage('locked-months-message', 'Memuat...', { isProcessing: true });
         displayMessage('opened-months-message', 'Memuat...', { isProcessing: true }); // Pesan loading baru
         displayMessage('request-day-limit-message', 'Memuat...', { isProcessing: true });
-        displayMessage('last-month-ceklok-message', 'Memuat...', { isProcessing: true }); // <-- TAMBAHKAN PESAN LOADING
+        displayMessage('last-month-ceklok-message', 'Memuat...', { isProcessing: true });
+        displayMessage('lkh-last-day-message', 'Memuat...', { isProcessing: true }); // <-- BARIS BARU
         displayMessage('holidays-message', 'Memuat...', { isProcessing: true });
         loadJamRegulerSettings();
 
@@ -3785,9 +3803,9 @@
           document.getElementById('opened-months').value = settings.openedMonths.join(','); // Tampilkan opened_months
           document.getElementById('request-day-limit').value = settings.requestDayLimit || '10';
           document.getElementById('last-month-ceklok-day-limit').value = settings.lastMonthCeklokDayLimit || '5'; // <-- MUAT NILAI BARU
+          document.getElementById('lkh-last-day-limit').value = settings.lkhLastDayLimit || '5'; // <-- BARIS BARU
           document.getElementById('announcement-input').value = settings.announcements || "";
           const holidaysContainer = document.getElementById('holidays-container');
-          holidaysContainer.innerHTML = '';
           if (settings.holidays && settings.holidays.length > 0) {
             settings.holidays.forEach(h => addHolidayRow(h.date, h.description));
           }
@@ -3796,7 +3814,8 @@
           displayMessage('locked-months-message', '');
           displayMessage('opened-months-message', ''); // Hapus pesan loading baru
           displayMessage('request-day-limit-message', '');
-          displayMessage('last-month-ceklok-message', ''); // <-- HAPUS PESAN LOADING INI
+          displayMessage('last-month-ceklok-message', '');
+          displayMessage('lkh-last-day-message', ''); // <-- BARIS BARU
           displayMessage('holidays-message', '');
         }).getSettings(currentUser.email);
       }
@@ -4132,7 +4151,7 @@
           const clearButton = document.getElementById('clear-lkh-data-button'); // Ambil tombol baru
           const lockMessageEl = document.getElementById('lkh-lock-message'); // <-- Ambil elemen pesan
 
-          // Reset pesan kunci
+          // Reset pesan kunci (pastikan 'message' adalah kelas dasarnya)
           lockMessageEl.innerText = "";
           lockMessageEl.className = "message";
 
@@ -4152,7 +4171,6 @@
           google.script.run
             .withSuccessHandler(response => {
               if (response.success) {
-                // --- AWAL PERUBAHAN: Kirim status kunci ke renderLkhTable ---
                 renderLkhTable(response.workingDays, response.existingData, response.isLocked);
                 
                 // Nonaktifkan tombol berdasarkan status kunci
@@ -4160,27 +4178,33 @@
                 applyWeeklyButton.disabled = response.isLocked; 
                 // (Tombol clear akan di-handle oleh updateClearLkhButtonStatus)
                 
-                // Tampilkan pesan jika terkunci
-                if (response.isLocked && response.lockMessage) {
+                // --- AWAL PERBAIKAN LOGIKA TAMPILAN PESAN ---
+                // Selalu tampilkan pesan jika ada (tidak kosong)
+                if (response.lockMessage) { 
                   lockMessageEl.innerText = response.lockMessage;
-                  lockMessageEl.classList.add('danger-message');
+                  
+                  if (response.isLocked) {
+                    // Jika terkunci, beri warna merah (danger)
+                    lockMessageEl.classList.add('danger-message');
+                  } else {
+                    // Jika tidak terkunci (berarti masih grace period), beri warna hijau (info)
+                    lockMessageEl.classList.add('info-message'); 
+                  }
                 }
-                // --- AKHIR PERUBAHAN ---
+                // (Jika lockMessage kosong, CSS :empty akan menyembunyikannya)
+                // --- AKHIR PERBAIKAN LOGIKA TAMPILAN PESAN ---
+                
               } else {
                 container.innerHTML = `<p style="color: var(--danger-color);">Gagal memuat data: ${response.error}</p>`;
-                // --- AWAL PERUBAHAN ---
                 // Tampilkan error di pesan kunci juga
                 lockMessageEl.innerText = response.error;
                 lockMessageEl.classList.add('danger-message');
-                // --- AKHIR PERUBAHAN ---
               }
             })
             .withFailureHandler(err => {
               container.innerHTML = `<p style="color: var(--danger-color);">Gagal memuat: ${err.message}</p>`;
-              // --- AWAL PERUBAHAN ---
               lockMessageEl.innerText = err.message;
               lockMessageEl.classList.add('danger-message');
-              // --- AKHIR PERUBAHAN ---
             })
             .getLKHData(currentUser.email, selectedSchool, year, month);
       }
@@ -4953,10 +4977,11 @@
                   fetchLatestAnnouncements(); 
                 }
 
-                // --- AWAL TAMBAHAN: Logika Pengaturan Ceklok (HANYA untuk GURU) ---
+                // --- AWAL PERUBAHAN (Logika LKH) ---
                 if (isGuruDashboard) {
                   const newGraceLimit = parseInt(response.lastMonthCeklokDayLimit, 10);
                   const newRequestLimit = parseInt(response.requestDayLimit, 10);
+                  const newLkhLimit = parseInt(response.lkhLastDayLimit, 10); // <-- BARIS BARU
                   
                   let settingsChanged = false;
 
@@ -4967,6 +4992,15 @@
                       settingsChanged = true;
                   }
                   
+                  // --- AWAL TAMBAHAN: Cek LKH Limit ---
+                  // (Gunakan >= 0 untuk memperbolehkan nilai 0)
+                  if (newLkhLimit >= 0 && !isNaN(newLkhLimit) && appSettings.lkhLastDayLimit !== newLkhLimit) {
+                      console.log(`Deteksi perubahan LKH Limit: ${appSettings.lkhLastDayLimit} -> ${newLkhLimit}`);
+                      appSettings.lkhLastDayLimit = newLkhLimit; 
+                      settingsChanged = true;
+                  }
+                  // --- AKHIR TAMBAHAN ---
+
                   // Cek perubahan Request Limit (Batas Pengajuan)
                   if (newRequestLimit && !isNaN(newRequestLimit) && appSettings.requestDayLimit !== newRequestLimit) {
                       console.log(`Deteksi perubahan Request Limit: ${appSettings.requestDayLimit} -> ${newRequestLimit}`);
@@ -4980,7 +5014,7 @@
                       renderDynamicAnnouncements(appSettings, currentSummary);
                   }
                 }
-                // --- AKHIR TAMBAHAN ---
+                // --- AKHIR PERUBAHAN (Logika LKH) ---
 
               }
             })
@@ -5145,7 +5179,6 @@
               announceTitle.innerHTML = '<i class="fa-solid fa-hourglass-start"></i> Pengingat Pengisian Ceklok';
               
               // --- GANTI BARIS DI BAWAH INI ---
-              // Teks lama: ... sampai tanggal <strong>${graceLimit}</strong>.
               announceText.innerHTML = `Pengisian ceklok bulan <strong>${lastMonthName}</strong> masih dibuka sampai tanggal <strong>${formattedDeadline}</strong>. Klik di sini untuk melengkapi.`;
               // --- AKHIR PENGGANTIAN ---
               
@@ -5175,7 +5208,6 @@
               announceTitle.innerHTML = '<i class="fa-solid fa-file-circle-question"></i> Pengajuan Perubahan Data';
               
               // --- GANTI BARIS DI BAWAH INI ---
-              // Teks lama: ... dibuka sampai tanggal <strong>${requestLimit}</strong>.
               announceText.innerHTML = `Pengisian ceklok ${lastMonthName} sudah ditutup. Mode <strong>Pengajuan Perubahan Data</strong> dibuka sampai tanggal <strong>${formattedRequestDeadline}</strong>. Klik di sini untuk mengajukan.`;
               // --- AKHIR PENGGANTIAN ---
               
@@ -5234,6 +5266,128 @@
           .saveLastMonthCeklokLimit(currentUser.email, dayLimit); // <-- Panggil fungsi di Kode.gs
       }
       // --- AKHIR FUNGSI BARU ---
+
+      // --- FUNGSI BARU UNTUK ADMIN (LKH) ---
+      function saveLkhLastDayLimit() {
+        const dayLimit = document.getElementById('lkh-last-day-limit').value;
+        displayMessage('lkh-last-day-message', 'Menyimpan...', { isProcessing: true });
+        google.script.run
+          .withSuccessHandler(r => {
+            displayMessage('lkh-last-day-message', r.message, { isSuccess: r.status === 'success' });
+          })
+          .saveLkhLastDayLimit(currentUser.email, dayLimit); // <-- Panggil fungsi di Kode.gs
+      }
+      // --- AKHIR FUNGSI BARU ---
+
+      // --- FUNGSI BARU UNTUK TOMBOL UPDATE MANUAL ---
+      /**
+       * (MODIFIKASI) Dipanggil oleh tombol "Update" di halaman LKH.
+       * Secara manual mengambil pengaturan terbaru dari server.
+       */
+      function forceUpdateSettings() {
+        if (!currentUser || !selectedSchool) {
+          displayMessage(null, "Gagal: Sesi pengguna tidak ditemukan.");
+          return;
+        }
+        
+        // === AWAL PERUBAHAN (Kontrol Tombol) ===
+        const updateButton = document.getElementById('update-settings-button');
+        if (updateButton) {
+          updateButton.disabled = true; // Nonaktifkan tombol (ini akan memicu CSS spin)
+        }
+        // === AKHIR PERUBAHAN ===
+
+        // 1. Tampilkan toast loading
+        displayMessage(null, "Memperbarui pengaturan...", { isProcessing: true });
+        
+        // 2. Hapus cache pengaturan global di server (agar getDashboardStatus dapat data baru)
+        google.script.run
+          .withFailureHandler(err => console.error("Gagal hapus cache global:", err.message))
+          .clearGlobalSettingsCache();
+        
+        // 3. Cek apakah kita di halaman LKH, jika ya, hapus cache LKH
+        const lkhContainer = document.getElementById('lkh-container');
+        if (lkhContainer.style.display === 'block') {
+          const lkhMonthInput = document.getElementById('lkh-month-input').value;
+          if (lkhMonthInput) {
+            const [year, month] = lkhMonthInput.split('-').map(Number);
+            // Panggil server untuk hapus cache LKH
+            google.script.run
+              .withFailureHandler(err => console.error("Gagal hapus cache LKH:", err.message))
+              .clearLkhCacheForUser(currentUser.email, selectedSchool, year, month);
+          }
+        }
+
+        // 4. Panggil getDashboardStatus
+        google.script.run
+          .withSuccessHandler(response => {
+            // === AWAL PERUBAHAN (Kontrol Tombol) ===
+            if (updateButton) {
+              updateButton.disabled = false; // Aktifkan kembali tombol
+            }
+            // === AKHIR PERUBAHAN ===
+
+            if (response.success) {
+              let settingsChanged = false; 
+              const newGeoSettings = response.schoolSettings;
+              if (hasSettingsChanged(currentSchoolSettings, newGeoSettings)) {
+                console.log("Update Manual: Deteksi perubahan GEO.");
+                currentSchoolSettings = newGeoSettings;
+                if (document.getElementById('guru-dashboard-container').style.display === 'block') {
+                  refreshGeoUI();
+                }
+              }
+              
+              const newTimestamp = response.announcementTimestamp;
+              if (newTimestamp && newTimestamp !== '0' && newTimestamp !== currentAnnouncementTimestamp) {
+                console.log("Update Manual: Deteksi perubahan PENGUMUMAN.");
+                currentAnnouncementTimestamp = newTimestamp;
+                fetchLatestAnnouncements(); 
+              } else {
+                displayMessage(null, "Pengaturan telah diperbarui.", { isSuccess: true });
+              }
+              
+              const newGraceLimit = parseInt(response.lastMonthCeklokDayLimit, 10);
+              const newLkhLimit = parseInt(response.lkhLastDayLimit, 10);
+              const newRequestLimit = parseInt(response.requestDayLimit, 10);
+              
+              if (newGraceLimit && !isNaN(newGraceLimit) && appSettings.lastMonthCeklokDayLimit !== newGraceLimit) {
+                appSettings.lastMonthCeklokDayLimit = newGraceLimit; 
+                settingsChanged = true;
+              }
+              if (newLkhLimit >= 0 && !isNaN(newLkhLimit) && appSettings.lkhLastDayLimit !== newLkhLimit) {
+                appSettings.lkhLastDayLimit = newLkhLimit; 
+                settingsChanged = true;
+              }
+              if (newRequestLimit && !isNaN(newRequestLimit) && appSettings.requestDayLimit !== newRequestLimit) {
+                appSettings.requestDayLimit = newRequestLimit; 
+                settingsChanged = true;
+              }
+              
+              if (settingsChanged && document.getElementById('guru-dashboard-container').style.display === 'block') {
+                console.log("Update Manual: Me-render ulang pengumuman dinamis.");
+                renderDynamicAnnouncements(appSettings, currentSummary);
+              }
+              
+              if (lkhContainer.style.display === 'block') {
+                console.log("Update Manual: Memuat ulang data LKH...");
+                handleLkhMonthChange(); 
+              }
+              
+            } else {
+              displayMessage(null, `Gagal memperbarui: ${response.error || 'Kesalahan server'}`);
+            }
+          })
+          .withFailureHandler(err => {
+            // === AWAL PERUBAHAN (Kontrol Tombol) ===
+            if (updateButton) {
+              updateButton.disabled = false; // Aktifkan kembali tombol jika error
+            }
+            // === AKHIR PERUBAHAN ===
+            displayMessage(null, `Gagal: ${err.message}`);
+          })
+          .getDashboardStatus(currentUser.email, selectedSchool);
+      }
 
     </script>
   </body>
