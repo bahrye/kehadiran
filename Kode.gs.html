@@ -3710,27 +3710,58 @@ function clearSchoolSettingsCache_() {
 
 /**
  * TRIGGER OTOMATIS: Berjalan saat ada editan di spreadsheet.
- * Jika sheet "SchoolSettings" diedit, cache pengaturan akan dihapus.
- *
- * Cukup tambahkan fungsi ini ke Kode.gs, Google Apps Script akan
- * menjalankannya secara otomatis (ini adalah "Simple Trigger").
+ * --- FUNGSI INI TELAH DIMODIFIKASI UNTUK MEMECAHKAN MASALAH CACHE ---
  */
 function handleSheetEdit(e) {
   try {
-    // Periksa apakah event object 'e' (informasi editan) ada
+    // 1. Periksa apakah event object 'e' (informasi editan) ada
     if (!e) return;
     
-    // Dapatkan sheet yang sedang diedit dari event
+    // 2. Dapatkan sheet yang sedang diedit
     const sheet = e.range.getSheet();
+    const sheetName = sheet.getName(); // Dapatkan nama sheet yang diedit
     
-    // Cek jika nama sheet yang diedit adalah "SchoolSettings"
-    if (sheet.getName() === "SchoolSettings") {
-      // Jika ya, panggil fungsi untuk membersihkan cache
-      clearSchoolSettingsCache_();
+    // 3. Dapatkan layanan cache dan properties
+    const cache = CacheService.getScriptCache();
+    const properties = PropertiesService.getScriptProperties();
+
+    // 4. Cek sheet mana yang diedit dan hapus cache yang sesuai
+    
+    // Cek jika sheet "SchoolSettings" diedit (Cache Lokasi, Template ID)
+    if (sheetName === "SchoolSettings") {
+      cache.remove("school_settings_map_v3");
+      Logger.log(`Cache 'school_settings_map_v3' cleared due to SchoolSettings edit.`);
+    } 
+    
+    // Cek jika sheet "Settings" diedit (Cache Global: Kunci Bulan, Batas Hari)
+    // INI ADALAH SOLUSI UTAMA UNTUK MASALAH ANDA
+    else if (sheetName === "Settings") {
+      cache.remove("global_settings_v2");
+      Logger.log(`Cache 'global_settings_v2' cleared due to Settings edit.`);
     }
+
+    // Cek jika sheet "Announcements" diedit (Cache Pengumuman)
+    // Ini untuk menangani jika admin mengedit sheet pengumuman secara manual
+    else if (sheetName === "Announcements") {
+      properties.setProperty('announcement_timestamp', new Date().getTime().toString());
+      Logger.log(`Properti 'announcement_timestamp' diperbarui karena sheet Announcements diedit.`);
+    }
+    
+    // (Direkomendasikan) Cek sheet 'Holidays'
+    else if (sheetName === "Holidays") {
+      cache.remove("national_holidays_v2");
+      Logger.log(`Cache 'national_holidays_v2' cleared due to Holidays edit.`);
+    }
+
+    // (Direkomendasikan) Cek sheet 'TeacherHolidays'
+    else if (sheetName === "TeacherHolidays") {
+      cache.remove("all_teacher_holidays_v2");
+      Logger.log(`Cache 'all_teacher_holidays_v2' cleared due to TeacherHolidays edit.`);
+    }
+
   } catch (err) {
     // Log error jika terjadi, tapi jangan hentikan proses edit
-    Logger.log(`Error in handleSheetEdit trigger for SchoolSettings: ${err.message}`);
+    Logger.log(`Error in handleSheetEdit trigger: ${err.message}`);
   }
 }
 
