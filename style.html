@@ -377,7 +377,7 @@
   #announcement-section.announcement-warning, 
   #staff-announcement-section.announcement-warning {
     border-color: var(--warning-color);
-    background-color: #FEF9C3; /* Kuning Pucat */
+    background-color: #FFF7ED; /* Kuning Pucat */
     /* --- TAMBAHKAN BARIS INI --- */
     animation: pulse-warning 2.5s infinite;
     /* --- AKHIR TAMBAHAN --- */
@@ -389,6 +389,10 @@
   #announcement-section.announcement-warning p, 
   #staff-announcement-section.announcement-warning p { 
     color: #B45309; 
+    /* === TAMBAHAN BARU === */
+    position: relative;
+    overflow: hidden;
+    /* === AKHIR TAMBAHAN === */
   }
 
   /* Danger (Merah) */
@@ -406,8 +410,41 @@
   }
   #announcement-section.announcement-danger p, 
   #staff-announcement-section.announcement-danger p { 
-    color: #B91C1C; 
+    color: #B91C1C;
+    /* === TAMBAHAN BARU === */
+    position: relative;
+    overflow: hidden;
+    /* === AKHIR TAMBAHAN === */
   }
+
+  /* === AWAL BLOK CSS BARU (SHIMMER) === */
+  #announcement-section.announcement-warning p::after, 
+  #staff-announcement-section.announcement-warning p::after,
+  #announcement-section.announcement-danger p::after, 
+  #staff-announcement-section.announcement-danger p::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 50%; /* Lebar kilauan */
+    height: 100%;
+    
+    /* Gradient untuk 'kilauan' (putih transparan) */
+    background: linear-gradient(
+      90deg, 
+      rgba(255, 255, 255, 0) 0%, 
+      rgba(255, 255, 255, 0.4) 50%, /* Sesuaikan opacity di sini (0.4 = 40%) */
+      rgba(255, 255, 255, 0) 100%
+    );
+    
+    /* Terapkan animasi 'shimmer' */
+    animation: shimmer 3s infinite;
+    animation-delay: 1s; /* Tunda 1 detik sebelum mulai */
+    
+    /* Miringkan kilauannya */
+    transform: translateX(-100%) skewX(-15deg); 
+  }
+  /* === AKHIR BLOK CSS BARU (SHIMMER) === */
   /* --- AKHIR TAMBAHAN BARU --- */
 
   textarea {
@@ -1981,5 +2018,18 @@
     }
   }
   /* --- AKHIR TAMBAHAN --- */
+
+  /* === TAMBAHAN KEYFRAME BARU UNTUK SHIMMER === */
+  @keyframes shimmer {
+    0% {
+      /* Mulai dari luar di kiri */
+      transform: translateX(-100%) skewX(-15deg);
+    }
+    100% {
+      /* Selesai jauh di luar kanan */
+      transform: translateX(250%) skewX(-15deg);
+    }
+  }
+  /* === AKHIR TAMBAHAN === */
 
 </style>
