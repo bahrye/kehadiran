@@ -381,7 +381,7 @@
                   <h3>Pengajuan Ubah Data</h3>
                   <div class="input-group">
                       <label for="request-day-limit">Batas Tanggal Pengajuan Perubahan (Setelah Bulan Terkunci)</label>
-                      <input type="number" id="request-day-limit" placeholder="Contoh: 10" min="1" max="31">
+                      <input type="number" id="request-day-limit" placeholder="Contoh: 10" min="0" max="31">
                       <p style="font-size: 12px; margin-top: 5px; color: var(--text-secondary-color);">Guru dapat mengajukan perubahan data untuk bulan lalu hingga tanggal ini di bulan berjalan.</p>
                       <button onclick="saveRequestDayLimitSettings()" style="width: auto; margin-top: 10px;"><i class="fa-solid fa-floppy-disk"></i> <span>Simpan Batas Tanggal</span></button>
                       <p id="request-day-limit-message" class="message"></p>
@@ -392,7 +392,7 @@
                   
                   <div class="input-group">
                       <label for="last-month-ceklok-day-limit">Batas Tanggal Pengisian Bulan Lalu (Grace Period)</label>
-                      <input type="number" id="last-month-ceklok-day-limit" placeholder="Contoh: 5" min="1" max="31">
+                      <input type="number" id="last-month-ceklok-day-limit" placeholder="Contoh: 5" min="0" max="31">
                       <p style="font-size: 12px; margin-top: 5px; color: var(--text-secondary-color);">Guru dapat mengisi ceklok untuk bulan lalu hingga tanggal ini di bulan berjalan (Default: 5).</p>
                       <button onclick="saveLastMonthCeklokLimit()" style="width: auto; margin-top: 10px;"><i class="fa-solid fa-floppy-disk"></i> <span>Simpan Batas Hari</span></button>
                       <p id="last-month-ceklok-message" class="message"></p>
