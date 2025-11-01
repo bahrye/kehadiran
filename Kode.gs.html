@@ -1595,9 +1595,8 @@ function setSetting_(key, value) {
 
 /**
  * ===================================================================
- * FUNGSI getSettings DIMODIFIKASI
+ * FUNGSI getSettings DIMODIFIKASI (FIX BUG lkh_last_day_limit = 0)
  * ===================================================================
- * - Membaca dan mengembalikan 'opened_months'.
  */
 function getSettings(adminEmail) {
   if (!checkIfAdmin(adminEmail)) throw new Error("Akses ditolak.");
@@ -1605,7 +1604,8 @@ function getSettings(adminEmail) {
   let lockedMonthsStr = "[]";
   let openedMonthsStr = "[]";
   let requestDayLimit = "10";
-  let lastMonthCeklokDayLimit = "5"; // <-- TAMBAHKAN DEFAULT
+  let lastMonthCeklokDayLimit = "5";
+  let lkhLastDayLimit = "5"; // Default jika tidak ada di sheet
 
   try {
     const settingsData = settingsSheet.getDataRange().getValues();
@@ -1613,7 +1613,19 @@ function getSettings(adminEmail) {
       if (row[0] === 'locked_months') lockedMonthsStr = row[1] || "[]";
       if (row[0] === 'opened_months') openedMonthsStr = row[1] || "[]";
       if (row[0] === 'request_day_limit') requestDayLimit = String(row[1] || "10");
-      if (row[0] === 'last_month_ceklok_day_limit') lastMonthCeklokDayLimit = String(row[1] || "5"); // <-- BACA KUNCI BARU
+      if (row[0] === 'last_month_ceklok_day_limit') lastMonthCeklokDayLimit = String(row[1] || "5");
+      
+      // --- AWAL PERBAIKAN ---
+      if (row[0] === 'lkh_last_day_limit') {
+        // Cek jika nilainya null, undefined, atau string kosong
+        if (row[1] === null || row[1] === undefined || row[1] === "") {
+          lkhLastDayLimit = "5"; // Fallback ke default
+        } else {
+          // Jika nilainya ada (termasuk 0), gunakan nilai itu
+          lkhLastDayLimit = String(row[1]); 
+        }
+      }
+      // --- AKHIR PERBAIKAN ---
     });
   } catch (e) {}
 
@@ -1630,9 +1642,10 @@ function getSettings(adminEmail) {
 
   return {
     lockedMonths: lockedMonthsParsed,
-    openedMonths: openedMonthsParsed, // <-- Kirim ke client
+    openedMonths: openedMonthsParsed,
     requestDayLimit: requestDayLimit,
     lastMonthCeklokDayLimit: lastMonthCeklokDayLimit,
+    lkhLastDayLimit: lkhLastDayLimit, // <-- Sekarang akan mengirim "0" jika itu nilainya
     holidays: holidays,
     announcements: announcements
   };
@@ -2177,13 +2190,119 @@ function getLKHSheetForUser_(userName) {
   return sheet;
 }
 
+/**
+ * ===================================================================
+ * FUNGSI getLKHData DIMODIFIKASI (Logika Pesan Kunci + Format Bahasa Indonesia)
+ * ===================================================================
+ */
 function getLKHData(email, school, year, month) {
   try {
     if (!checkIfLKHUser_(email)) {
       return { success: false, error: "Akses LKH ditolak." };
     }
+
+    // --- AWAL LOGIKA PENGUNCIAN DAN PESAN BARU ---
     
-    // --- Bagian 1: Mendapatkan Hari Kerja (Logika ini tidak berubah) ---
+    const TIMEZONE = "Asia/Makassar"; // Zona waktu untuk format tanggal
+    const globalSettings = getGlobalSettings_();
+    const lkhLastDayLimit = globalSettings.lkhLastDayLimit; // Cth: 5 atau 0
+    
+    const today = new Date();
+    const currentDay = today.getDate(); // Cth: 1
+    const currentMonth = today.getMonth() + 1; // Cth: 11 (November)
+    const currentYear = today.getFullYear(); // Cth: 2025
+    
+    const lastMonthDate = new Date();
+    lastMonthDate.setMonth(today.getMonth() - 1);
+    const lastMonth = lastMonthDate.getMonth() + 1; // Cth: 10 (Oktober)
+    const lastMonthYear = lastMonthDate.getFullYear();
+
+    const isCurrentMonth = (year === currentYear && month === currentMonth);
+    const isLastMonth = (year === lastMonthYear && month === lastMonth);
+    
+    let isLocked = false;
+    let lockMessage = "";
+
+    if (isCurrentMonth) {
+      // Bulan berjalan selalu bisa diisi
+      isLocked = false;
+      lockMessage = ""; // Tidak perlu pesan
+    
+    } else if (isLastMonth) {
+      // Ini adalah LKH untuk bulan lalu
+      if (lkhLastDayLimit === 0) {
+        // Skenario 1: Limit 0 (Langsung Kunci)
+        isLocked = true;
+        // Tanggal batas adalah akhir bulan LALU.
+        const lastDayOfLastMonth = new Date(currentYear, currentMonth - 1, 0); 
+        
+        // --- PERUBAHAN FORMAT TANGGAL ---
+        const formattedLockDate = lastDayOfLastMonth.toLocaleDateString('id-ID', {
+          day: 'numeric', 
+          month: 'long', 
+          year: 'numeric', 
+          timeZone: TIMEZONE
+        });
+        // --- AKHIR PERUBAHAN ---
+        
+        lockMessage = `LKH untuk bulan lalu telah ditutup. Batas akhir tanggal ${formattedLockDate}.`;
+      
+      } else {
+        // Skenario 2: Limit > 0 (Ada Masa Tenggang, cth: 4)
+        // Tanggal batas adalah tanggal 4 bulan INI.
+        const deadlineDate = new Date(currentYear, currentMonth - 1, lkhLastDayLimit);
+        
+        // --- PERUBAHAN FORMAT TANGGAL ---
+        const formattedDeadline = deadlineDate.toLocaleDateString('id-ID', {
+          day: 'numeric', 
+          month: 'long', 
+          year: 'numeric', 
+          timeZone: TIMEZONE
+        });
+        // --- AKHIR PERUBAHAN ---
+        
+        // Cek apakah hari ini (cth: 1) SUDAH LEWAT (>) limit (cth: 4)
+        isLocked = (currentDay > lkhLastDayLimit); // 1 > 4 adalah false
+        
+        if (isLocked) {
+          // Pesan Merah: Sudah lewat masa tenggang
+          lockMessage = `LKH untuk bulan lalu telah ditutup. Batas akhir tanggal ${formattedDeadline}.`;
+        } else {
+          // Pesan Hijau: Masih dalam masa tenggang
+          isLocked = false;
+          lockMessage = `LKH untuk bulan lalu masih dibuka hingga tanggal ${formattedDeadline}.`;
+        }
+      }
+    } else {
+      // Ini bulan lain (September, Agustus, dll)
+      isLocked = true;
+      lockMessage = "LKH hanya bisa diisi untuk bulan berjalan dan bulan lalu (selama masa tenggang).";
+    }
+    
+    // --- AKHIR LOGIKA PENGUNCIAN DAN PESAN BARU ---
+
+    
+    // 2. SEKARANG, cek cache data LKH
+    const cache = CacheService.getScriptCache();
+    const cacheKey = `lkh_data_${email}_${school}_${year}_${month}`;
+    const cachedData = cache.get(cacheKey);
+
+    if (cachedData) {
+      Logger.log(`Mengambil LKH dari cache: ${cacheKey}`);
+      const parsedData = JSON.parse(cachedData);
+      
+      // 3. Timpa status kunci di cache dengan status yang BARU dihitung
+      parsedData.isLocked = isLocked;
+      parsedData.lockMessage = lockMessage;
+      
+      // Kembalikan data cache DENGAN status kunci yang sudah diperbarui
+      return parsedData; 
+    }
+    
+    // 4. Jika tidak ada di cache, lanjutkan membaca dari sheet
+    Logger.log(`Membaca LKH dari sheet: ${cacheKey}`);
+    
+    // --- Bagian 1: Mendapatkan Hari Kerja ---
     const holidaysData = holidaysSheet.getDataRange().getValues().slice(1);
     const nationalHolidays = {};
     holidaysData.forEach(row => {
@@ -2201,77 +2320,29 @@ function getLKHData(email, school, year, month) {
       const dateStr = Utilities.formatDate(dateObj, "Asia/Makassar", "yyyy-MM-dd");
       const dayOfWeek = dateObj.getUTCDay();
       const entry = attendanceData[dateStr];
+      const isAlasanLibur = (entry && entry.reason && entry.reason.toLowerCase().includes("hari libur sekolah"));
 
-      if (dayOfWeek !== 0 && !nationalHolidays[dateStr] && (!entry || !entry.reason)) {
-        workingDays.push({
-          date: dateStr,
-          dayName: dateObj.toLocaleString('id-ID', { weekday: 'long', timeZone: 'Asia/Makassar' }),
-          formattedDate: dateObj.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'Asia/Makassar' })
-        });
+      if (dayOfWeek !== 0 && !nationalHolidays[dateStr] && !isAlasanLibur) {
+        if (!entry || !entry.reason) {
+          workingDays.push({
+            date: dateStr,
+            dayName: dateObj.toLocaleString('id-ID', { weekday: 'long', timeZone: 'Asia/Makassar' }),
+            formattedDate: dateObj.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'Asia/Makassar' })
+          });
+        }
       }
     }
-
-    // --- AWAL LOGIKA PENGUNCIAN BARU ---
-    const globalSettings = getGlobalSettings_();
-    const requestDayLimit = globalSettings.requestDayLimit; // Cth: 5
-    const today = new Date();
-    const currentDay = today.getDate();
-    const currentMonth = today.getMonth() + 1;
-    const currentYear = today.getFullYear();
     
-    const lastMonthDate = new Date();
-    lastMonthDate.setMonth(today.getMonth() - 1);
-    const lastMonth = lastMonthDate.getMonth() + 1;
-    const lastMonthYear = lastMonthDate.getFullYear();
-
-    const isCurrentMonth = (year === currentYear && month === currentMonth);
-    const isLastMonth = (year === lastMonthYear && month === lastMonth);
-    const isLastMonthGracePeriod = (isLastMonth && currentDay <= requestDayLimit);
-
-    let isLocked = !(isCurrentMonth || isLastMonthGracePeriod);
-    let lockMessage = "";
-
-    if (isLocked) {
-      if (isLastMonth) {
-        lockMessage = `LKH untuk bulan lalu hanya bisa diisi sampai tanggal ${requestDayLimit} bulan ini.`;
-      } else if (!isCurrentMonth) {
-        lockMessage = "LKH hanya bisa diisi untuk bulan berjalan dan bulan lalu (selama masa tenggang).";
-      }
-    }
-    // --- AKHIR LOGIKA PENGUNCIAN BARU ---
-    
-    // --- Bagian 2: Memuat data LKH (Logika Caching tidak berubah) ---
-    const TIMEZONE = "Asia/Makassar";
-    const cache = CacheService.getScriptCache();
-    // Buat cache key yang unik per user, per sekolah, per bulan
-    const cacheKey = `lkh_data_${email}_${school}_${year}_${month}`;
-    const cachedData = cache.get(cacheKey);
-
-    if (cachedData) {
-      Logger.log(`Mengambil LKH dari cache: ${cacheKey}`);
-      // Periksa apakah data cache sudah memiliki status kunci
-      const parsedData = JSON.parse(cachedData);
-      if (parsedData.hasOwnProperty('isLocked')) {
-         return parsedData;
-      }
-      // Jika cache lama (belum ada 'isLocked'), kita paksakan baca ulang
-    }
-    
-    Logger.log(`Membaca LKH dari sheet: ${cacheKey}`);
-    // Panggil helper BARU (hanya untuk membaca, 'false')
+    // --- Bagian 2: Memuat data LKH ---
     const lkhSheet = getLKHSheet_(year, month, false);
     const existingData = {};
 
-    // Hanya baca jika sheet-nya ADA
     if (lkhSheet && lkhSheet.getLastRow() > 1) {
-      // Baca 6 kolom data
       const lkhData = lkhSheet.getRange(2, 1, lkhSheet.getLastRow() - 1, 6).getValues();
-    
       lkhData.forEach(row => {
         const recordEmail = row[0];
         const recordSchool = row[1];
         
-        // Filter data HANYA untuk user & sekolah ini
         if (recordEmail.toLowerCase() === email.toLowerCase() && recordSchool === school) {
           const rowDate = Utilities.formatDate(new Date(row[2]), TIMEZONE, "yyyy-MM-dd");
           existingData[rowDate] = {
@@ -2287,12 +2358,11 @@ function getLKHData(email, school, year, month) {
       success: true, 
       workingDays, 
       existingData,
-      isLocked: isLocked,           // <-- TAMBAHKAN
-      lockMessage: lockMessage      // <-- TAMBAHKAN
+      isLocked: isLocked,       // <-- Gunakan status kunci yang sudah dihitung
+      lockMessage: lockMessage  // <-- Gunakan pesan kunci yang sudah dihitung
     };
     
-    // Simpan hasil ke cache selama 6 jam
-    cache.put(cacheKey, JSON.stringify(result), 21600);
+    cache.put(cacheKey, JSON.stringify(result), 21600); // Simpan ke cache
 
     return result;
     
@@ -2303,17 +2373,19 @@ function getLKHData(email, school, year, month) {
 }
 
 function saveLKHData(email, school, year, month, lkhData) {
-  const lock = LockService.getScriptLock(); // <-- TAMBAHKAN
-  lock.waitLock(30000); // <-- TAMBAHKAN (Tunggu maks 30 detik)
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000); 
 
   try {
     if (!checkIfLKHUser_(email)) {
       return { status: "error", message: "Akses LKH ditolak." };
     }
 
-    // --- AWAL VALIDASI PENGUNCIAN ---
+    // --- AWAL VALIDASI PENGUNCIAN (LKH) ---
     const globalSettings = getGlobalSettings_();
-    const requestDayLimit = globalSettings.requestDayLimit;
+    // GANTI requestDayLimit DENGAN lkhLastDayLimit
+    const lkhLastDayLimit = globalSettings.lkhLastDayLimit; // Cth: 5 atau 0
+
     const today = new Date();
     const currentDay = today.getDate();
     const currentMonth = today.getMonth() + 1;
@@ -2326,34 +2398,41 @@ function saveLKHData(email, school, year, month, lkhData) {
 
     const isCurrentMonth = (year === currentYear && month === currentMonth);
     const isLastMonth = (year === lastMonthYear && month === lastMonth);
-    const isLastMonthGracePeriod = (isLastMonth && currentDay <= requestDayLimit);
 
-    if (!(isCurrentMonth || isLastMonthGracePeriod)) {
-        Logger.log(`REJECTED LKH save for ${email}. Reason: Month ${year}-${month} is locked.`);
+    // --- Logika Baru Sesuai Permintaan ---
+    let isLocked = false;
+    if (isCurrentMonth) {
+      isLocked = false; // Bulan berjalan OK
+    } else if (isLastMonth) {
+      if (lkhLastDayLimit === 0) {
+        isLocked = true; // Langsung kunci
+      } else {
+        isLocked = (currentDay > lkhLastDayLimit); // Terkunci jika lewat tanggal
+      }
+    } else {
+      isLocked = true; // Bulan lain terkunci
+    }
+
+    if (isLocked) { // JIKA TERKUNCI
+        Logger.log(`REJECTED LKH save for ${email}. Reason: Month ${year}-${month} is locked (Limit: ${lkhLastDayLimit}, Today: ${currentDay}).`);
         return { status: "error", message: "Gagal menyimpan: LKH untuk bulan ini telah dikunci." };
     }
     // --- AKHIR VALIDASI PENGUNCIAN ---
     
-    // Panggil helper BARU (dengan 'true' agar sheet dibuat jika belum ada)
     const sheet = getLKHSheet_(year, month, true);
     
-    // 1. Baca SEMUA data dari sheet
     const allData = sheet.getDataRange().getValues();
-    const headers = allData[0]; // Simpan header
+    const headers = allData[0]; 
 
-    // 2. Filter: Buat array baru HANYA berisi data PENGGUNA LAIN
-    const otherUsersData = allData.slice(1) // (slice(1) untuk lewati header)
+    const otherUsersData = allData.slice(1)
       .filter(row => {
-        if (!row[0]) return false; // Lewati baris kosong
-        // Simpan baris JIKA emailnya BEDA, ATAU sekolahnya BEDA
+        if (!row[0]) return false; 
         return row[0].toLowerCase() !== email.toLowerCase() || row[1] !== school; 
       });
 
-    // 3. Tambah: Buat baris data baru untuk PENGGUNA SAAT INI
     const currentUserNewData = [];
     for (const date in lkhData) {
       const entry = lkhData[date];
-      // Hanya tambahkan jika ada isinya
       if (entry.uraian || entry.hasil || entry.vol) {
         currentUserNewData.push([
           email,            // Kolom A: Email
@@ -2366,20 +2445,16 @@ function saveLKHData(email, school, year, month, lkhData) {
       }
     }
     
-    // Urutkan data pengguna saat ini berdasarkan tanggal (opsional tapi bagus)
-    currentUserNewData.sort((a, b) => a[2] - b[2]); // a[2] adalah objek Tanggal
+    currentUserNewData.sort((a, b) => a[2] - b[2]); 
 
-    // 4. Gabungkan semua data: Header + Data Pengguna Lain + Data Baru Pengguna Ini
     const finalData = [headers, ...otherUsersData, ...currentUserNewData];
 
-    // 5. Tulis (Clear dan Set): Hapus total dan tulis ulang semua
     sheet.getRange(1, 1, sheet.getMaxRows(), sheet.getMaxColumns()).clearContent();
     
     if (finalData.length > 0) {
       sheet.getRange(1, 1, finalData.length, headers.length).setValues(finalData);
     }
     
-    // 6. Hapus Cache
     const cache = CacheService.getScriptCache();
     const cacheKey = `lkh_data_${email}_${school}_${year}_${month}`;
     cache.remove(cacheKey);
@@ -2390,8 +2465,8 @@ function saveLKHData(email, school, year, month, lkhData) {
   } catch (e) {
     Logger.log(`Error in saveLKHData (Refactored): ${e.message} \nStack: ${e.stack}`);
     return { status: "error", message: "Gagal menyimpan LKH. Terjadi kesalahan server." };
-  } finally { // <-- TAMBAHKAN
-    lock.releaseLock(); // <-- TAMBAHKAN
+  } finally { 
+    lock.releaseLock();
   }
 }
 
@@ -3689,10 +3764,11 @@ function getDashboardStatus(email, school) {
       success: true, 
       schoolSettings: schoolSettings,
       announcementTimestamp: announcementTimestamp,
-      // --- AWAL TAMBAHAN ---
-      lastMonthCeklokDayLimit: globalSettings.lastMonthCeklokDayLimit, // Kirim batas hari
-      requestDayLimit: globalSettings.requestDayLimit // Kirim batas hari
-      // --- AKHIR TAMBAHAN ---
+      // --- AWAL PERUBAHAN ---
+      lastMonthCeklokDayLimit: globalSettings.lastMonthCeklokDayLimit,
+      requestDayLimit: globalSettings.requestDayLimit,
+      lkhLastDayLimit: globalSettings.lkhLastDayLimit // <-- BARIS BARU
+      // --- AKHIR PERUBAHAN ---
     };
   } catch (e) {
     Logger.log(`Error di getDashboardStatus: ${e.message}`);
@@ -3701,10 +3777,11 @@ function getDashboardStatus(email, school) {
       error: e.message, 
       schoolSettings: {}, 
       announcementTimestamp: '0',
-      // --- AWAL TAMBAHAN ---
+      // --- AWAL PERUBAHAN ---
       lastMonthCeklokDayLimit: 5, // Fallback
-      requestDayLimit: 10 // Fallback
-      // --- AKHIR TAMBAHAN ---
+      requestDayLimit: 10, // Fallback
+      lkhLastDayLimit: 5 // <-- BARIS BARU
+      // --- AKHIR PERUBAHAN ---
     };
   }
 }
@@ -3896,6 +3973,7 @@ function getTeacherHolidaysMap_() {
 /**
  * HELPER BARU: Mengambil pengaturan global (locked/opened months) dari cache.
  * Cache 1 jam.
+ * --- FUNGSI INI DIMODIFIKASI ---
  */
 function getGlobalSettings_() {
   const cache = CacheService.getScriptCache();
@@ -3909,6 +3987,7 @@ function getGlobalSettings_() {
   let openedMonths = [];
   let requestDayLimit = 10;
   let lastMonthCeklokDayLimit = 5;
+  let lkhLastDayLimit = 5; // <-- TAMBAHKAN DEFAULT BARU
 
   try {
     // Pastikan sheet pengaturan ada dan punya data
@@ -3925,13 +4004,88 @@ function getGlobalSettings_() {
           const parsedLimit = parseInt(row[1], 10);
           if (!isNaN(parsedLimit) && parsedLimit > 0) lastMonthCeklokDayLimit = parsedLimit;
         }
+        // --- TAMBAHKAN BLOK INI ---
+        if (row[0] === 'lkh_last_day_limit') { 
+          const parsedLimit = parseInt(row[1], 10);
+          // Izinkan 0 (langsung kunci)
+          if (!isNaN(parsedLimit) && parsedLimit >= 0) lkhLastDayLimit = parsedLimit;
+        }
+        // --- AKHIR BLOK ---
       });
     }
   } catch (e) {
     Logger.log(`Error parsing settings in getGlobalSettings_: ${e.toString()}`);
   }
   
-  const settings = { lockedMonths, openedMonths, requestDayLimit, lastMonthCeklokDayLimit };
+  const settings = { lockedMonths, openedMonths, requestDayLimit, lastMonthCeklokDayLimit, lkhLastDayLimit }; // <-- TAMBAKAN lkhLastDayLimit
   cache.put(CACHE_KEY, JSON.stringify(settings), 3600); // Cache selama 1 jam
   return settings;
+}
+
+// --- FUNGSI BARU UNTUK ADMIN (LKH) ---
+/**
+ * Menyimpan batas hari pengisian LKH bulan lalu.
+ * @param {string} adminEmail Email admin yang login.
+ * @param {string} dayLimit Batas hari (0-31).
+ */
+function saveLkhLastDayLimit(adminEmail, dayLimit) {
+  if (!checkIfAdmin(adminEmail)) throw new Error("Akses ditolak.");
+  
+  // Validasi: 0 (langsung kunci) atau 1-31 (grace period)
+  const limit = parseInt(dayLimit, 10);
+  if (isNaN(limit) || limit < 0 || limit > 31) {
+    return { status: "error", message: "Batas tanggal harus angka antara 0 dan 31." };
+  }
+  
+  setSetting_("lkh_last_day_limit", limit); // Kunci pengaturan baru
+  
+  // === AWAL PERBAIKAN CACHE ===
+  // Hapus cache pengaturan global agar segera berlaku
+  try {
+    CacheService.getScriptCache().remove("global_settings_v2");
+    Logger.log("Cache 'global_settings_v2' dihapus oleh saveLkhLastDayLimit.");
+  } catch (e) {
+    Logger.log("Gagal menghapus cache global_settings_v2: " + e.message);
+  }
+  // === AKHIR PERBAIKAN CACHE ===
+
+  return { status: "success", message: "Batas tanggal pengisian LKH berhasil disimpan." };
+}
+// --- AKHIR FUNGSI BARU ---
+
+/**
+ * (BARU) Menghapus cache pengaturan global.
+ * Dipanggil oleh tombol "Update".
+ */
+function clearGlobalSettingsCache() {
+  try {
+    CacheService.getScriptCache().remove("global_settings_v2");
+    Logger.log("Cache 'global_settings_v2' dihapus secara manual.");
+    return { success: true };
+  } catch (e) {
+    Logger.log("Gagal hapus cache global: " + e.message);
+    return { success: false };
+  }
+}
+
+/**
+ * (BARU) Menghapus cache LKH untuk user/sekolah/bulan tertentu.
+ * Dipanggil oleh tombol "Update" di halaman LKH.
+ */
+function clearLkhCacheForUser(email, school, year, month) {
+  try {
+    if (!checkIfLKHUser_(email)) {
+      return { success: false, error: "Akses ditolak." };
+    }
+    
+    const cache = CacheService.getScriptCache();
+    const cacheKey = `lkh_data_${email}_${school}_${year}_${month}`;
+    cache.remove(cacheKey);
+    
+    Logger.log(`Cache LKH dihapus manual oleh ${email} untuk ${cacheKey}`);
+    return { success: true };
+  } catch (e) {
+    Logger.log(`Gagal hapus cache LKH manual: ${e.message}`);
+    return { success: false, error: e.message };
+  }
 }
