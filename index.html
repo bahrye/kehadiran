@@ -1567,13 +1567,10 @@
                 cachedAnnouncements = response.announcements;
                 currentAnnouncementTimestamp = response.announcementTimestamp || '0';
                 // === AKHIR SIMPAN KE CACHE ===
-
-                // --- HAPUS BARIS INI ---
-                // renderAnnouncements(cachedAnnouncements);
-                // --- AKHIR PENGHAPUSAN ---
                 
                 runDashboardGeoCheck(); 
                 startSettingsPolling(); // Mulai polling SETELAH semua data awal dimuat
+                loadAndRenderSummary();
               })
               .withFailureHandler(error => {
                   renderAnnouncements(`Gagal memuat pengaturan: ${error.message}`);
@@ -1585,17 +1582,12 @@
             // Ini adalah *kembali* ke dasbor (cache SUDAH ADA)
             console.log("Menggunakan cache pengumuman.");
             
-            // --- HAPUS BARIS INI ---
-            // renderAnnouncements(cachedAnnouncements);
-            // --- AKHIR PENGHAPUSAN ---
-            
             // (Logika Geo dan Polling sudah berjalan dari load pertama,
             // jadi kita hanya perlu me-refresh UI Geo)
             runDashboardGeoCheck();
+            loadAndRenderSummary();
           }
           // --- AKHIR PERUBAHAN LOGIKA CACHING ---
-
-          loadAndRenderSummary();
       }
 
       function openSchoolSwitcherModal() {
