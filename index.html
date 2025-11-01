@@ -929,72 +929,122 @@
         }).saveSptjmSettings(currentUser.email, settings);
       }
 
-      // --- FUNGSI BARU UNTUK MENGECEK PENGATURAN CETAK ---
-      function arePrintSettingsComplete(settings) {
-        if (!settings) return false;
-
-        // Bidang yang wajib diisi (NIP Guru 'nip' & NIP Kepala 'nipKepala' dikecualikan)
-        const requiredFields = [
-          'jabatan',
-          'namaKepala',
-          'tempat',
-          'tanggal'
-        ];
-
-        for (const field of requiredFields) {
-          // Cek jika bidang tidak ada, null, atau string kosong setelah di-trim
-          if (!settings[field] || String(settings[field]).trim() === '') {
-            return false; // Ditemukan bidang wajib yang kosong
-          }
+      // --- FUNGSI BARU UNTUK FORMAT DAFTAR ---
+      /**
+       * (BARU) Mengubah array string menjadi daftar yang diformat dengan "dan".
+       * Contoh: ["A"] -> "<strong>A</strong>"
+       * Contoh: ["A", "B"] -> "<strong>A</strong> dan <strong>B</strong>"
+       * Contoh: ["A", "B", "C"] -> "<strong>A</strong>, <strong>B</strong>, dan <strong>C</strong>"
+       */
+      function formatMissingList(missingArray) {
+        if (!missingArray || missingArray.length === 0) {
+          return "";
         }
 
-        return true; // Semua bidang wajib telah diisi
+        // 1. Tambahkan tag <strong> ke setiap item
+        const boldedItems = missingArray.map(item => `<strong>${item}</strong>`);
+        
+        // 2. Terapkan logika "dan"
+        if (boldedItems.length === 1) {
+          return boldedItems[0];
+        }
+        if (boldedItems.length === 2) {
+          return boldedItems.join(' dan ');
+        }
+        // Jika lebih dari 2
+        const lastItem = boldedItems[boldedItems.length - 1];
+        const otherItems = boldedItems.slice(0, -1).join(', ');
+        return `${otherItems}, dan ${lastItem}`;
       }
-      // --- AKHIR FUNGSI BARU ---
 
+      /**
+       * (FUNGSI LAMA - TIDAK BERUBAH)
+       * Mengecek kelengkapan pengaturan khusus untuk LKH.
+       */
+      function areLkhSettingsComplete(settings) {
+        if (!settings) return { complete: false, missing: ['Jabatan Guru', 'Nama Kepala Madrasah', 'Tempat TTD'] };
+        
+        const missing = [];
+        const fieldNames = {
+          'jabatan': 'Jabatan Guru',
+          'namaKepala': 'Nama Kepala Madrasah',
+          'tempat': 'Tempat TTD LKH/SPTJM'
+          // 'tanggal' sengaja tidak divalidasi untuk LKH
+        };
+
+        for (const field in fieldNames) {
+          if (!settings[field] || String(settings[field]).trim() === '') {
+            missing.push(fieldNames[field]);
+          }
+        }
+        
+        return {
+          complete: missing.length === 0,
+          missing: missing
+        };
+      }
+
+      /**
+       * (FUNGSI LAMA - TIDAK BERUBAH)
+       * Mengecek kelengkapan pengaturan khusus untuk SPTJM.
+       */
+      function areSptjmSettingsComplete(settings) {
+        if (!settings) return { complete: false, missing: ['Jabatan Guru', 'Nama Kepala Madrasah', 'Tempat TTD', 'Tanggal TTD'] };
+        
+        const missing = [];
+        const fieldNames = {
+          'jabatan': 'Jabatan Guru',
+          'namaKepala': 'Nama Kepala Madrasah',
+          'tempat': 'Tempat TTD LKH/SPTJM',
+          'tanggal': 'Tanggal TTD SPTJM' // <-- Tanggal wajib untuk SPTJM
+        };
+
+        for (const field in fieldNames) {
+          if (!settings[field] || String(settings[field]).trim() === '') {
+            missing.push(fieldNames[field]);
+          }
+        }
+        
+        return {
+          complete: missing.length === 0,
+          missing: missing
+        };
+      }
+
+      /**
+       * (FUNGSI DIMODIFIKASI)
+       * Menampilkan halaman SPTJM dan melakukan validasi detail.
+       */
       function showSptjmViewPage(pushState = true) {
           document.getElementById('lkh-sptjm-dashboard-container').style.display = 'none';
           document.getElementById('sptjm-view-container').style.display = 'block';
 
-          // --- TAMBAHKAN BARIS INI ---
           if (pushState) {
             history.pushState(null, null, location.href);
           }
 
-          // 1. Dapatkan elemen tombol dan pesan
           const downloadButton = document.getElementById('download-sptjm-pdf-button');
           const messageElement = document.getElementById('sptjm-download-message');
-
-          // 2. Nonaktifkan tombol di awal
           downloadButton.disabled = true;
 
-          // --- AWAL PERUBAHAN: LOGIKA BULAN LALU ---
           const sptjmMonthInput = document.getElementById('sptjm-view-month-input');
           
-          // Jika input bulan di halaman SPTJM belum diisi...
           if (!sptjmMonthInput.value) {
-              // --- PERUBAHAN: Logika default bulan berdasarkan tanggal ---
               const today = new Date();
-              const targetDate = new Date(); // Salin tanggal hari ini
+              const targetDate = new Date(); 
               
               if (today.getDate() < 6) {
-                  // Jika tanggal 1-5, set ke bulan lalu
                   targetDate.setMonth(targetDate.getMonth() - 1);
               }
-              // Jika tanggal 6+, targetDate adalah bulan ini (default)
               
               const year = targetDate.getFullYear();
               const month = String(targetDate.getMonth() + 1).padStart(2, '0');
               sptjmMonthInput.value = `${year}-${month}`;
-              // --- AKHIR PERUBAHAN ---
           }
           
-          // Ambil nilai yang sudah pasti terisi
           const selectedMonth = sptjmMonthInput.value;
           const [year, month] = selectedMonth.split('-').map(Number);
-          // --- AKHIR PERUBAHAN ---
 
-          // Menampilkan pesan "Memuat..." saat data diambil
           const fieldsToLoad = [
               'sptjm-view-name', 'sptjm-view-nip', 'sptjm-view-jabatan', 'sptjm-view-satker',
               'sptjm-view-month', 'sptjm-view-headmaster-name', 'sptjm-view-headmaster-nip',
@@ -1005,15 +1055,13 @@
             if(el) el.innerText = "Memuat...";
           });
 
-          // 3. Tampilkan pesan loading menggunakan displayMessage
           displayMessage('sptjm-download-message', 'Memuat data pratinjau...', { isProcessing: true });
 
           google.script.run
               .withSuccessHandler(data => {
                   if (data.error) {
-                      // Gagal memuat data, tampilkan error
                       displayMessage('sptjm-download-message', data.error);
-                      return; // Tombol tetap nonaktif
+                      return; 
                   }
                   const settings = data.settings || {};
                   const user = data.user || {};
@@ -1032,32 +1080,33 @@
                   document.getElementById('sptjm-view-headmaster-name').innerText = settings.namaKepala || '[Nama Kepala Madrasah]';
                   document.getElementById('sptjm-view-headmaster-nip').innerText = settings.nipKepala || '-';
 
-                  // --- AWAL PERUBAHAN LOGIKA ---
-                  // 4. Cek kelengkapan pengaturan
-                  const settingsComplete = arePrintSettingsComplete(settings);
+                  // --- AWAL PERUBAHAN LOGIKA VALIDASI ---
+                  const validation = areSptjmSettingsComplete(settings); // Memanggil validasi SPTJM
 
-                  if (settingsComplete) {
-                      // 5. Jika lengkap: Aktifkan tombol dan hapus pesan
+                  if (validation.complete) {
                       downloadButton.disabled = false;
                       messageElement.innerHTML = ''; // Hapus pesan <p> lama
-                      // Kirim toast sukses untuk membersihkan toast "Memuat..."
                       displayMessage('sptjm-download-message', 'Pratinjau siap. Klik untuk mengunduh.', { isSuccess: true });
                   } else {
-                      // 6. Jika tidak lengkap: Tombol tetap nonaktif dan tampilkan pesan permanen
                       downloadButton.disabled = true;
-                      messageElement.innerHTML = 'Tombol Unduh PDF akan aktif setelah Pengaturan Cetak LKH/SPTJM dilengkapi. <a href="#" onclick="event.preventDefault(); showSptjmSettingsPage();">Lengkapi Sekarang</a>';
-                      messageElement.style.color = 'var(--text-secondary-color)'; // Atur warna pesan
+                      // --- PERUBAHAN DI SINI: Panggil formatMissingList ---
+                      const missingList = formatMissingList(validation.missing);
                       
-                      // --- TAMBAHKAN BARIS INI ---
-                      // Kirim toast sukses untuk membersihkan toast "Memuat..."
+                      messageElement.innerHTML = `Tombol Unduh PDF akan aktif setelah Pengaturan Cetak dilengkapi.
+                        <br>
+                        <div class="missing-items-list">
+                          Data yang perlu dilengkapi: ${missingList}.
+                          <br>
+                          <a href="#" onclick="event.preventDefault(); showSptjmSettingsPage();">Lengkapi Sekarang</a>
+                        </div>`;
+                      
+                      // Hapus toast loading
                       displayMessage('sptjm-download-message', 'Pratinjau dimuat, pengaturan belum lengkap.', { isSuccess: true });
-                      // --- AKHIR TAMBAHAN ---
                   }
-                  // --- AKHIR PERUBAHAN LOGIKA ---
+                  // --- AKHIR PERUBAHAN LOGIKA VALIDASI ---
               })
               .withFailureHandler(err => {
                   displayMessage('sptjm-download-message', `Error: ${err.message}`);
-                  // Tombol tetap nonaktif jika ada error
               })
               .getSptjmDataForUser(currentUser.email, selectedSchool, year, month);
       }
@@ -4319,50 +4368,39 @@
           .saveLKHData(currentUser.email, selectedSchool, year, month, lkhData);
       }
 
+      /**
+       * (FUNGSI DIMODIFIKASI)
+       * Menampilkan halaman LKH View dan melakukan validasi detail (tanpa tanggal TTD).
+       */
       function showLkhViewPage(pushState = true) {
           document.getElementById('lkh-sptjm-dashboard-container').style.display = 'none';
           document.getElementById('lkh-view-container').style.display = 'block';
 
-          // --- TAMBAHKAN BARIS INI ---
           if (pushState) {
             history.pushState(null, null, location.href);
           }
-          // --- AKHIR TAMBAHAN ---
 
-          // 1. Dapatkan elemen tombol dan pesan
           const downloadButton = document.getElementById('download-lkh-pdf-button');
           const messageElement = document.getElementById('lkh-download-message');
-
-          // 2. Nonaktifkan tombol di awal
           downloadButton.disabled = true;
-
           displayMessage('lkh-download-message', 'Memuat data pratinjau LKH...', { isProcessing: true });
 
-          // --- AWAL PERUBAHAN: LOGIKA BULAN LALU ---
           const lkhMonthInput = document.getElementById('lkh-view-month-input');
           
-          // Jika input bulan di halaman LKH belum diisi...
           if (!lkhMonthInput.value) {
-              // --- PERUBAHAN: Logika default bulan berdasarkan tanggal ---
               const today = new Date();
-              const targetDate = new Date(); // Salin tanggal hari ini
+              const targetDate = new Date(); 
               
               if (today.getDate() < 6) {
-                  // Jika tanggal 1-5, set ke bulan lalu
                   targetDate.setMonth(targetDate.getMonth() - 1);
               }
-              // Jika tanggal 6+, targetDate adalah bulan ini (default)
               
               const year = targetDate.getFullYear();
               const month = String(targetDate.getMonth() + 1).padStart(2, '0');
               lkhMonthInput.value = `${year}-${month}`;
-              // --- AKHIR PERUBAHAN ---
           }
           
-          // Ambil nilai yang sudah pasti terisi
           const selectedMonth = lkhMonthInput.value;
-          // --- AKHIR PERUBAHAN ---
-
           const [year, month] = selectedMonth.split('-').map(Number);
 
           google.script.run
@@ -4401,27 +4439,30 @@
                           tableBody.innerHTML = '<tr><td colspan="6" style="border: 1px solid black; padding: 8px; text-align: center;">Tidak ada data kegiatan untuk bulan ini.</td></tr>';
                       }
 
-                      // --- AWAL PERUBAHAN LOGIKA ---
-                      // 4. Cek kelengkapan pengaturan
-                      const settingsComplete = arePrintSettingsComplete(data.settings || {});
+                      // --- AWAL PERUBAHAN LOGIKA VALIDASI ---
+                      const validation = areLkhSettingsComplete(data.settings || {});
 
-                      if (settingsComplete) {
-                          // 5. Jika lengkap: Aktifkan tombol dan tampilkan pesan sukses
+                      if (validation.complete) {
                           downloadButton.disabled = false;
-                          // Ini SUDAH BENAR, akan menggantikan toast "Memuat..."
+                          messageElement.innerHTML = ''; // Hapus pesan <p> lama
                           displayMessage('lkh-download-message', 'Pratinjau siap. Klik untuk mengunduh.', { isSuccess: true });
                       } else {
-                          // 6. Jika tidak lengkap: Tombol tetap nonaktif dan tampilkan pesan permanen
                           downloadButton.disabled = true;
-                          messageElement.innerHTML = 'Tombol Unduh PDF akan aktif setelah Pengaturan Cetak LKH/SPTJM dilengkapi. <a href="#" onclick="event.preventDefault(); showSptjmSettingsPage();">Lengkapi Sekarang</a>';
-                          messageElement.style.color = 'var(--text-secondary-color)'; // Atur warna pesan
+                          // --- PERUBAHAN DI SINI: Panggil formatMissingList ---
+                          const missingList = formatMissingList(validation.missing);
                           
-                          // --- TAMBAHKAN BARIS INI ---
-                          // Kirim toast sukses untuk membersihkan toast "Memuat..."
+                          messageElement.innerHTML = `Tombol Unduh PDF akan aktif setelah Pengaturan Cetak dilengkapi.
+                            <br>
+                            <div class="missing-items-list">
+                              Data yang perlu dilengkapi: ${missingList}.
+                              <br>
+                              <a href="#" onclick="event.preventDefault(); showSptjmSettingsPage();">Lengkapi Sekarang</a>
+                            </div>`;
+                          
+                          // Hapus toast loading
                           displayMessage('lkh-download-message', 'Pratinjau dimuat, pengaturan belum lengkap.', { isSuccess: true });
-                          // --- AKHIR TAMBAHAN ---
                       }
-                      // --- AKHIR PERUBAHAN LOGIKA ---
+                      // --- AKHIR PERUBAHAN LOGIKA VALIDASI ---
 
                   } else {
                       displayMessage('lkh-download-message', `Error: ${response.error}`);
