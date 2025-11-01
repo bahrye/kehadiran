@@ -3710,90 +3710,101 @@ function clearSchoolSettingsCache_() {
 
 /**
  * TRIGGER OTOMATIS: Berjalan saat ada editan di spreadsheet.
- * --- FUNGSI INI TELAH DIMODIFIKASI UNTUK MEMECAHKAN MASALAH CACHE ---
+ * --- FUNGSI INI DIMODIFIKASI UNTUK MENAMBAHKAN FLAG ---
  */
 function handleSheetEdit(e) {
   try {
-    // 1. Periksa apakah event object 'e' (informasi editan) ada
     if (!e) return;
-    
-    // 2. Dapatkan sheet yang sedang diedit
     const sheet = e.range.getSheet();
-    const sheetName = sheet.getName(); // Dapatkan nama sheet yang diedit
-    
-    // 3. Dapatkan layanan cache dan properties
+    const sheetName = sheet.getName();
     const cache = CacheService.getScriptCache();
     const properties = PropertiesService.getScriptProperties();
 
-    // 4. Cek sheet mana yang diedit dan hapus cache yang sesuai
-    
-    // Cek jika sheet "SchoolSettings" diedit (Cache Lokasi, Template ID)
-    if (sheetName === "SchoolSettings") {
-      cache.remove("school_settings_map_v3");
-      Logger.log(`Cache 'school_settings_map_v3' cleared due to SchoolSettings edit.`);
-    } 
-    
-    // Cek jika sheet "Settings" diedit (Cache Global: Kunci Bulan, Batas Hari)
-    // INI ADALAH SOLUSI UTAMA UNTUK MASALAH ANDA
-    else if (sheetName === "Settings") {
-      cache.remove("global_settings_v2");
-      Logger.log(`Cache 'global_settings_v2' cleared due to Settings edit.`);
+    // Daftar sheet yang jika diedit akan memicu pembaruan
+    const sheetsToWatch = [
+      "SchoolSettings", 
+      "Settings", 
+      "Announcements", 
+      "Holidays", 
+      "TeacherHolidays",
+      "JamReguler" // Tambahkan sheet lain jika perlu
+    ];
+
+    // Cek jika sheet yang diedit ada dalam daftar
+    if (sheetsToWatch.includes(sheetName)) {
+      
+      // 1. Hapus cache yang relevan (logika lama Anda sudah benar)
+      if (sheetName === "SchoolSettings") cache.remove("school_settings_map_v3");
+      else if (sheetName === "Settings") cache.remove("global_settings_v2");
+      else if (sheetName === "Holidays") cache.remove("national_holidays_v2");
+      else if (sheetName === "TeacherHolidays") cache.remove("all_teacher_holidays_v2");
+      
+      // 2. SET FLAG PEMBARUAN (INI BAGIAN BARUNYA)
+      // Kita set properti ini dengan timestamp baru
+      properties.setProperty('DASHDATA_UPDATE_FLAG', new Date().getTime().toString());
+      Logger.log(`Update flag set ke ${new Date().getTime()} karena editan di ${sheetName}.`);
     }
 
-    // Cek jika sheet "Announcements" diedit (Cache Pengumuman)
-    // Ini untuk menangani jika admin mengedit sheet pengumuman secara manual
-    else if (sheetName === "Announcements") {
+    // (Logika lama untuk timestamp pengumuman bisa dihapus jika `handleSheetEdit`
+    // sudah di-set untuk memantau sheet "Announcements" seperti di atas)
+    if (sheetName === "Announcements") {
       properties.setProperty('announcement_timestamp', new Date().getTime().toString());
-      Logger.log(`Properti 'announcement_timestamp' diperbarui karena sheet Announcements diedit.`);
-    }
-    
-    // (Direkomendasikan) Cek sheet 'Holidays'
-    else if (sheetName === "Holidays") {
-      cache.remove("national_holidays_v2");
-      Logger.log(`Cache 'national_holidays_v2' cleared due to Holidays edit.`);
-    }
-
-    // (Direkomendasikan) Cek sheet 'TeacherHolidays'
-    else if (sheetName === "TeacherHolidays") {
-      cache.remove("all_teacher_holidays_v2");
-      Logger.log(`Cache 'all_teacher_holidays_v2' cleared due to TeacherHolidays edit.`);
     }
 
   } catch (err) {
-    // Log error jika terjadi, tapi jangan hentikan proses edit
     Logger.log(`Error in handleSheetEdit trigger: ${err.message}`);
   }
 }
 
 /**
- * (BARU) Fungsi ringan yang dipanggil oleh client polling.
- * Menggantikan getLatestSchoolSettings.
- * Memeriksa status Geo-settings DAN status pengumuman.
- * --- FUNGSI INI DIMODIFIKASI ---
+ * (BARU) Fungsi super ringan yang dipanggil oleh polling cepat dari client.
+ * Hanya memeriksa apakah ada timestamp baru di server.
+ */
+function checkUpdateFlag(clientTimestamp) {
+  try {
+    const serverTimestamp = PropertiesService.getScriptProperties().getProperty('DASHDATA_UPDATE_FLAG') || '0';
+    
+    // Bandingkan timestamp client dengan server
+    if (parseInt(serverTimestamp) > parseInt(clientTimestamp)) {
+      // Ada versi lebih baru di server
+      return { 
+        updateAvailable: true, 
+        newTimestamp: serverTimestamp // Kirim timestamp baru ke client
+      };
+    } else {
+      // Client sudah update
+      return { updateAvailable: false };
+    }
+  } catch (e) {
+    Logger.log("Error di checkUpdateFlag: " + e.message);
+    return { updateAvailable: false }; // Jangan lakukan apa-apa jika error
+  }
+}
+
+/**
+ * (MODIFIKASI) Mengambil status awal saat dasbor dimuat.
+ * Sekarang juga mengembalikan 'updateTimestamp'.
  */
 function getDashboardStatus(email, school) {
   try {
-    // 1. Logika dari getLatestSchoolSettings (untuk Geo-lock)
     const settingsMap = getSchoolSettingsMap_(); 
     const schoolSettings = settingsMap.get(school) || {};
-    
-    // 2. Logika baru untuk pengumuman
     const announcementTimestamp = PropertiesService.getScriptProperties().getProperty('announcement_timestamp') || '0';
-
-    // --- AWAL TAMBAHAN ---
-    // 3. Ambil pengaturan global (ter-cache)
     const globalSettings = getGlobalSettings_();
+
+    // --- TAMBAHAN BARU ---
+    // Ambil timestamp update global saat pertama kali memuat
+    const updateTimestamp = PropertiesService.getScriptProperties().getProperty('DASHDATA_UPDATE_FLAG') || '0';
     // --- AKHIR TAMBAHAN ---
 
     return { 
       success: true, 
       schoolSettings: schoolSettings,
       announcementTimestamp: announcementTimestamp,
-      // --- AWAL PERUBAHAN ---
       lastMonthCeklokDayLimit: globalSettings.lastMonthCeklokDayLimit,
       requestDayLimit: globalSettings.requestDayLimit,
-      lkhLastDayLimit: globalSettings.lkhLastDayLimit // <-- BARIS BARU
-      // --- AKHIR PERUBAHAN ---
+      lkhLastDayLimit: globalSettings.lkhLastDayLimit,
+      updateTimestamp: updateTimestamp // <-- KIRIM TIMESTAMP
     };
   } catch (e) {
     Logger.log(`Error di getDashboardStatus: ${e.message}`);
@@ -3802,11 +3813,10 @@ function getDashboardStatus(email, school) {
       error: e.message, 
       schoolSettings: {}, 
       announcementTimestamp: '0',
-      // --- AWAL PERUBAHAN ---
-      lastMonthCeklokDayLimit: 5, // Fallback
-      requestDayLimit: 10, // Fallback
-      lkhLastDayLimit: 5 // <-- BARIS BARU
-      // --- AKHIR PERUBAHAN ---
+      lastMonthCeklokDayLimit: 5, 
+      requestDayLimit: 10, 
+      lkhLastDayLimit: 5,
+      updateTimestamp: '0' // <-- KIRIM TIMESTAMP (fallback)
     };
   }
 }
