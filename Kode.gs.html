@@ -2239,7 +2239,7 @@ function getLKHData(email, school, year, month) {
         });
         // --- AKHIR PERUBAHAN ---
         
-        lockMessage = `LKH untuk bulan lalu telah ditutup. Batas akhir tanggal ${formattedLockDate}.`;
+        lockMessage = `LKH untuk bulan ini telah ditutup. Batas akhir tanggal ${formattedLockDate}.`;
       
       } else {
         // Skenario 2: Limit > 0 (Ada Masa Tenggang, cth: 4)
@@ -2260,11 +2260,11 @@ function getLKHData(email, school, year, month) {
         
         if (isLocked) {
           // Pesan Merah: Sudah lewat masa tenggang
-          lockMessage = `LKH untuk bulan lalu telah ditutup. Batas akhir tanggal ${formattedDeadline}.`;
+          lockMessage = `LKH untuk bulan ini telah ditutup. Batas akhir tanggal ${formattedDeadline}.`;
         } else {
           // Pesan Hijau: Masih dalam masa tenggang
           isLocked = false;
-          lockMessage = `LKH untuk bulan lalu masih dibuka hingga tanggal ${formattedDeadline}.`;
+          lockMessage = `LKH untuk bulan ini masih dibuka hingga tanggal ${formattedDeadline}.`;
         }
       }
     } else {
