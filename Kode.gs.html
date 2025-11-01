@@ -2231,12 +2231,12 @@ function getLKHData(email, school, year, month) {
         const lastDayOfLastMonth = new Date(currentYear, currentMonth - 1, 0); 
         
         // --- PERUBAHAN FORMAT TANGGAL ---
-        const formattedLockDate = lastDayOfLastMonth.toLocaleDateString('id-ID', {
+        const formattedLockDate = `&nbsp;<strong>${lastDayOfLastMonth.toLocaleDateString('id-ID', { // <-- PERUBAHAN DI SINI
           day: 'numeric', 
           month: 'long', 
           year: 'numeric', 
           timeZone: TIMEZONE
-        });
+        })}</strong>`; // <-- PERUBAHAN DI SINI
         // --- AKHIR PERUBAHAN ---
         
         lockMessage = `LKH untuk bulan ini telah ditutup. Batas akhir tanggal ${formattedLockDate}.`;
@@ -2247,12 +2247,12 @@ function getLKHData(email, school, year, month) {
         const deadlineDate = new Date(currentYear, currentMonth - 1, lkhLastDayLimit);
         
         // --- PERUBAHAN FORMAT TANGGAL ---
-        const formattedDeadline = deadlineDate.toLocaleDateString('id-ID', {
+        const formattedDeadline = `&nbsp;<strong>${deadlineDate.toLocaleDateString('id-ID', { // <-- PERUBAHAN DI SINI
           day: 'numeric', 
           month: 'long', 
           year: 'numeric', 
           timeZone: TIMEZONE
-        });
+        })}</strong>`; // <-- PERUBAHAN DI SINI
         // --- AKHIR PERUBAHAN ---
         
         // Cek apakah hari ini (cth: 1) SUDAH LEWAT (>) limit (cth: 4)
@@ -2264,13 +2264,13 @@ function getLKHData(email, school, year, month) {
         } else {
           // Pesan Hijau: Masih dalam masa tenggang
           isLocked = false;
-          lockMessage = `LKH untuk bulan ini masih dibuka hingga tanggal ${formattedDeadline}.`;
+          lockMessage = `LKH untuk bulan ini masih dibuka hingga tanggal${formattedDeadline}.`;
         }
       }
     } else {
       // Ini bulan lain (September, Agustus, dll)
       isLocked = true;
-      lockMessage = "LKH hanya bisa diisi untuk bulan berjalan dan bulan lalu (selama masa tenggang).";
+      lockMessage = "LKH bulan ini telah dikunci oleh Admin.";
     }
     
     // --- AKHIR LOGIKA PENGUNCIAN DAN PESAN BARU ---
