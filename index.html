@@ -4351,6 +4351,11 @@
                 }
                 // (Jika lockMessage kosong, CSS :empty akan menyembunyikannya)
                 // --- AKHIR PERBAIKAN LOGIKA TAMPILAN PESAN ---
+
+                // --- PERUBAHAN DIMULAI DI SINI ---
+                // Tampilkan pesan sukses yang Anda minta
+                displayMessage('lkh-action-message', 'Formulir LKH berhasil dimuat dan siap diisi.', { isSuccess: true });
+                // --- PERUBAHAN SELESAI ---
                 
               } else {
                 container.innerHTML = `<p style="color: var(--danger-color);">Gagal memuat data: ${response.error}</p>`;
@@ -5188,14 +5193,16 @@
           }
       }
 
-      // --- FUNGSI BARU ---
+      // --- PERUBAHAN DIMULAI DI SINI ---
       /**
-       * (BARU) Dipanggil oleh polling HANYA jika timestamp pengumuman berubah.
-       * Mengambil teks pengumuman terbaru dan me-render ulang.
+       * (MODIFIKASI) Mengambil teks pengumuman.
+       * @param {boolean} showToasts - Jika true, tampilkan toast "loading" dan "success".
        */
-      function fetchLatestAnnouncements() {
-        // Tampilkan toast "processing"
-        displayMessage(null, "Memuat pengumuman baru...", { isProcessing: true });
+      function fetchLatestAnnouncements(showToasts = true) {
+        // Tampilkan toast "processing" HANYA jika diizinkan
+        if (showToasts) {
+          displayMessage(null, "Memuat pengumuman baru...", { isProcessing: true });
+        }
         
         google.script.run
           .withSuccessHandler(newAnnouncementText => {
@@ -5208,26 +5215,27 @@
             const isStaffDashboard = document.getElementById('staff-dashboard-container').style.display === 'block';
             
             if (isGuruDashboard) {
-              // --- AWAL PERUBAHAN ---
-              // Panggil fungsi dinamis untuk mengevaluasi ulang
-              // (kirim appSettings global dan currentSummary global)
               renderDynamicAnnouncements(appSettings, currentSummary);
-              // --- AKHIR PERUBAHAN ---
             } else if (isStaffDashboard) {
               const staffAnnounceP = document.getElementById('staff-announcement-text');
               staffAnnounceP.innerText = (cachedAnnouncements && cachedAnnouncements.trim() !== "") ? cachedAnnouncements : "Tidak ada pengumuman saat ini.";
             }
             
-            // 3. Tampilkan toast sukses
-            displayMessage(null, "Pengumuman telah diperbarui.", { isSuccess: true });
+            // 3. Tampilkan toast sukses HANYA jika diizinkan
+            if (showToasts) {
+              displayMessage(null, "Pengumuman telah diperbarui.", { isSuccess: true });
+            }
           })
           .withFailureHandler(err => {
-            displayMessage(null, "Gagal memuat pengumuman baru.");
+            // Tampilkan toast error HANYA jika diizinkan
+            if (showToasts) {
+              displayMessage(null, "Gagal memuat pengumuman baru.");
+            }
             console.error("Error fetchLatestAnnouncements:", err.message);
           })
           .getLatestAnnouncements(); // Panggil fungsi server baru
       }
-      // --- AKHIR FUNGSI BARU ---
+      // --- PERUBAHAN SELESAI ---
 
       /**
        * (MODIFIKASI) Mengatur kotak pengumuman berdasarkan prioritas:
@@ -5410,9 +5418,12 @@
         }
 
         const lkhContainer = document.getElementById('lkh-container');
+        // --- PERUBAHAN DIMULAI DI SINI ---
+        const isOnLkhPage = lkhContainer.style.display === 'block'; // Cek sekali di awal
+        // --- PERUBAHAN SELESAI ---
 
         // Bagian UI Loading LKH (Tidak berubah, sudah benar)
-        if (lkhContainer.style.display === 'block') {
+        if (isOnLkhPage) { // <-- Menggunakan variabel baru
             const lkhMonthInput = document.getElementById('lkh-month-input');
             const applyWeeklyButton = document.getElementById('apply-weekly-data-button');
             const clearButton = document.getElementById('clear-lkh-data-button');
@@ -5456,9 +5467,12 @@
           buttonToDisable.disabled = true; 
         }
         
-        if (lkhContainer.style.display !== 'block') {
+        // --- PERUBAHAN DIMULAI DI SINI ---
+        // Hanya tampilkan toast ini jika BUKAN di halaman LKH
+        if (!isOnLkhPage) {
           displayMessage(null, "Memperbarui setelan & pengumuman...", { isProcessing: true });
         }
+        // --- PERUBAHAN SELESAI ---
         
         // Pemanggilan clear cache (Tidak berubah, sudah benar)
         google.script.run
@@ -5469,7 +5483,7 @@
           .withFailureHandler(err => console.error("Gagal hapus cache lokasi:", err.message))
           .clearSchoolSettingsCacheManual(localStorage.getItem('ceklokAuthToken')); 
 
-        if (lkhContainer.style.display === 'block') {
+        if (isOnLkhPage) { // <-- Menggunakan variabel baru
           const lkhMonthInput = document.getElementById('lkh-month-input').value;
           if (lkhMonthInput) { // Hanya hapus cache jika bulan sudah terisi
             const [year, month] = lkhMonthInput.split('-').map(Number);
@@ -5504,14 +5518,17 @@
               appSettings.lkhLastDayLimit = response.lkhLastDayLimit; // <-- PENTING: Nilai baru (cth: 0) disimpan di sini
               appSettings.requestDayLimit = response.requestDayLimit;
               
-              fetchLatestAnnouncements(); 
+              // --- PERUBAHAN DIMULAI DI SINI ---
+              // Panggil fetchLatestAnnouncements dengan parameter showToasts
+              fetchLatestAnnouncements(!isOnLkhPage); // true jika BUKAN LKH, false JIKA LKH
+              // --- PERUBAHAN SELESAI ---
 
               if (document.getElementById('guru-dashboard-container').style.display === 'block') {
                  renderDynamicAnnouncements(appSettings, currentSummary);
               }
               
               // --- AWAL PERUBAHAN UTAMA ---
-              if (lkhContainer.style.display === 'block') {
+              if (isOnLkhPage) { // <-- Menggunakan variabel baru
                 const lkhMonthInput = document.getElementById('lkh-month-input');
                 if (lkhMonthInput) lkhMonthInput.disabled = false;
                 
@@ -5552,7 +5569,30 @@
               startSettingsPolling(); 
 
             } else {
-              displayMessage(null, `Gagal memperbarui: ${response.error || 'Kesalahan server'}`);
+              // --- PERUBAHAN DIMULAI DI SINI ---
+              if (isOnLkhPage) {
+                // Jika gagal di halaman LKH, tampilkan error di pesan LKH
+                const lockMessageEl = document.getElementById('lkh-lock-message');
+                if (lockMessageEl) {
+                  lockMessageEl.innerHTML = `Gagal memperbarui: ${response.error || 'Kesalahan server'}`;
+                  lockMessageEl.className = "message danger-message";
+                }
+                const lkhMonthInput = document.getElementById('lkh-month-input');
+                if (lkhMonthInput) lkhMonthInput.disabled = false;
+                // Aktifkan kembali tombol-tombol LKH
+                const applyWeeklyButton = document.getElementById('apply-weekly-data-button');
+                const clearButton = document.getElementById('clear-lkh-data-button');
+                const saveButton = document.getElementById('save-lkh-button');
+                if (applyWeeklyButton) applyWeeklyButton.disabled = false;
+                if (clearButton) clearButton.disabled = false;
+                if (saveButton) saveButton.disabled = false;
+                updateClearLkhButtonStatus(); // Perbarui status tombol clear
+              } else {
+                // Jika gagal di dasbor, tampilkan toast
+                displayMessage(null, `Gagal memperbarui: ${response.error || 'Kesalahan server'}`);
+              }
+              // --- PERUBAHAN SELESAI ---
+
               if (buttonToDisable && (buttonId === 'refresh-dashboard-button' || buttonId === 'refresh-staff-dashboard-button')) {
                  buttonToDisable.style.display = 'flex'; 
               }
@@ -5565,7 +5605,19 @@
                  buttonToDisable.style.display = 'flex';
               }
             }
-            displayMessage(null, `Gagal: ${err.message}`);
+            // --- PERUBAHAN DIMULAI DI SINI ---
+            if (isOnLkhPage) {
+              // Tampilkan error di LKH
+              const lockMessageEl = document.getElementById('lkh-lock-message');
+              if (lockMessageEl) {
+                lockMessageEl.innerHTML = `Gagal: ${err.message}`;
+                lockMessageEl.className = "message danger-message";
+              }
+            } else {
+              // Tampilkan toast error di dasbor
+              displayMessage(null, `Gagal: ${err.message}`);
+            }
+            // --- PERUBAHAN SELESAI ---
           })
           .getDashboardStatus(currentUser.email, selectedSchool);
       }
