@@ -960,7 +960,61 @@ function exportToExcel(userEmail, school, selectedMonthYear, startLockId) {
     dataRange.setNumberFormat("@");
     dataRange.setHorizontalAlignment("center");
     dataRange.setVerticalAlignment("middle");
-    tempSheet.setRowHeights(2, exportData.length - 1, 25); 
+
+    // 1. Atur tinggi baris (Header & Data)
+    tempSheet.setRowHeight(1, 25); // Tinggi baris header
+    if (exportData.length > 1) { // Hanya jika ada baris data
+      tempSheet.setRowHeights(2, exportData.length - 1, 25); 
+    }
+
+    // 2. Atur lebar & wrap untuk kolom F dan G
+    tempSheet.setColumnWidth(6, 180); // Kolom F
+    tempSheet.setColumnWidth(7, 180); // Kolom G
+    const wrapRangeAll = tempSheet.getRange("F:G");
+    wrapRangeAll.setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP);
+
+    // 3. Terapkan "Zebra Stripes" (Loreng-loreng) SECARA MANUAL
+    if (exportData.length > 1) { // Hanya jika ada baris data
+      const numDataRows = exportData.length - 1;
+      const numCols = exportData[0].length;
+      
+      for (let i = 0; i < numDataRows; i++) {
+        // i=0 adalah baris data pertama (di sheet baris 2)
+        // i=1 adalah baris data kedua (di sheet baris 3)
+        
+        const sheetRowIndex = i + 2; // Konversi ke 1-based index sheet
+        const rowRange = tempSheet.getRange(sheetRowIndex, 1, 1, numCols);
+        
+        if (i % 2 == 0) {
+          // Baris data Ganjil (i=0, 2, 4...) -> Sesuai gambar: Abu-abu
+          rowRange.setBackground("#F2F2F2");
+        } else {
+          // Baris data Genap (i=1, 3, 5...) -> Sesuai gambar: Putih
+          rowRange.setBackground("#FFFFFF");
+        }
+      }
+    }
+
+    // 4. Atur styling Header (Baris 1) - HARUS SETELAH ZEBRA
+    const headerRange = tempSheet.getRange(1, 1, 1, exportData[0].length);
+    headerRange.setFontWeight("bold");
+    
+    // Header Merah (A1:C1)
+    tempSheet.getRange(1, 1, 1, 3).setBackground("#FF0000").setFontColor("#FFFFFF");
+    // Header Kuning (D1:G1)
+    tempSheet.getRange(1, 4, 1, 4).setBackground("#FFFF00").setFontColor("#000000");
+
+    // 5. Atur perataan khusus (Timpa pengaturan dasar & zebra)
+    if (exportData.length > 1) { // Hanya jika ada baris data
+      const dataRangeFG = tempSheet.getRange(
+          2, // Mulai baris 2
+          6, // Kolom F
+          exportData.length - 1, // Jumlah baris data
+          2  // 2 kolom (F dan G)
+      );
+      dataRangeFG.setHorizontalAlignment("left"); // Rata kiri untuk F & G (data)
+    }
+
     SpreadsheetApp.flush();
     
     const url = `https://docs.google.com/spreadsheets/d/${tempSpreadsheet.getId()}/export?format=xlsx`;
@@ -1833,6 +1887,20 @@ function saveTeacherHolidays(email, settings) {
     } else {
       teacherHolidaysSheet.appendRow(valuesToSave);
     }
+
+    // --- AWAL PERBAIKAN (TAMBAHKAN BLOK INI) ---
+    // Hapus cache agar data baru dimuat saat berikutnya
+    try {
+      const cache = CacheService.getScriptCache();
+      // Pastikan CACHE_KEY ini sama dengan yang ada di getTeacherHolidaysMap_()
+      const CACHE_KEY = "all_teacher_holidays_v2"; 
+      cache.remove(CACHE_KEY);
+      Logger.log(`Cache '${CACHE_KEY}' dihapus karena pembaruan oleh ${email}.`);
+    } catch (e) {
+      Logger.log(`Gagal menghapus cache all_teacher_holidays_v2: ${e.message}`);
+    }
+    // --- AKHIR PERBAIKAN ---
+
     return { status: "success", message: "Pengaturan hari libur berhasil disimpan." };
   } catch (e) {
     Logger.log(`Error saving teacher holidays: ${e.toString()}`);
