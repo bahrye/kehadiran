@@ -841,19 +841,138 @@
           return `${year}-${month}-${day}`;
       }
 
-      function showSptjmSettingsPage(pushState = true) {
-          document.getElementById('lkh-sptjm-dashboard-container').style.display = 'none';
+      // ===================================================================
+      // FUNGSI HELPER BARU UNTUK NAVIGASI & POPSTATE
+      // ===================================================================
 
-          // --- TAMBAHAN BARU UNTUK MEMPERBAIKI MASALAH TAMPILAN GANDA ---
-          document.getElementById('sptjm-view-container').style.display = 'none';
-          document.getElementById('lkh-view-container').style.display = 'none';
-          // --- AKHIR TAMBAHAN ---
+      /**
+       * (BARU) Menyembunyikan semua kontainer halaman utama.
+       */
+      function hideAllContainers_() {
+        document.getElementById("login-container").style.display = "none";
+        document.getElementById("school-selection-container").style.display = "none";
+        document.getElementById("guru-dashboard-container").style.display = "none";
+        document.getElementById("staff-dashboard-container").style.display = "none";
+        document.getElementById("ceklok-container").style.display = "none";
+        document.getElementById("admin-container").style.display = "none";
+        document.getElementById("teacher-holiday-settings-container").style.display = "none";
+        document.getElementById("emis-import-container").style.display = "none";
+        document.getElementById("emis-export-container").style.display = "none";
+        document.getElementById("lkh-sptjm-dashboard-container").style.display = "none";
+        document.getElementById("sptjm-settings-container").style.display = "none";
+        document.getElementById("sptjm-view-container").style.display = "none";
+        document.getElementById("lkh-container").style.display = "none";
+        document.getElementById("lkh-view-container").style.display = "none";
+        document.getElementById("lkh-weekly-container").style.display = "none";
+        document.getElementById("all-teachers-summary-container").style.display = "none";
+        document.getElementById("change-request-container").style.display = "none";
+      }
 
+      /**
+       * (BARU) Menampilkan dashboard yang sesuai berdasarkan peran pengguna.
+       * @param {boolean} isLogin - Jika true, gunakan replaceState.
+       */
+      function showDashboardBasedOnRole_(isLogin = false) {
+        if (!currentUser) return;
+        
+        hideAllContainers_();
+
+        // Tampilkan container yang benar
+        if (currentUser.role === 'admin') {
+          document.getElementById("admin-container").style.display = "block";
+          // Panggil fungsi pemuatan data untuk dashboard
+          loadUsers();
+          loadAdminSettings();
+          loadSchoolDropdown();
+        } else if (currentUser.role === 'staff') {
+          document.getElementById("staff-dashboard-container").style.display = "block";
+          // Panggil fungsi pemuatan data untuk dashboard
+          showStaffDashboard(currentUser, isLogin); // Panggil fungsi asli untuk data
+        } else {
+          document.getElementById("guru-dashboard-container").style.display = "block";
+          // Panggil fungsi pemuatan data untuk dashboard
+          showGuruDashboard(currentUser, isLogin); // Panggil fungsi asli untuk data
+        }
+
+        // Hanya 'replaceState' saat login. 'pushState' tidak diperlukan
+        // karena ini adalah halaman root state.
+        if (isLogin) {
+          history.replaceState({ page: 'dashboard' }, 'Dashboard', '#dashboard');
+        }
+      }
+
+      /**
+       * (BARU) Dipanggil oleh 'popstate' untuk merender halaman dari history.
+       * @param {string} pageName - Nama state halaman (cth: 'ceklok', 'lkh-sptjm').
+       */
+      function showPageFromState_(pageName) {
+        // Panggil fungsi 'show' yang sesuai, tetapi *tanpa*
+        // mem-push state baru ke history (argumen 'push' = false).
+        switch(pageName) {
+          case 'dashboard':
+            showDashboardBasedOnRole_(false);
+            break;
+          case 'school-select':
+            showSchoolSelection(currentUser.schools, false);
+            break;
+          case 'ceklok':
+            showCeklokPage(false);
+            break;
+          case 'teacher-holiday':
+            showTeacherHolidaySettings(false);
+            break;
+          case 'emis-import':
+            showEmisImportPage(false);
+            break;
+          case 'emis-export':
+            showEmisExportPage(false);
+            break;
+          case 'all-summary':
+            showAllTeacherSummary(false);
+            break;
+          case 'lkh-sptjm':
+            showLkhSptjmDashboard(false);
+            break;
+          case 'sptjm-settings':
+            showSptjmSettingsPage(false);
+            break;
+          case 'sptjm-view':
+            showSptjmViewPage(false);
+            break;
+          case 'lkh-weekly':
+            showLkhWeeklyPage(false);
+            break;
+          case 'lkh-page':
+            showLkhPage(false);
+            break;
+          case 'lkh-view':
+            showLkhViewPage(false);
+            break;
+          case 'ceklok-staff':
+            showCeklokPageForStaff(true, false); // forceReload=true, push=false
+            break;
+          case 'emis-import-staff':
+            showEmisImportPageForStaff(false);
+            break;
+          case 'emis-export-staff':
+            showEmisExportPageForStaff(false);
+            break;
+          case 'change-request':
+            showChangeRequestPage(false);
+            break;
+          default:
+            // Fallback jika state tidak dikenal, kembali ke dashboard
+            showDashboardBasedOnRole_(false);
+        }
+      }
+
+      function showSptjmSettingsPage(push = true) {
+          hideAllContainers_(); // (PERUBAHAN)
           document.getElementById('sptjm-settings-container').style.display = 'block';
 
           // --- TAMBAHKAN BARIS INI ---
-          if (pushState) {
-            history.pushState(null, null, location.href);
+          if (push) {
+            history.pushState({ page: 'sptjm-settings' }, 'Pengaturan SPTJM', '#sptjm-settings');
           }
 
           const saveButton = document.getElementById('save-sptjm-settings-button');
@@ -1011,18 +1130,14 @@
         };
       }
 
-      /**
-       * (FUNGSI DIMODIFIKASI)
-       * Menampilkan halaman SPTJM dan melakukan validasi detail.
-       */
-      function showSptjmViewPage(pushState = true) {
-          document.getElementById('lkh-sptjm-dashboard-container').style.display = 'none';
+      function showSptjmViewPage(push = true) {
+          hideAllContainers_(); // (PERUBAHAN)
           document.getElementById('sptjm-view-container').style.display = 'block';
 
-          if (pushState) {
-            history.pushState(null, null, location.href);
+          if (push) {
+            history.pushState({ page: 'sptjm-view' }, 'Generate SPTJM', '#sptjm-view');
           }
-
+          
           const downloadButton = document.getElementById('download-sptjm-pdf-button');
           const messageElement = document.getElementById('sptjm-download-message');
           downloadButton.disabled = true;
@@ -1097,7 +1212,7 @@
                         <div class="missing-items-list">
                           Data yang perlu dilengkapi: ${missingList}.
                           <br>
-                          <a href="#" onclick="event.preventDefault(); showSptjmSettingsPage();">Lengkapi Sekarang</a>
+                          <a href="#" onclick="event.preventDefault(); showSptjmSettingsPage(true);">Lengkapi Sekarang</a>
                         </div>`;
                       
                       // Hapus toast loading
@@ -1153,13 +1268,13 @@
               .generateSptjmPdf(currentUser.email, selectedSchool, monthInput);
       }
 
-      function showLkhWeeklyPage(pushState = true) {
-        document.getElementById("lkh-sptjm-dashboard-container").style.display = "none";
+      function showLkhWeeklyPage(push = true) {
+        hideAllContainers_(); // (PERUBAHAN)
         document.getElementById("lkh-weekly-container").style.display = "block";
 
         // --- TAMBAHKAN BARIS INI ---
-        if (pushState) {
-          history.pushState(null, null, location.href);
+        if (push) {
+          history.pushState({ page: 'lkh-weekly' }, 'LKH Mingguan', '#lkh-weekly');
         }
 
         generateLkhWeeklyForm();
@@ -1253,48 +1368,42 @@
       }
 
       // ===================================================================
-      // INISIALISASI & OTENTIKASI
+      // INISIALISASI & OTENTIKASI (FUNGSI DIMODIFIKASI)
       // ===================================================================
       document.addEventListener('DOMContentLoaded', () => {
         // --- AWAL PERUBAHAN: Set Tahun Otomatis ---
         document.getElementById('currentYear').textContent = new Date().getFullYear();
         // --- AKHIR PERUBAHAN ---
 
-        // --- AWAL PERUBAHAN: Logika Tombol Kembali Ponsel (VERSI 2) ---
+        // --- AWAL PERUBAHAN: Logika Tombol Kembali (Pushstate) ---
         window.addEventListener('popstate', function(event) {
-            // Fungsi ini akan dipicu oleh tombol kembali browser/ponsel.
-            // Kita periksa halaman apa yang sedang aktif.
+          const state = event.state;
 
-            // 1. Cek sub-menu LKH (paling dalam)
-            if (document.getElementById('sptjm-settings-container').style.display === 'block' ||
-                document.getElementById('lkh-container').style.display === 'block' ||
-                document.getElementById('lkh-weekly-container').style.display === 'block' ||
-                document.getElementById('sptjm-view-container').style.display === 'block' ||
-                document.getElementById('lkh-view-container').style.display === 'block') {
-                
-                // Jika di sub-menu LKH, kembali ke dasbor LKH
-                // JANGAN pushState di sini, kita hanya menampilkan
-                showLkhSptjmDashboard(false); // <-- Modifikasi: Tambahkan argumen false
-            } 
-            // 2. Cek halaman "level 1" (Ceklok, Dasbor LKH, Pengaturan Libur, dll.)
-            else if (
-                document.getElementById('ceklok-container').style.display === 'block' ||
-                document.getElementById('teacher-holiday-settings-container').style.display === 'block' ||
-                document.getElementById('emis-import-container').style.display === 'block' ||
-                document.getElementById('emis-export-container').style.display === 'block' ||
-                document.getElementById('all-teachers-summary-container').style.display === 'block' ||
-                document.getElementById('change-request-container').style.display === 'block' ||
-                document.getElementById('lkh-sptjm-dashboard-container').style.display === 'block'
-            ) {
-                // Jika di halaman-halaman ini, kembali ke dasbor utama
-                // JANGAN panggil goBackToDashboard() karena itu akan pushState
-                // Cukup tampilkan dasbor yang sesuai secara manual
-                if (currentUser.role === 'admin') showAdminDashboard(currentUser, false); // <-- Modifikasi: Tambahkan argumen false
-                else if (currentUser.role === 'staff') showStaffDashboard(currentUser, false); // <-- Modifikasi: Tambahkan argumen false
-                else showGuruDashboard(currentUser, false); // <-- Modifikasi: Tambahkan argumen false
+          if (state && state.page) {
+            // Jika ada state yang valid, tampilkan halaman itu
+            // (tanpa mem-push state baru)
+            showPageFromState_(state.page);
+          } else {
+            // State adalah 'null'. Ini terjadi jika:
+            // 1. Pengguna berada di #dashboard dan menekan "kembali" (sesuai permintaan, app akan "tertutup"/kembali ke halaman sebelum login).
+            // 2. Pengguna baru membuka aplikasi.
+            
+            // Jika pengguna masih login tapi state null (misal, refresh di #ceklok lalu tekan kembali),
+            // kita paksa kembali ke dashboard agar tidak keluar.
+            const isDashboard = document.getElementById('guru-dashboard-container').style.display === 'block' ||
+                              document.getElementById('staff-dashboard-container').style.display === 'block' ||
+                              document.getElementById('admin-container').style.display === 'block';
+
+            if (currentUser && !isDashboard) {
+              // Jika kita login, tapi *tidak* di dashboard, dan state null -> paksa ke dashboard
+              showDashboardBasedOnRole_(false); // Tampilkan dashboard tanpa push state
+            } else if (!currentUser) {
+              // Jika state null dan tidak login -> tampilkan login
+              hideAllContainers_();
+              document.getElementById('login-container').style.display = 'block';
             }
-            // 3. Jika kita ada di dasbor utama (atau halaman login),
-            // biarkan browser melakukan aksi default-nya (yaitu keluar dari aplikasi).
+            // Jika state null DAN kita DI dashboard -> biarkan browser kembali (menutup app).
+          }
         });
         // --- AKHIR PERUBAHAN ---
 
@@ -1307,19 +1416,30 @@
             selectedSchool = localStorage.getItem('ceklokSelectedSchool');
 
             if (currentUser && selectedSchool) {
-              if (currentUser.role === 'admin') {
-                showAdminDashboard(currentUser);
-              } else if (currentUser.role === 'staff') {
-                showStaffDashboard(currentUser);
+              // PENTING: Tampilkan dashboard menggunakan 'replaceState'
+              // (isLogin = true) agar halaman sebelumnya (refresh) tidak masuk history.
+              // Kita juga harus menangani hash URL saat refresh.
+              const hash = window.location.hash.substring(1); // cth: 'ceklok'
+              
+              if (hash && hash !== 'dashboard') {
+                // Jika refresh di sub-page, set state dashboard dulu,
+                // lalu navigasi ke sub-page
+                history.replaceState({ page: 'dashboard' }, 'Dashboard', '#dashboard');
+                showPageFromState_(hash); // Tampilkan sub-halaman
               } else {
-                showGuruDashboard(currentUser);
+                // Jika refresh di dashboard atau halaman tidak dikenal,
+                // tampilkan dashboard utama.
+                showDashboardBasedOnRole_(true); // isLogin=true -> replaceState
               }
+              
             } else {
                 // Jika data di localStorage tidak lengkap, tampilkan login
+                hideAllContainers_();
                 document.getElementById("login-container").style.display = 'block';
             }
           } catch (e) {
               // Jika ada error saat parsing, fallback ke halaman login
+              hideAllContainers_();
               document.getElementById("login-container").style.display = 'block';
           }
           // --- AKHIR PERUBAHAN (LOGIKA BARU) ---
@@ -1343,7 +1463,10 @@
 
         } else {
             // Jika tidak ada token, pastikan halaman login ditampilkan
+            hideAllContainers_();
             document.getElementById("login-container").style.display = 'block';
+            // Pastikan tidak ada hash aneh di URL
+            history.replaceState(null, 'Login', window.location.pathname);
         }
 
         const emailInput = document.getElementById('email');
@@ -1402,19 +1525,19 @@
               displayMessage('login-message', ''); // Hapus pesan loading
 
               if (currentUser.role === 'admin') {
-                showAdminDashboard(currentUser);
+                // (PERUBAHAN) Panggil helper, tandai sebagai login
+                showDashboardBasedOnRole_(true); // isLogin = true
               } else if (currentUser.schools && currentUser.schools.length > 1) {
-                showSchoolSelection(currentUser.schools);
+                showSchoolSelection(currentUser.schools, true); // (PERUBAHAN) push = true
               } else if (currentUser.schools && currentUser.schools.length === 1) {
                 selectedSchool = currentUser.schools[0];
                 // --- PERUBAHAN DIMULAI ---
                 localStorage.setItem('ceklokSelectedSchool', selectedSchool);
                 // --- PERUBAHAN SELESAI ---
-                if (currentUser.role === 'staff') {
-                    showStaffDashboard(currentUser);
-                } else {
-                    showGuruDashboard(currentUser);
-                }
+                
+                // (PERUBAHAN) Panggil helper, tandai sebagai login
+                showDashboardBasedOnRole_(true); // isLogin = true
+
               } else {
                 displayMessage('login-message', 'Akun Anda tidak terdaftar di sekolah manapun.');
               }
@@ -1430,8 +1553,8 @@
           .userLogin(email, password);
       }
 
-      function showSchoolSelection(schools) {
-        document.getElementById("login-container").style.display = "none";
+      function showSchoolSelection(schools, push = true) {
+        hideAllContainers_(); // (PERUBAHAN) Gunakan helper
         const select = document.getElementById('school-select');
         select.innerHTML = '';
         schools.forEach(school => {
@@ -1442,8 +1565,10 @@
         });
         document.getElementById('school-selection-container').style.display = 'block';
 
-        // --- TAMBAKAH BARIS INI ---
-        history.pushState(null, null, location.href);
+        // --- TAMBAKAN BARIS INI ---
+        if (push) {
+          history.pushState({ page: 'school-select' }, 'Pilih Sekolah', '#school-select');
+        }
         // --- AKHIR TAMBAHAN ---
       }
 
@@ -1453,12 +1578,9 @@
           // --- PERUBAHAN DIMULAI ---
           localStorage.setItem('ceklokSelectedSchool', selectedSchool);
           // --- PERUBAHAN SELESAI ---
-          document.getElementById('school-selection-container').style.display = 'none';
-          if (currentUser.role === 'staff') {
-            showStaffDashboard(currentUser);
-          } else {
-            showGuruDashboard(currentUser);
-          }
+          
+          // (PERUBAHAN) Panggil helper, tandai sebagai login (gantikan state)
+          showDashboardBasedOnRole_(true); // isLogin = true
         }
       }
 
@@ -1500,6 +1622,9 @@
         currentSchoolSettings = {};
         isUserInLocation = false;
         // --- AKHIR TAMBAHAN ---
+
+        // (PERUBAHAN) Sembunyikan semua kontainer
+        hideAllContainers_();
 
         const loginContainer = document.getElementById("login-container");
         loginContainer.innerHTML = `
@@ -1547,64 +1672,29 @@
         }
 
         loginContainer.style.display = "block";
-        document.getElementById("school-selection-container").style.display = "none";
-        document.getElementById("guru-dashboard-container").style.display = "none";
-        document.getElementById("staff-dashboard-container").style.display = "none";
-        document.getElementById("ceklok-container").style.display = "none";
-        document.getElementById("admin-container").style.display = "none";
-        document.getElementById("teacher-holiday-settings-container").style.display = "none";
-        document.getElementById("emis-import-container").style.display = "none";
-        document.getElementById("emis-export-container").style.display = "none";
-        document.getElementById("lkh-sptjm-dashboard-container").style.display = "none";
-        document.getElementById("sptjm-settings-container").style.display = "none";
-        document.getElementById("sptjm-view-container").style.display = "none";
-        document.getElementById("lkh-container").style.display = "none";
-        document.getElementById("lkh-view-container").style.display = "none";
-        document.getElementById("lkh-weekly-container").style.display = "none";
-        document.getElementById("all-teachers-summary-container").style.display = "none";
-        document.getElementById("change-request-container").style.display = "none";
         
-        // --- TAMBAHAN BARU ---
-        document.getElementById("geo-lock-message").style.display = "none"; // Sembunyikan pesan geo
-        // --- AKHIR TAMBAHAN ---
+        // (PERUBAHAN) Hapus state history saat logout
+        history.replaceState(null, 'Login', window.location.pathname);
 
         displayMessage('login-message', "Anda berhasil logout.", { isSuccess: true });
       }
 
       function goBackToDashboard() {
-        if (!currentUser) return;
-        // --- AWAL PERUBAHAN: Sembunyikan container baru ---
-        document.getElementById("change-request-container").style.display = "none";
-        // --- AKHIR PERUBAHAN ---
-        if (currentUser.role === 'admin') showAdminDashboard();
-        else if (currentUser.role === 'staff') showStaffDashboard();
-        else showGuruDashboard();
+        // (PERUBAHAN) Cukup panggil history.back()
+        // Ini akan memicu 'popstate' listener
+        history.back();
       }
 
       // ===================================================================
-      // LOGIKA UNTUK GURU
+      // LOGIKA UNTUK GURU (FUNGSI DIMODIFIKASI)
       // ===================================================================
-      function showGuruDashboard(userData, pushState = true) {
+      function showGuruDashboard(userData, isLogin = false) {
           if (userData) currentUser = userData;
-          document.getElementById("login-container").style.display = "none";
-          document.getElementById("school-selection-container").style.display = "none";
-          document.getElementById("staff-dashboard-container").style.display = "none";
-          document.getElementById("ceklok-container").style.display = "none";
-          document.getElementById("admin-container").style.display = "none";
-          document.getElementById("teacher-holiday-settings-container").style.display = "none";
-          document.getElementById("emis-import-container").style.display = "none";
-          document.getElementById("emis-export-container").style.display = "none";
-          document.getElementById("lkh-sptjm-dashboard-container").style.display = "none";
-          document.getElementById("lkh-weekly-container").style.display = "none";
-          document.getElementById("all-teachers-summary-container").style.display = "none";
-          document.getElementById("change-request-container").style.display = "none";
+          
+          hideAllContainers_(); // (PERUBAHAN)
           document.getElementById("guru-dashboard-container").style.display = "block";
 
-          // --- TAMBAHKAN BARIS INI ---
-          if (pushState) { // Kondisi baru
-            history.pushState(null, null, location.href);
-          }
-          // --- AKHIR TAMBAHAN ---
+          // --- (PERUBAHAN) Pindahkan logic history ke AKHIR ---
 
           const welcomeH2 = document.getElementById('guru-welcome-message');
           let welcomeHTML = `Halo, <strong>${currentUser.name}</strong>`;
@@ -1669,6 +1759,11 @@
             loadAndRenderSummary();
           }
           // --- AKHIR PERUBAHAN LOGIKA CACHING ---
+
+          // --- (PERUBAHAN) Logika History ---
+          if (isLogin) {
+            history.replaceState({ page: 'dashboard' }, 'Dashboard', '#dashboard');
+          }
       }
 
       function openSchoolSwitcherModal() {
@@ -1717,38 +1812,27 @@
         }
       }
 
-      function showLkhSptjmDashboard(pushState = true) {
-        document.getElementById("guru-dashboard-container").style.display = "none";
+      function showLkhSptjmDashboard(push = true) {
+        hideAllContainers_(); // (PERUBAHAN)
         document.getElementById("lkh-sptjm-dashboard-container").style.display = "block";
-        document.getElementById("sptjm-settings-container").style.display = "none";
-        document.getElementById("sptjm-view-container").style.display = "none";
-        document.getElementById("lkh-container").style.display = "none";
-        document.getElementById("lkh-view-container").style.display = "none";
-        document.getElementById("lkh-weekly-container").style.display = "none";
 
         // --- TAMBAHKAN BARIS INI ---
-        if (pushState) { // Kondisi baru
-          history.pushState(null, null, location.href);
+        if (push) {
+          history.pushState({ page: 'lkh-sptjm' }, 'LKH & SPTJM', '#lkh-sptjm');
         }
       }
 
-      /**
-       * (PERBAIKAN) Fungsi showCeklokPage perlu diubah agar dapat bekerja
-       * dengan `currentDate` global yang sudah disetel ke bulan lalu/pengajuan.
-       * Tombol `retry-geo-button` dan pesan `geo-lock-message` juga perlu diatur.
-       */
-      function showCeklokPage(pushState = true) {
-          document.getElementById("guru-dashboard-container").style.display = "none";
-          document.getElementById("emis-import-container").style.display = "none";
+      function showCeklokPage(push = true) {
+          hideAllContainers_(); // (PERUBAHAN)
           document.getElementById("ceklok-container").style.display = "block";
           document.getElementById('ceklok-teacher-name').innerText = '';
           document.getElementById('ceklok-title').innerText = `Formulir Kehadiran - ${selectedSchool}`;
 
           // --- TAMBAHKAN BARIS INI ---
-          if (pushState) {
-            history.pushState(null, null, location.href);
+          if (push) {
+            history.pushState({ page: 'ceklok' }, 'Ceklok', '#ceklok');
           }
-
+          
           // === LOGIKA BARU: Cek status global ===
           const isGeoEnabled = currentSchoolSettings.geoEnabled === true;
           const geoMessage = document.getElementById('geo-lock-message');
@@ -1775,16 +1859,13 @@
           loadMonthData(currentDate);
       }
 
-      function showTeacherHolidaySettings(pushState = true) {
-          document.getElementById("guru-dashboard-container").style.display = "none";
-          document.getElementById("ceklok-container").style.display = "none";
-          document.getElementById("emis-import-container").style.display = "none";
-          document.getElementById("emis-export-container").style.display = "none";
+      function showTeacherHolidaySettings(push = true) {
+          hideAllContainers_(); // (PERUBAHAN)
           document.getElementById("teacher-holiday-settings-container").style.display = "block";
 
           // --- TAMBAHKAN BARIS INI ---
-          if (pushState) {
-            history.pushState(null, null, location.href);
+          if (push) {
+            history.pushState({ page: 'teacher-holiday' }, 'Pengaturan Libur', '#teacher-holiday');
           }
 
           document.getElementById('teacher-holiday-title').innerText = `Pengaturan Hari Libur - ${selectedSchool}`;
@@ -1792,13 +1873,13 @@
           loadTeacherHolidays();
       }
 
-      function showEmisImportPage(pushState = true) {
-        document.getElementById("guru-dashboard-container").style.display = "none";
+      function showEmisImportPage(push = true) {
+        hideAllContainers_(); // (PERUBAHAN)
         document.getElementById("emis-import-container").style.display = "block";
 
         // --- TAMBAHKAN BARIS INI ---
-        if (pushState) {
-          history.pushState(null, null, location.href);
+        if (push) {
+          history.pushState({ page: 'emis-import' }, 'Import EMIS', '#emis-import');
         }
         // --- AKHIR TAMBAHAN ---
 
@@ -1806,13 +1887,13 @@
         document.getElementById('emis-import-title').innerText = `Import Data Kehadiran EMIS - ${selectedSchool}`;
       }
 
-      function showEmisExportPage(pushState = true) {
-        document.getElementById("guru-dashboard-container").style.display = "none";
+      function showEmisExportPage(push = true) {
+        hideAllContainers_(); // (PERUBAHAN)
         document.getElementById("emis-export-container").style.display = "block";
 
         // --- TAMBAHKAN BARIS INI ---
-        if (pushState) {
-          history.pushState(null, null, location.href);
+        if (push) {
+          history.pushState({ page: 'emis-export' }, 'Eksport EMIS', '#emis-export');
         }
         // --- AKHIR TAMBAHAN ---
 
@@ -2589,17 +2670,13 @@
       }
       // --- AKHIR PERBAIKAN ---
 
-
-      /**
-       * (STAFF) Menampilkan halaman daftar pengajuan.
-       */
-      function showChangeRequestPage(pushState = true) {
-        document.getElementById("staff-dashboard-container").style.display = "none";
+      function showChangeRequestPage(push = true) {
+        hideAllContainers_(); // (PERUBAHAN)
         document.getElementById("change-request-container").style.display = "block";
 
         // --- TAMBAHKAN BARIS INI ---
-        if (pushState) {
-          history.pushState(null, null, location.href);
+        if (push) {
+          history.pushState({ page: 'change-request' }, 'Pengajuan Perubahan', '#change-request');
         }
         // --- AKHIR TAMBAHAN ---
 
@@ -3354,16 +3431,13 @@
           .exportToExcel(targetEmail, schoolForExport, monthInput, lockIdInput);
       }
 
-      // ===================================================================
-      // LOGIKA UNTUK RINGKASAN SEMUA GURU (DARI AKUN GURU)
-      // ===================================================================
-      function showAllTeacherSummary(pushState = true) {
-        document.getElementById("guru-dashboard-container").style.display = "none";
+      function showAllTeacherSummary(push = true) {
+        hideAllContainers_(); // (PERUBAHAN)
         document.getElementById("all-teachers-summary-container").style.display = "block";
 
         // --- TAMBAHKAN BARIS INI ---
-        if (pushState) {
-          history.pushState(null, null, location.href);
+        if (push) {
+          history.pushState({ page: 'all-summary' }, 'Ringkasan Sekolah', '#all-summary');
         }
         // --- AKHIR TAMBAHAN ---
 
@@ -3454,30 +3528,12 @@
       }
 
       // ===================================================================
-      // LOGIKA UNTUK STAFF
+      // LOGIKA UNTUK STAFF (FUNGSI DIMODIFIKASI)
       // ===================================================================
-      function showStaffDashboard(userData, pushState = true) {
+      function showStaffDashboard(userData, isLogin = false) {
           if (userData) currentUser = userData;
-          document.getElementById("login-container").style.display = "none";
-          document.getElementById("guru-dashboard-container").style.display = "none";
-          document.getElementById("ceklok-container").style.display = "none";
-          document.getElementById("admin-container").style.display = "none";
-          document.getElementById("school-selection-container").style.display = "none";
-
-          document.getElementById("teacher-holiday-settings-container").style.display = "none";
-          document.getElementById("emis-import-container").style.display = "none";
-          document.getElementById("emis-export-container").style.display = "none";
-          document.getElementById("all-teachers-summary-container").style.display = "none";
-          // --- AWAL PERUBAHAN: Sembunyikan container baru ---
-          document.getElementById("change-request-container").style.display = "none";
-          // --- AKHIR PERUBAHAN ---
-
+          hideAllContainers_(); // (PERUBAHAN)
           document.getElementById("staff-dashboard-container").style.display = "block";
-
-          // --- TAMBAHKAN BARIS INI ---
-          if (pushState) { // Kondisi baru
-            history.pushState(null, null, location.href);
-          }
 
           // MODIFIKASI DIMULAI DI SINI
           const welcomeH2 = document.getElementById('staff-welcome-message');
@@ -3526,6 +3582,11 @@
             // Polling seharusnya sudah berjalan, tidak perlu start lagi.
           }
           // --- AKHIR PERUBAHAN LOGIKA CACHING v2 (STAFF) ---
+
+          // --- (PERUBAHAN) Logika History ---
+          if (isLogin) {
+            history.replaceState({ page: 'dashboard' }, 'Dashboard', '#dashboard');
+          }
       }
 
       function loadSchoolTeachers() {
@@ -3615,14 +3676,8 @@
           return schoolTeachers.find(t => t.email === email);
       }
 
-      /**
-       * (STAFF) Menampilkan halaman Ceklok untuk guru yang dipilih.
-       * @param {boolean} forceReload - (Opsional) Digunakan jika dipanggil setelah
-       * impor EMIS untuk menggunakan guru yang sudah
-       * tersimpan di 'selectedTeacherForStaff'.
-       */
-      function showCeklokPageForStaff(forceReload = false, pushState = true) {
-        // 2. Cek guru yang dipilih
+      function showCeklokPageForStaff(forceReload = false, push = true) {
+        // Cek guru yang dipilih
         if (!forceReload) {
           // Jika ini BUKAN reload paksa, ambil guru dari dropdown Ceklok
           selectedTeacherForStaff = getSelectedTeacher('staff-teacher-select-ceklok');
@@ -3632,53 +3687,50 @@
           }
         }
 
-        // 3. Pastikan (lagi) bahwa ada guru yang terpilih
+        // Pastikan (lagi) bahwa ada guru yang terpilih
         //    (Ini penting untuk kasus 'forceReload' dimana guru harus sudah di-set sebelumnya)
         if (!selectedTeacherForStaff) {
            displayMessage('staff-ceklok-message', 'Terjadi kesalahan, guru tidak terpilih. Silakan kembali dan pilih guru.');
            // Kembalikan ke dasbor jika terjadi error
-           showStaffDashboard();
+           showDashboardBasedOnRole_(false); // (PERUBAHAN)
            return;
         }
 
-        // 4. Sembunyikan dasbor staff
-        document.getElementById("staff-dashboard-container").style.display = "none";
-        
-        // 5. Tampilkan halaman Ceklok
+        hideAllContainers_(); // (PERUBAHAN)
         document.getElementById("ceklok-container").style.display = "block";
 
         // --- TAMBAHKAN BARIS INI ---
-        if (pushState) {
-          history.pushState(null, null, location.href);
+        if (push) {
+          history.pushState({ page: 'ceklok-staff' }, 'Ceklok Staff', '#ceklok-staff');
         }
         
-        // 6. Atur judul halaman Ceklok
+        // Atur judul halaman Ceklok
         document.getElementById('ceklok-title').innerText = `Formulir Kehadiran - ${selectedTeacherForStaff.school}`;
         document.getElementById('ceklok-teacher-name').innerText = `Untuk: ${selectedTeacherForStaff.name}`;
 
-        // 7. Bersihkan pesan geo-lock (jika ada)
+        // Bersihkan pesan geo-lock (jika ada)
         const geoMessage = document.getElementById('geo-lock-message');
         if (geoMessage) {
             geoMessage.style.display = 'none';
         }
 
-        // 8. Muat data absensi untuk guru yang dipilih
+        // Muat data absensi untuk guru yang dipilih
         loadMonthData(currentDate);
       }
 
-      function showEmisImportPageForStaff(pushState = true) {
+      function showEmisImportPageForStaff(push = true) {
           selectedTeacherForStaff = getSelectedTeacher('staff-teacher-select-emis');
           if (!selectedTeacherForStaff) {
             displayMessage('staff-emis-message', 'Silakan pilih seorang guru terlebih dahulu untuk import.');
             return;
           }
 
-          document.getElementById("staff-dashboard-container").style.display = "none";
+          hideAllContainers_(); // (PERUBAHAN)
           document.getElementById("emis-import-container").style.display = "block";
 
           // --- TAMBAHKAN BARIS INI ---
-          if (pushState) {
-            history.pushState(null, null, location.href);
+          if (push) {
+            history.pushState({ page: 'emis-import-staff' }, 'Import EMIS Staff', '#emis-import-staff');
           }
           // --- AKHIR TAMBAHAN ---
 
@@ -3686,19 +3738,19 @@
           document.getElementById('emis-import-teacher-name').innerText = `Untuk: ${selectedTeacherForStaff.name}`;
       }
 
-      function showEmisExportPageForStaff(pushState = true) {
+      function showEmisExportPageForStaff(push = true) {
           selectedTeacherForStaff = getSelectedTeacher('staff-teacher-select-emis');
           if (!selectedTeacherForStaff) {
             displayMessage('staff-emis-message', 'Silakan pilih seorang guru terlebih dahulu untuk eksport.');
             return;
           }
 
-          document.getElementById("staff-dashboard-container").style.display = "none";
+          hideAllContainers_(); // (PERUBAHAN)
           document.getElementById("emis-export-container").style.display = "block";
 
           // --- TAMBAHKAN BARIS INI ---
-          if (pushState) {
-            history.pushState(null, null, location.href);
+          if (push) {
+            history.pushState({ page: 'emis-export-staff' }, 'Eksport EMIS Staff', '#emis-export-staff');
           }
           // --- AKHIR TAMBAHAN ---
 
@@ -3744,18 +3796,14 @@
       // ===================================================================
       // LOGIKA UNTUK ADMIN
       // ===================================================================
-      function showAdminDashboard(userData, pushState = true) {
+      function showAdminDashboard(userData, isLogin = false) {
         if (userData) currentUser = userData;
-        document.getElementById("login-container").style.display = "none";
-        document.getElementById("guru-dashboard-container").style.display = "none";
-        document.getElementById("staff-dashboard-container").style.display = "none";
-        document.getElementById("ceklok-container").style.display = "none";
-        document.getElementById("school-selection-container").style.display = "none";
+        hideAllContainers_(); // (PERUBAHAN)
         document.getElementById("admin-container").style.display = "block";
 
-        // --- TAMBAHKAN BARIS INI ---
-        if (pushState) { // Kondisi baru
-          history.pushState(null, null, location.href);
+        // --- (PERUBAHAN) Logika History ---
+        if (isLogin) {
+          history.replaceState({ page: 'dashboard' }, 'Dashboard', '#dashboard');
         }
 
         document.getElementById("admin-welcome-message").innerHTML = `Halo Admin, <strong>${currentUser.name}</strong>`;
@@ -4160,30 +4208,17 @@
       }
       // PERUBAHAN SELESAI
 
-      function showLkhPage(pushState = true) {
-        document.getElementById("lkh-sptjm-dashboard-container").style.display = "none";
+      function showLkhPage(push = true) {
+        hideAllContainers_(); // (PERUBAHAN)
         document.getElementById("lkh-container").style.display = "block";
 
-        if (pushState) {
-          history.pushState(null, null, location.href);
+        if (push) {
+          history.pushState({ page: 'lkh-page' }, 'Buat LKH', '#lkh-page');
         }
         
-        // --- PERUBAHAN: ---
-        // Hapus SEMUA logika pengaturan tanggal dari sini.
-        // Kita tidak tahu pengaturan tanggal yang benar sampai
-        // forceUpdateSettings() selesai mengambil data baru dari server.
-        
-        // Kosongkan input bulan. Ini PENTING.
-        // Ini memberitahu forceUpdateSettings (via handleLkhMonthChange)
-        // bahwa kita perlu MENGHITUNG default baru, bukan memuat ulang
-        // bulan yang mungkin sudah kedaluwarsa.
         const lkhMonthInput = document.getElementById('lkh-month-input');
         lkhMonthInput.value = ""; 
-        // --- AKHIR PERUBAHAN ---
 
-        // Panggil forceUpdateSettings. Ini akan mengambil pengaturan
-        // terbaru (cth: limit 0) DAN kemudian akan menangani
-        // pengaturan tanggal default di dalam success handler-nya.
         forceUpdateSettings(null, 'update-settings-button');
       }
 
@@ -4360,16 +4395,12 @@
           .saveLKHData(currentUser.email, selectedSchool, year, month, lkhData);
       }
 
-      /**
-       * (FUNGSI DIMODIFIKASI)
-       * Menampilkan halaman LKH View dan melakukan validasi detail (tanpa tanggal TTD).
-       */
-      function showLkhViewPage(pushState = true) {
-          document.getElementById('lkh-sptjm-dashboard-container').style.display = 'none';
+      function showLkhViewPage(push = true) {
+          hideAllContainers_(); // (PERUBAHAN)
           document.getElementById('lkh-view-container').style.display = 'block';
 
-          if (pushState) {
-            history.pushState(null, null, location.href);
+          if (push) {
+            history.pushState({ page: 'lkh-view' }, 'Generate LKH', '#lkh-view');
           }
 
           const downloadButton = document.getElementById('download-lkh-pdf-button');
@@ -4448,7 +4479,7 @@
                             <div class="missing-items-list">
                               Data yang perlu dilengkapi: ${missingList}.
                               <br>
-                              <a href="#" onclick="event.preventDefault(); showSptjmSettingsPage();">Lengkapi Sekarang</a>
+                              <a href="#" onclick="event.preventDefault(); showSptjmSettingsPage(true);">Lengkapi Sekarang</a>
                             </div>`;
                           
                           // Hapus toast loading
