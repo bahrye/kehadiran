@@ -1183,7 +1183,7 @@
 
                   document.getElementById('sptjm-view-name').innerText = user.name || '-';
                   document.getElementById('sptjm-view-nip').innerText = settings.nip || '-';
-                  document.getElementById('sptjm-view-jabatan').innerText = settings.jabatan || 'Guru';
+                  document.getElementById('sptjm-view-jabatan').innerText = settings.jabatan || '[Jabatan Guru]';
                   document.getElementById('sptjm-view-satker').innerText = user.school || '-';
                   document.getElementById('sptjm-view-month').innerText = settings.bulan || '[Bulan]';
 
@@ -4493,9 +4493,9 @@
 
                       document.getElementById('lkh-view-name').innerText = data.user.name || '-';
                       document.getElementById('lkh-view-nip').innerText = data.settings.nip || '-';
-                      document.getElementById('lkh-view-jabatan').innerText = data.settings.jabatan || 'Guru';
+                      document.getElementById('lkh-view-jabatan').innerText = data.settings.jabatan || '[Jabatan Guru]';
                       document.getElementById('lkh-view-period').innerText = `${data.period.firstDay} - ${data.period.lastDay} (${data.lkhItems.length} Hari Kerja)`;
-                      document.getElementById('lkh-view-place-date').innerText = `${data.settings.tempat || 'Butung'}, ${data.signatureDate}`;
+                      document.getElementById('lkh-view-place-date').innerText = `${data.settings.tempat || '[Tempat]'}, ${data.signatureDate}`;
                       document.getElementById('lkh-view-signature-name').innerText = data.user.name || '-';
                       document.getElementById('lkh-view-signature-nip').innerText = data.settings.nip || '-';
                       document.getElementById('lkh-view-headmaster-name').innerText = data.settings.namaKepala || '[Nama Kepala Madrasah]';
