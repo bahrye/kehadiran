@@ -2186,7 +2186,7 @@ function getLKHSheetForUser_(userName) {
 
 /**
  * ===================================================================
- * FUNGSI getLKHData DIMODIFIKASI (Logika Pesan Kunci + Format Bahasa Indonesia)
+ * FUNGSI getLKHData DIMODIFIKASI (Logika Pesan Kunci H-7)
  * ===================================================================
  */
 function getLKHData(email, school, year, month) {
@@ -2202,7 +2202,7 @@ function getLKHData(email, school, year, month) {
     const lkhLastDayLimit = globalSettings.lkhLastDayLimit; // Cth: 5 atau 0
     
     const today = new Date();
-    const currentDay = today.getDate(); // Cth: 1
+    const currentDay = today.getDate(); // Cth: 2
     const currentMonth = today.getMonth() + 1; // Cth: 11 (November)
     const currentYear = today.getFullYear(); // Cth: 2025
     
@@ -2211,66 +2211,80 @@ function getLKHData(email, school, year, month) {
     const lastMonth = lastMonthDate.getMonth() + 1; // Cth: 10 (Oktober)
     const lastMonthYear = lastMonthDate.getFullYear();
 
+    // Ini adalah bulan yang sedang *dilihat* oleh pengguna
     const isCurrentMonth = (year === currentYear && month === currentMonth);
     const isLastMonth = (year === lastMonthYear && month === lastMonth);
     
     let isLocked = false;
     let lockMessage = "";
 
+    // Dapatkan hari terakhir di bulan yang sedang *dilihat* (viewed month)
+    const lastDayOfViewedMonth = new Date(year, month, 0).getDate(); // Cth: 30 (for Nov)
+    const lastDayOfViewedMonthDateObj = new Date(year, month - 1, lastDayOfViewedMonth);
+
+    // Format tanggal akhir bulan yang DILIHAT (cth: "30 November 2025")
+    const formattedLastDay = `&nbsp;<strong>${lastDayOfViewedMonthDateObj.toLocaleDateString('id-ID', {
+      day: 'numeric', 
+      month: 'long', 
+      year: 'numeric', 
+      timeZone: TIMEZONE
+    })}</strong>`;
+    
     if (isCurrentMonth) {
-      // Bulan berjalan selalu bisa diisi
-      isLocked = false;
-      lockMessage = ""; // Tidak perlu pesan
+        // Skenario A: User sedang melihat bulan berjalan (November)
+        isLocked = false; // Bulan berjalan selalu tidak terkunci
+        
+        // Dapatkan sisa hari di bulan INI
+        const lastDayOfCurrentMonth = new Date(currentYear, currentMonth, 0).getDate();
+        const remainingDaysInCurrentMonth = lastDayOfCurrentMonth - currentDay; // e.g., 30 - 25 = 5
+        
+        // Cek apakah setting limit = 0 DAN kita ada di H-7
+        if (lkhLastDayLimit === 0 && remainingDaysInCurrentMonth <= 7 && remainingDaysInCurrentMonth >= 0) {
+            // Ya, ini adalah H-7. Tampilkan pesan hijau.
+            // Gunakan formattedLastDay (cth: 30 November 2025)
+            lockMessage = `LKH untuk bulan ini akan segera ditutup. Batas akhir tanggal${formattedLastDay}.`;
+        } else {
+            // Jika limit > 0, atau masih jauh dari H-7
+            lockMessage = ""; // Tidak ada pesan
+        }
     
     } else if (isLastMonth) {
-      // Ini adalah LKH untuk bulan lalu
-      if (lkhLastDayLimit === 0) {
-        // Skenario 1: Limit 0 (Langsung Kunci)
-        isLocked = true;
-        // Tanggal batas adalah akhir bulan LALU.
-        const lastDayOfLastMonth = new Date(currentYear, currentMonth - 1, 0); 
+        // Skenario B: User sedang melihat bulan lalu (Oktober)
         
-        // --- PERUBAHAN FORMAT TANGGAL ---
-        const formattedLockDate = `&nbsp;<strong>${lastDayOfLastMonth.toLocaleDateString('id-ID', { // <-- PERUBAHAN DI SINI
-          day: 'numeric', 
-          month: 'long', 
-          year: 'numeric', 
-          timeZone: TIMEZONE
-        })}</strong>`; // <-- PERUBAHAN DI SINI
-        // --- AKHIR PERUBAHAN ---
+        if (lkhLastDayLimit === 0) {
+            // Skenario 1: Limit 0 (Langsung Kunci)
+            // INI PERUBAHANNYA: Tidak ada pesan khusus. Hanya pesan kunci standar.
+            isLocked = true;
+            lockMessage = "LKH bulan ini telah dikunci oleh Admin.";
         
-        lockMessage = `LKH untuk bulan ini telah ditutup. Batas akhir tanggal${formattedLockDate}.`;
-      
-      } else {
-        // Skenario 2: Limit > 0 (Ada Masa Tenggang, cth: 4)
-        // Tanggal batas adalah tanggal 4 bulan INI.
-        const deadlineDate = new Date(currentYear, currentMonth - 1, lkhLastDayLimit);
-        
-        // --- PERUBAHAN FORMAT TANGGAL ---
-        const formattedDeadline = `&nbsp;<strong>${deadlineDate.toLocaleDateString('id-ID', { // <-- PERUBAHAN DI SINI
-          day: 'numeric', 
-          month: 'long', 
-          year: 'numeric', 
-          timeZone: TIMEZONE
-        })}</strong>`; // <-- PERUBAHAN DI SINI
-        // --- AKHIR PERUBAHAN ---
-        
-        // Cek apakah hari ini (cth: 1) SUDAH LEWAT (>) limit (cth: 4)
-        isLocked = (currentDay > lkhLastDayLimit); // 1 > 4 adalah false
-        
-        if (isLocked) {
-          // Pesan Merah: Sudah lewat masa tenggang
-          lockMessage = `LKH untuk bulan ini telah ditutup. Batas akhir tanggal${formattedDeadline}.`;
         } else {
-          // Pesan Hijau: Masih dalam masa tenggang
-          isLocked = false;
-          lockMessage = `LKH untuk bulan ini masih dibuka hingga tanggal${formattedDeadline}.`;
+            // Skenario 2: Limit > 0 (Ada Masa Tenggang, cth: 5)
+            // Tanggal batas adalah tanggal 5 bulan INI.
+            const deadlineDate = new Date(currentYear, currentMonth - 1, lkhLastDayLimit); // 5 Nov 2025
+            
+            const formattedDeadline = `&nbsp;<strong>${deadlineDate.toLocaleDateString('id-ID', {
+              day: 'numeric', 
+              month: 'long', 
+              year: 'numeric', 
+              timeZone: TIMEZONE
+            })}</strong>`; // "05 November 2025"
+            
+            // Cek apakah hari ini (cth: 2) SUDAH LEWAT (>) limit (cth: 5)
+            isLocked = (currentDay > lkhLastDayLimit); // 2 > 5 adalah false
+            
+            if (isLocked) {
+                // Pesan Merah: Sudah lewat masa tenggang (e.g., Tgl 6 Nov)
+                lockMessage = `LKH untuk bulan ini telah ditutup. Batas akhir tanggal${formattedDeadline}.`;
+            } else {
+                // Pesan Hijau: Masih dalam masa tenggang (e.g., Tgl 2 Nov)
+                isLocked = false;
+                lockMessage = `LKH untuk bulan ini masih dibuka hingga tanggal${formattedDeadline}.`;
+            }
         }
-      }
     } else {
-      // Ini bulan lain (September, Agustus, dll)
-      isLocked = true;
-      lockMessage = "LKH bulan ini telah dikunci oleh Admin.";
+        // Skenario C: Ini bulan lain (September, Agustus, dll)
+        isLocked = true;
+        lockMessage = "LKH bulan ini telah dikunci oleh Admin.";
     }
     
     // --- AKHIR LOGIKA PENGUNCIAN DAN PESAN BARU ---
