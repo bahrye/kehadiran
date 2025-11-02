@@ -532,9 +532,14 @@ function getMonthlyAttendance(email, school, year, month) {
 /**
  * ===================================================================
  * FUNGSI saveMonthlyAttendance DIMODIFIKASI (LOGIKA 0)
+ * VERSI REFACTOR DENGAN READ-MODIFY-WRITE + LOCKSERVICE
+ * !!! PERBAIKAN FORMAT WAKTU (H:mm vs HH:mm) V3 !!!
  * ===================================================================
  */
 function saveMonthlyAttendance(payload, staffEmailBypass = null) { 
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000); 
+
   try {
     const { email, name, school, attendance } = payload;
     if (!school) return { status: "error", message: "Informasi sekolah tidak valid." };
@@ -548,21 +553,18 @@ function saveMonthlyAttendance(payload, staffEmailBypass = null) {
     const TIMEZONE = "Asia/Makassar";
     const monthStr = `${year}-${String(month).padStart(2, '0')}`;
 
-    // --- AWAL OPTIMASI 1: Validasi Penguncian (PERBAIKAN LOGIKA 0) ---
+    // --- Validasi Penguncian (LOGIKA ASLI ANDA) ---
     const globalSettings = getGlobalSettings_();
-    
     const today = new Date();
     const currentYear = today.getFullYear();
     const currentMonth = today.getMonth() + 1;
     const currentDayOfMonth = today.getDate(); 
     const isPastMonth = year < currentYear || (year === currentYear && month < currentMonth);
     const isCurrentMonthView = (year === currentYear && month === currentMonth);
-
     let isSavingLockedMonth = false;
     let lockedMonths = globalSettings.lockedMonths; 
     let openedMonths = globalSettings.openedMonths; 
-    let lastMonthCeklokDayLimit = globalSettings.lastMonthCeklokDayLimit; // Bisa jadi 0
-
+    let lastMonthCeklokDayLimit = globalSettings.lastMonthCeklokDayLimit; 
     if (isCurrentMonthView) {
       if (lockedMonths.includes(monthStr)) {
         isSavingLockedMonth = true;
@@ -572,25 +574,18 @@ function saveMonthlyAttendance(payload, staffEmailBypass = null) {
       lastMonthDateCheck.setMonth(lastMonthDateCheck.getMonth() - 1);
       const lastMonthStrCheck = `${lastMonthDateCheck.getFullYear()}-${String(lastMonthDateCheck.getMonth() + 1).padStart(2, '0')}`;
       const isTargetMonthLastMonth = (monthStr === lastMonthStrCheck);
-
-      // Cek Ceklok Grace Period (HANYA jika limit > 0)
       const isCeklokGracePeriod = isTargetMonthLastMonth && 
-                                  lastMonthCeklokDayLimit > 0 && // <-- FIX: Cek limit > 0
+                                  lastMonthCeklokDayLimit > 0 && 
                                   currentDayOfMonth >= 1 && 
                                   currentDayOfMonth <= lastMonthCeklokDayLimit;
-
-      if (isCeklokGracePeriod) {
-          isSavingLockedMonth = false; // BUKA
-      } else {
-          // Jika di luar grace period (atau limit=0), cek apakah 'dibuka'
+      if (!isCeklokGracePeriod) {
           if (!openedMonths.includes(monthStr)) {
-            isSavingLockedMonth = true; // Terkunci jika tidak ada di 'openedMonths'
+            isSavingLockedMonth = true; 
           }
       }
     } else {
-       isSavingLockedMonth = true; // Bulan depan
+       isSavingLockedMonth = true; 
     }
-
     if (isSavingLockedMonth) {
        Logger.log(`REJECTED save for ${email} at ${school}. Reason: Month ${monthStr} is locked based on new rules.`);
        return {
@@ -598,13 +593,11 @@ function saveMonthlyAttendance(payload, staffEmailBypass = null) {
          message: "Gagal Menyimpan: Absensi untuk bulan ini telah dikunci oleh Admin."
        };
     }
-    // --- AKHIR OPTIMASI 1 ---
     
-    // [Validasi Geolocation]
+    // [Validasi Geolocation (LOGIKA ASLI ANDA)]
     const schoolSettingsMap = getSchoolSettingsMap_();
     const schoolSettings = schoolSettingsMap.get(school) || {};
     const hasBypass = checkIfStaffHasGeoBypass_(staffEmailBypass);
-
     if (schoolSettings.geoEnabled === true && !hasBypass) { 
       const todayStr = Utilities.formatDate(new Date(), TIMEZONE, "yyyy-MM-dd");
       const datesToSave = Object.keys(attendance);
@@ -615,44 +608,77 @@ function saveMonthlyAttendance(payload, staffEmailBypass = null) {
       }
     }
 
-    // [Proses Penyimpanan]
+    // [Proses Penyimpanan - Pola Read-Modify-Write]
     const sheet = getAttendanceSheet_(year, month, true);
-    const allData = sheet.getDataRange().getValues();
-    const existingRecords = {};
-    for (let i = 1; i < allData.length; i++) {
-      const row = allData[i];
-      if (row[1] === email && row[3] === school) {
-        const dateStr = Utilities.formatDate(new Date(row[4]), TIMEZONE, "yyyy-MM-dd");
-        existingRecords[dateStr] = { rowIndex: i + 1 };
-      }
-    }
-    const rowsToUpdate = []; const rowsToInsert = [];
-    for (const date in attendance) {
-      const entry = attendance[date]; const isEntryEmpty = !entry.checkIn && !entry.checkOut && !entry.reason;
-      if (existingRecords[date]) {
-        const rowIndex = existingRecords[date].rowIndex;
-        if (isEntryEmpty) rowsToUpdate.push({ range: `F${rowIndex}:H${rowIndex}`, values: [['', '', '']] });
-        else rowsToUpdate.push({ range: `F${rowIndex}:H${rowIndex}`, values: [[`'${entry.checkIn || ""}`, `'${entry.checkOut || ""}`, entry.reason || ""]] });
-      } else if (!isEntryEmpty) {
-        rowsToInsert.push([ new Date(), email, name, school, new Date(date), `'${entry.checkIn || ""}`, `'${entry.checkOut || ""}`, entry.reason || "" ]);
-      }
-    }
-    if (rowsToInsert.length > 0) rowsToInsert.sort((a, b) => a[4] - b[4]);
-    if (rowsToInsert.length > 0) sheet.getRange(sheet.getLastRow() + 1, 1, rowsToInsert.length, rowsToInsert[0].length).setValues(rowsToInsert);
-    if (rowsToUpdate.length > 0) rowsToUpdate.forEach(update => sheet.getRange(update.range).setValues(update.values));
     
-    // [Logika Notifikasi 100%]
+    // 1. READ (Baca semua data 1x)
+    const allData = sheet.getDataRange().getValues();
+    const headers = allData[0]; 
+
+    // 2. MODIFY (Filter data pengguna LAIN)
+    const otherUsersData = allData.slice(1).filter(row => {
+      if (!row[1]) return false; 
+      return row[1].toLowerCase() !== email.toLowerCase() || row[3] !== school; 
+    }).map(row => {
+      // row[5] adalah JamMasuk, row[6] adalah JamPulang
+      
+      // !!! PERBAIKAN APOSTROPHE DI SINI (Hapus petik di akhir) !!!
+      row[5] = `'${formatTimeAsHHMM_(row[5], TIMEZONE)}`;
+      row[6] = `'${formatTimeAsHHMM_(row[6], TIMEZONE)}`;
+      // !!! AKHIR PERBAIKAN !!!
+
+      return row;
+    });
+
+    // 3. MODIFY (Buat data BARU untuk pengguna ini)
+    const currentUserNewData = [];
+    for (const date in attendance) {
+      const entry = attendance[date];
+      if (entry.checkIn || entry.checkOut || entry.reason) {
+        
+        const formattedCheckIn = formatTimeAsHHMM_(entry.checkIn, TIMEZONE);
+        const formattedCheckOut = formatTimeAsHHMM_(entry.checkOut, TIMEZONE);
+        
+        // (Kode ini sudah benar, hanya petik di depan)
+        currentUserNewData.push([
+          new Date(), email, name, school, new Date(date),
+          `'${formattedCheckIn || ""}`, 
+          `'${formattedCheckOut || ""}`, 
+          entry.reason || ""
+        ]);
+      }
+    }
+    
+    // 4. Urutkan data pengguna ini berdasarkan tanggal
+    currentUserNewData.sort((a, b) => a[4] - b[4]); 
+
+    // 5. Gabungkan semua data
+    const finalData = [headers, ...otherUsersData, ...currentUserNewData];
+
+    // 6. WRITE (Tulis ulang sheet 1x)
+    sheet.getRange(1, 1, sheet.getMaxRows(), sheet.getMaxColumns()).clearContent();
+    if (finalData.length > 0) {
+      sheet.getRange(1, 1, finalData.length, headers.length).setValues(finalData);
+    }
+    
+    // [Logika Notifikasi 100% (LOGIKA ASLI ANDA)]
     try {
       const nationalHolidays = getHolidays_();
       const teacherHolidays = getTeacherHolidays(email);
-      const userCacheKey_temp = `data_${email}_${school}_${year}_${month}`; 
-      CacheService.getScriptCache().remove(userCacheKey_temp);
-      const summary = calculateSummaryForUser_(attendance, teacherHolidays, nationalHolidays, year, month);
+      const newAttendanceDataForSummary = {};
+      currentUserNewData.forEach(row => {
+          const formattedDate = Utilities.formatDate(row[4], TIMEZONE, "yyyy-MM-dd");
+          newAttendanceDataForSummary[formattedDate] = { 
+            checkIn: formatTimeAsHHMM_(row[5], TIMEZONE), 
+            checkOut: formatTimeAsHHMM_(row[6], TIMEZONE), 
+            reason: row[7] || "" 
+          };
+      });
+      const summary = calculateSummaryForUser_(newAttendanceDataForSummary, teacherHolidays, nationalHolidays, year, month);
       const notificationKey = `completion_notif_${email}_${school}_${monthStr}`; 
       const userProperties = PropertiesService.getUserProperties();
       const notificationSent = userProperties.getProperty(notificationKey); 
       const monthName = new Date(year, month - 1, 1).toLocaleString('id-ID', { month: 'long', timeZone: 'Asia/Makassar' });
-      
       if (summary.persentase === 100) {
         if (notificationSent !== 'sent') {
           const subject = `Ceklok Selesai: Kehadiran ${school} Anda 100%`;
@@ -667,15 +693,33 @@ function saveMonthlyAttendance(payload, staffEmailBypass = null) {
       Logger.log(`Gagal mengirim notifikasi 100% (Optimized) untuk ${email}: ${e.message}`); 
     }
 
-    // [Hapus Cache]
+    // [Perbarui Cache]
     const cache = CacheService.getScriptCache();
-    const rawCacheKey = `raw_display_attendance_${school}_${year}_${month}`; cache.remove(rawCacheKey); Logger.log(`Menghapus cache mentah: ${rawCacheKey}`);
-    const userCacheKey = `data_${email}_${school}_${year}_${month}`; cache.remove(userCacheKey); Logger.log(`Menghapus cache pengguna: ${userCacheKey}`);
+    const rawCacheKey = `raw_display_attendance_${school}_${year}_${month}`; 
+    cache.remove(rawCacheKey); 
+    Logger.log(`Menghapus cache mentah: ${rawCacheKey}`);
+
+    const userAttendanceData = {};
+    currentUserNewData.forEach(row => {
+        const formattedDate = Utilities.formatDate(row[4], TIMEZONE, "yyyy-MM-dd");
+        userAttendanceData[formattedDate] = { 
+          checkIn: formatTimeAsHHMM_(row[5], TIMEZONE), 
+          checkOut: formatTimeAsHHMM_(row[6], TIMEZONE), 
+          reason: row[7] || "" 
+        };
+    });
+ 
+    const userCacheKey = `data_${email}_${school}_${year}_${month}`;
+    cache.put(userCacheKey, JSON.stringify(userAttendanceData), 21600); 
+    Logger.log(`Cache pengguna diperbarui (bukan dihapus): ${userCacheKey}`);
 
     return { status: "success", message: "Absensi bulan ini berhasil diperbarui!" };
+
   } catch (e) {
-    Logger.log(`Error di saveMonthlyAttendance: ${e.toString()} \nStack: ${e.stack}`);
+    Logger.log(`Error di saveMonthlyAttendance (REFACTORED V3): ${e.toString()} \nStack: ${e.stack}`);
     return { status: "error", message: "Gagal menyimpan absensi. Terjadi kesalahan server." };
+  } finally { 
+    lock.releaseLock();
   }
 }
 
@@ -4144,4 +4188,33 @@ function clearLkhCacheForUser(email, school, year, month) {
     Logger.log(`Gagal hapus cache LKH manual: ${e.message}`);
     return { success: false, error: e.message };
   }
+}
+
+/**
+ * HELPER BARU: Memformat nilai jam (Date, '7:05', '07:05') menjadi string 'HH:mm'.
+ * @param {*} timeValue Nilai dari getValues()
+ * @param {string} timezone Zona waktu
+ * @return {string} String 'HH:mm' atau ""
+ */
+function formatTimeAsHHMM_(timeValue, timezone) {
+  try {
+    // Kasus 1: Nilai adalah Objek Tanggal (dari getValues())
+    if (timeValue instanceof Date && !isNaN(timeValue)) {
+      return Utilities.formatDate(timeValue, timezone, "HH:mm");
+    }
+    
+    // Kasus 2: Nilai adalah String (dari payload atau sudah diformat)
+    if (typeof timeValue === 'string' && timeValue) {
+      // Hapus kutip ' jika ada, dan cari H:mm atau HH:mm
+      const parts = timeValue.replace(/^'/, '').match(/^(\d{1,2}):(\d{2})$/);
+      if (parts) {
+        const hours = String(parts[1]).padStart(2, '0'); // Paksa 2 digit (07)
+        const minutes = parts[2]; // Menit sudah 2 digit
+        return `${hours}:${minutes}`;
+      }
+    }
+  } catch (e) {
+    Logger.log(`Error formatting time value ${timeValue}: ${e.message}`);
+  }
+  return ""; // Default jika format tidak valid
 }
