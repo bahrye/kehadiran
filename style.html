@@ -2063,4 +2063,53 @@
   }
   /* === AKHIR TAMBAHAN === */
 
+  /* --- TAMBAHAN/MODIFIKASI UNTUK EFEK GETAR LOGIN --- */
+
+  /* Mendefinisikan animasi getar (Tidak Berubah) */
+  @keyframes shake-error-animation {
+    0%, 100% {
+      transform: translateX(0);
+    }
+    10%, 30%, 50%, 70%, 90% {
+      transform: translateX(-6px); /* Getar ke kiri */
+    }
+    20%, 40%, 60%, 80% {
+      transform: translateX(6px); /* Getar ke kanan */
+    }
+  }
+
+  /* Kelas ini SEKARANG HANYA untuk menganimasikan getaran */
+  /* Ini akan diterapkan pada .card login */
+  .shake-error {
+    animation: shake-error-animation 0.5s ease-in-out;
+  }
+
+  /* Kelas BARU ini untuk memberi warna merah pada input */
+  /* Ini akan diterapkan pada input email & password */
+  .input-error {
+    border-color: var(--danger-color) !important; /* Paksa border jadi merah */
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.3) !important; /* Beri glow merah */
+  }
+  /* --- AKHIR PERUBAHAN --- */
+
+  /* --- TAMBAHAN BARU UNTUK LINK PENGUMUMAN --- */
+
+  /* Target span .clickable-prompt di dalam box warning/danger */
+  .announcement-warning .clickable-prompt,
+  .announcement-danger .clickable-prompt {
+    font-weight: 700; /* Membuat teks tebal */
+    text-decoration: underline; /* Memberi garis bawah */
+    text-underline-offset: 3px; /* Jarak garis bawah dari teks */
+    
+    /* Ganti warna agar sedikit lebih gelap dari teks biasa */
+    color: #92400E; /* Warna kuning tua (untuk box kuning) */
+  }
+
+  /* Pengaturan khusus jika di dalam box merah */
+  .announcement-danger .clickable-prompt {
+    color: #991B1B; /* Warna merah tua (untuk box merah) */
+  }
+
+  /* --- AKHIR TAMBAHAN --- */
+
 </style>
