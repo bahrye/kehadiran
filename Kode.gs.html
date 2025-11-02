@@ -2195,6 +2195,123 @@ function getSptjmDataForUser(email, school, year, month) {
   }
 }
 
+// ===================================================================
+// --- GANTI FUNGSI formatHeadmasterName_ LAMA DENGAN VERSI BARU INI ---
+// ===================================================================
+
+/**
+ * Memformat nama Kepala Madrasah ke UPPERCASE kecuali gelar.
+ * Juga memperbaiki typo gelar DAN separator (koma/titik/spasi).
+ * @param {string} nameString Nama asli (cth: "andi s.pd.i" atau "asma, s.pd.i")
+ * @return {string} Nama yang diformat (cth: "ANDI, S.Pd.I" atau "ASMA, S.Pd.I")
+ */
+function formatHeadmasterName_(nameString) {
+  if (!nameString) return "";
+
+  // 1. Ubah semua ke huruf besar
+  let formattedName = nameString.toUpperCase();
+
+  // 2. Daftar koreksi (dari versi UPPER -> versi Benar)
+  const corrections = {
+    // Gelar S.Pd dan variannya
+    'S.PD.I': 'S.Pd.I',
+    'S.PD.SD': 'S.Pd.SD',
+    'S.PD.AUD': 'S.Pd.AUD',
+    'S.PD.K': 'S.Pd.K',
+    'S.PD': 'S.Pd',
+    
+    // Gelar M.Pd dan variannya
+    'M.PD.I': 'M.Pd.I',
+    'M.PD.K': 'M.Pd.K',
+    'M.PD': 'M.Pd',
+    
+    // Gelar Agama
+    'S.AG': 'S.Ag',
+    'M.AG': 'M.Ag',
+    'S.FIL.I': 'S.Fil.I',
+    'S.TH.I': 'S.Th.I',
+
+    // Gelar Komputer
+    'S.KOM': 'S.Kom',
+    'M.KOM': 'M.Kom',
+    
+    // Gelar Hukum
+    'S.H.I': 'S.H.I',
+    'S.H': 'S.H',
+    'M.H': 'M.H',
+    
+    // Gelar Ekonomi
+    'S.E': 'S.E',
+    'M.E': 'M.E',
+    'M.M': 'M.M',
+    'S.AK': 'S.Ak',
+    
+    // Gelar Sosial & Sains
+    'S.SOS': 'S.Sos',
+    'M.SI': 'M.Si',
+    'S.SI': 'S.Si',
+    
+    // Gelar Teknik & Vokasi
+    'S.TR.T': 'S.Tr.T',
+    'S.T': 'S.T',
+    'M.T': 'M.T',
+    
+    // Gelar Akademik (Doktor, dll)
+    'DRS.': 'Drs.',
+    'DRA.': 'Dra.',
+    'DR.': 'Dr.',
+    'PROF.': 'Prof.',
+
+    // Gelar Keagamaan (Haji/Hajjah)
+    'HJ.': 'Hj.',
+    'H.': 'H.' // H. harus salah satu yang terakhir
+  };
+
+  // 3. Ambil daftar title UPPERCASE dan urutkan berdasarkan panjang (terpanjang dulu)
+  const sortedUpperTitles = Object.keys(corrections).sort((a, b) => b.length - a.length);
+
+  // 4. LOOP 1: Perbaiki separator (koma/titik/spasi) SEBELUM gelar
+  for (const upperTitle of sortedUpperTitles) {
+    // Escape titik-titik pada title untuk regex
+    const escapedTitle = upperTitle.replace(/\./g, '\\.');
+    
+    // Regex 1: Temukan titik SEBELUM title (cth: "ANDI.S.PD.I")
+    const regexDot = new RegExp(`\\.(${escapedTitle})`, 'g');
+    formattedName = formattedName.replace(regexDot, ', $1'); // Ganti menjadi ", S.PD.I"
+    
+    // Regex 2: Temukan koma TANPA SPASI SEBELUM title (cth: "ANDI,S.PD.I")
+    const regexCommaNoSpace = new RegExp(`,(${escapedTitle})`, 'g');
+    formattedName = formattedName.replace(regexCommaNoSpace, ', $1'); // Ganti menjadi ", S.PD.I"
+
+    // ===================================================================
+    // --- AWAL PERBAIKAN BUG (KOMA GANDA) ---
+    // ===================================================================
+    // Regex 3: Temukan SPASI SAJA SEBELUM title (cth: "ANDI S.PD.I")
+    // Ini mencari (Karakter BUKAN KOMA/TITIK/SPASI) diikuti (spasi) diikuti (gelar)
+    // $1 akan menangkap karakter terakhir nama (cth: 'I' dari ANDI)
+    // $2 akan menangkap gelar (cth: 'S.PD.I')
+    const regexSpace = new RegExp(`([^,\\.\\s])\\s(${escapedTitle})`, 'g');
+    // ===================================================================
+    // --- AKHIR PERBAIKAN BUG (KOMA GANDA) ---
+    // ===================================================================
+    formattedName = formattedName.replace(regexSpace, '$1, $2'); // Ganti menjadi "I, S.PD.I"
+  }
+
+  // 5. LOOP 2: Koreksi kapitalisasi gelar (misal: "S.PD.I" -> "S.Pd.I")
+  for (const [upper, correct] of Object.entries(corrections)) {
+    // Buat regex untuk mencari versi UPPERCASE
+    const regex = new RegExp(upper.replace(/\./g, '\\.'), 'g');
+    formattedName = formattedName.replace(regex, correct);
+  }
+
+  return formattedName;
+}
+
+// ===================================================================
+// --- AKHIR TAMBAHAN ---
+// ===================================================================
+
+
 function generateSptjmPdf(userEmail, school, selectedMonthYear) {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
@@ -2251,6 +2368,14 @@ function generateSptjmPdf(userEmail, school, selectedMonthYear) {
       : '[Tanggal]';
     const placeDate = `${settings.tempat || '[Tempat]'}, ${signatureDate}`;
 
+    // ===================================================================
+    // --- AWAL PERUBAHAN: Panggil fungsi format ---
+    // ===================================================================
+    const formattedHeadmasterName = formatHeadmasterName_(settings.namaKepala || '-');
+    // ===================================================================
+    // --- AKHIR PERUBAHAN ---
+    // ===================================================================
+
     // 7. Ganti semua placeholder menggunakan data 'user' dan 'settings'
     body.replaceText('{{NAMA}}', user.name || '-');
     body.replaceText('{{NIP}}', settings.nip || '-');
@@ -2258,7 +2383,15 @@ function generateSptjmPdf(userEmail, school, selectedMonthYear) {
     body.replaceText('{{SATKER}}', user.school || '-');
     body.replaceText('{{BULAN}}', dynamicMonthName);
     body.replaceText('{{TEMPAT_TANGGAL}}', placeDate); // <-- Gunakan placeDate yang baru
-    body.replaceText('{{NAMA_KEPALA}}', settings.namaKepala || '-');
+    
+    // ===================================================================
+    // --- AWAL PERUBAHAN: Gunakan variabel yang diformat ---
+    // ===================================================================
+    body.replaceText('{{NAMA_KEPALA}}', formattedHeadmasterName);
+    // ===================================================================
+    // --- AKHIR PERUBAHAN ---
+    // ===================================================================
+    
     body.replaceText('{{NIP_KEPALA}}', settings.nipKepala || '-');
     body.replaceText('{{NAMA_TTD}}', user.name || '-');
     body.replaceText('{{NIP_TTD}}', settings.nip || '-');
@@ -2720,6 +2853,14 @@ function generateLkhPdf(email, school, selectedMonthYear) {
     const doc = DocumentApp.openById(tempDocId);
     const body = doc.getBody();
 
+    // ===================================================================
+    // --- AWAL PERUBAHAN: Panggil fungsi format ---
+    // ===================================================================
+    const formattedHeadmasterNameLkh = formatHeadmasterName_(data.settings.namaKepala || '-');
+    // ===================================================================
+    // --- AKHIR PERUBAHAN ---
+    // ===================================================================
+
     body.replaceText('{{TAHUN_AJARAN}}', tahunAjaran);
     body.replaceText('{{NAMA_SEKOLAH}}', school.toUpperCase());
     body.replaceText('{{ALAMAT_SEKOLAH}}', data.settings.schoolAddress || '-');
@@ -2728,7 +2869,15 @@ function generateLkhPdf(email, school, selectedMonthYear) {
     body.replaceText('{{JABATAN}}', data.settings.jabatan || 'Guru');
     body.replaceText('{{PERIODE}}', `${data.period.firstDay} - ${data.period.lastDay} (${data.lkhItems.length} Hari Kerja)`);
     body.replaceText('{{TEMPAT_TANGGAL}}', `${data.settings.tempat || 'Butung'}, ${formattedSignatureDate}`);
-    body.replaceText('{{NAMA_KEPALA}}', data.settings.namaKepala || '-');
+    
+    // ===================================================================
+    // --- AWAL PERUBAHAN: Gunakan variabel yang diformat ---
+    // ===================================================================
+    body.replaceText('{{NAMA_KEPALA}}', formattedHeadmasterNameLkh);
+    // ===================================================================
+    // --- AKHIR PERUBAHAN ---
+    // ===================================================================
+    
     body.replaceText('{{NIP_KEPALA}}', data.settings.nipKepala || '-');
     body.replaceText('{{NAMA_TTD}}', data.user.name);
     body.replaceText('{{NIP_TTD}}', data.settings.nip || '-');
