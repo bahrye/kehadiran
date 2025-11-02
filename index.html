@@ -1041,7 +1041,7 @@
         google.script.run.withSuccessHandler(response => {
           if (response.status === 'success') {
             displayMessage('sptjm-settings-message', response.message, { isSuccess: true });
-            setTimeout(showLkhSptjmDashboard, 2000); // Kembali ke dasbor LKH setelah 2 detik
+            setTimeout(history.back, 2000); // Kembali ke dasbor LKH setelah 2 detik
           } else {
             displayMessage('sptjm-settings-message', response.message);
           }
