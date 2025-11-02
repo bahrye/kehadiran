@@ -1498,12 +1498,48 @@
         // ==== PERUBAHAN SELESAI ====
       });
 
+      /**
+       * (FUNGSI DIMODIFIKASI) Menerapkan efek getar pada card login
+       * dan border merah pada input.
+       */
+      function triggerLoginErrorShake() {
+        // 1. Temukan elemen card login
+        const loginCard = document.querySelector('#login-form .card');
+        
+        // 2. Temukan elemen input
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
+
+        // 3. Getarkan card
+        if (loginCard) {
+          loginCard.classList.add('shake-error');
+          
+          // Hapus kelas getar setelah animasi selesai
+          setTimeout(() => {
+            loginCard.classList.remove('shake-error');
+          }, 500); // 500ms (sesuai durasi animasi)
+        }
+
+        // 4. Beri warna merah pada input
+        [emailInput, passwordInput].forEach(el => {
+          if(el) {
+            el.classList.add('input-error');
+            
+            // Hapus kelas merah setelah animasi selesai
+            setTimeout(() => {
+              el.classList.remove('input-error');
+            }, 500); // Samakan durasinya
+          }
+        });
+      }
+
       function handleLogin() {
         const email = document.getElementById("email").value;
         const password = document.getElementById("password").value;
         const button = document.getElementById("login-button");
         if (!email || !password) {
           displayMessage('login-message', "Email dan password wajib diisi.");
+          triggerLoginErrorShake(); // <-- TAMBAHKAN INI
           return;
         }
         button.disabled = true;
@@ -1540,15 +1576,18 @@
 
               } else {
                 displayMessage('login-message', 'Akun Anda tidak terdaftar di sekolah manapun.');
+                triggerLoginErrorShake(); // <-- TAMBAHKAN INI (Kasus akun valid tapi tidak ada sekolah)
               }
             } else {
               displayMessage('login-message', response.message);
+              triggerLoginErrorShake(); // <-- TAMBAHKAN INI (Email/Password salah)
             }
           })
           .withFailureHandler(error => {
             displayMessage('login-message', "Error: " + error.message);
             button.disabled = false;
             button.querySelector('span').textContent = "Login";
+            triggerLoginErrorShake(); // <-- TAMBAHKAN INI (Error jaringan/server)
           })
           .userLogin(email, password);
       }
@@ -5190,7 +5229,6 @@
       }
       // --- AKHIR FUNGSI BARU ---
 
-      // --- TAMBAHAN BARU: Logika Pengingat Ceklok ---
       /**
        * (MODIFIKASI) Mengatur kotak pengumuman berdasarkan prioritas:
        * 1. Pengingat Awal Bulan (Tgl 1 s/d graceLimit)
@@ -5256,7 +5294,8 @@
               announceTitle.innerHTML = '<i class="fa-solid fa-hourglass-start"></i> Pengingat Pengisian Ceklok';
               
               // --- GANTI BARIS DI BAWAH INI ---
-              announceText.innerHTML = `Pengisian ceklok bulan <strong>${lastMonthName}</strong> masih dibuka sampai tanggal <strong>${formattedDeadline}</strong>. Klik di sini untuk melengkapi.`;
+              // MODIFIKASI: Menambahkan <span class="clickable-prompt">
+              announceText.innerHTML = `Pengisian ceklok bulan <strong>${lastMonthName}</strong> masih dibuka sampai tanggal <strong>${formattedDeadline}</strong>. <span class="clickable-prompt">Klik di sini untuk melengkapi.</span>`;
               // --- AKHIR PENGGANTIAN ---
               
               announceBox.onclick = () => {
@@ -5285,7 +5324,8 @@
               announceTitle.innerHTML = '<i class="fa-solid fa-file-circle-question"></i> Pengajuan Perubahan Data';
               
               // --- GANTI BARIS DI BAWAH INI ---
-              announceText.innerHTML = `Pengisian ceklok ${lastMonthName} sudah ditutup. Mode <strong>Pengajuan Perubahan Data</strong> dibuka sampai tanggal <strong>${formattedRequestDeadline}</strong>. Klik di sini untuk mengajukan.`;
+              // MODIFIKASI: Menambahkan <span class="clickable-prompt">
+              announceText.innerHTML = `Pengisian ceklok ${lastMonthName} sudah ditutup. Mode <strong>Pengajuan Perubahan Data</strong> dibuka sampai tanggal <strong>${formattedRequestDeadline}</strong>. <span class="clickable-prompt">Klik di sini untuk mengajukan.</span>`;
               // --- AKHIR PENGGANTIAN ---
               
               announceBox.onclick = () => {
@@ -5317,7 +5357,9 @@
               announceBox.className = statusClass;
               announceBox.style.cursor = 'pointer';
               announceTitle.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Pengingat Ceklok Akhir Bulan';
-              announceText.innerHTML = `<strong>${messageText}</strong> Kehadiran Anda bulan ini masih ${summary.persentase}%. Klik di sini untuk melengkapi.`;
+              
+              // MODIFIKASI: Menambahkan <span class="clickable-prompt">
+              announceText.innerHTML = `<strong>${messageText}</strong> Kehadiran Anda bulan ini masih ${summary.persentase}%. <span class="clickable-prompt">Klik di sini untuk melengkapi.</span>`;
               
               announceBox.onclick = () => {
                   currentDate = today; // Set tanggal global ke bulan ini
