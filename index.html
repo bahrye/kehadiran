@@ -1192,7 +1192,16 @@
 
                   document.getElementById('sptjm-view-signature-name').innerText = user.name || '-';
                   document.getElementById('sptjm-view-signature-nip').innerText = settings.nip || '-';
-                  document.getElementById('sptjm-view-headmaster-name').innerText = settings.namaKepala || '[Nama Kepala Madrasah]';
+                  
+                  // ===================================================================
+                  // --- AWAL PERUBAHAN: Panggil fungsi format JS ---
+                  // ===================================================================
+                  const formattedHeadmasterName = formatHeadmasterNameJS(settings.namaKepala || '[Nama Kepala Madrasah]');
+                  document.getElementById('sptjm-view-headmaster-name').innerText = formattedHeadmasterName;
+                  // ===================================================================
+                  // --- AKHIR PERUBAHAN ---
+                  // ===================================================================
+                  
                   document.getElementById('sptjm-view-headmaster-nip').innerText = settings.nipKepala || '-';
 
                   // --- AWAL PERUBAHAN LOGIKA VALIDASI ---
@@ -4503,7 +4512,16 @@
                       document.getElementById('lkh-view-place-date').innerText = `${data.settings.tempat || '[Tempat]'}, ${data.signatureDate}`;
                       document.getElementById('lkh-view-signature-name').innerText = data.user.name || '-';
                       document.getElementById('lkh-view-signature-nip').innerText = data.settings.nip || '-';
-                      document.getElementById('lkh-view-headmaster-name').innerText = data.settings.namaKepala || '[Nama Kepala Madrasah]';
+                      
+                      // ===================================================================
+                      // --- AWAL PERUBAHAN: Panggil fungsi format JS ---
+                      // ===================================================================
+                      const formattedHeadmasterNameLkh = formatHeadmasterNameJS(data.settings.namaKepala || '[Nama Kepala Madrasah]');
+                      document.getElementById('lkh-view-headmaster-name').innerText = formattedHeadmasterNameLkh;
+                      // ===================================================================
+                      // --- AKHIR PERUBAHAN ---
+                      // ===================================================================
+
                       document.getElementById('lkh-view-headmaster-nip').innerText = data.settings.nipKepala || '-';
 
                       const tableBody = document.getElementById('lkh-view-table-body');
@@ -5621,6 +5639,111 @@
           })
           .getDashboardStatus(currentUser.email, selectedSchool);
       }
+
+      // ===================================================================
+      // --- AWAL TAMBAHAN: FUNGSI BARU UNTUK FORMAT NAMA KEPALA (FRONTEND) ---
+      // ===================================================================
+      /**
+       * (JAVASCRIPT CLIENT-SIDE)
+       * Memformat nama Kepala Madrasah ke UPPERCASE kecuali gelar.
+       * Juga memperbaiki typo gelar DAN separator (koma/titik/spasi).
+       * @param {string} nameString Nama asli (cth: "andi s.pd.i" atau "asma, s.pd.i")
+       * @return {string} Nama yang diformat (cth: "ANDI, S.Pd.I" atau "ASMA, S.Pd.I")
+       */
+      function formatHeadmasterNameJS(nameString) {
+        if (!nameString) return "";
+
+        // 1. Ubah semua ke huruf besar
+        let formattedName = nameString.toUpperCase();
+
+        // 2. Daftar koreksi (dari versi UPPER -> versi Benar)
+        const corrections = {
+          // Gelar S.Pd dan variannya
+          'S.PD.I': 'S.Pd.I',
+          'S.PD.SD': 'S.Pd.SD',
+          'S.PD.AUD': 'S.Pd.AUD',
+          'S.PD.K': 'S.Pd.K',
+          'S.PD': 'S.Pd',
+          
+          // Gelar M.Pd dan variannya
+          'M.PD.I': 'M.Pd.I',
+          'M.PD.K': 'M.Pd.K',
+          'M.PD': 'M.Pd',
+          
+          // Gelar Agama
+          'S.AG': 'S.Ag',
+          'M.AG': 'M.Ag',
+          'S.FIL.I': 'S.Fil.I',
+          'S.TH.I': 'S.Th.I',
+
+          // Gelar Komputer
+          'S.KOM': 'S.Kom',
+          'M.KOM': 'M.Kom',
+          
+          // Gelar Hukum
+          'S.H.I': 'S.H.I',
+          'S.H': 'S.H',
+          'M.H': 'M.H',
+          
+          // Gelar Ekonomi
+          'S.E': 'S.E',
+          'M.E': 'M.E',
+          'M.M': 'M.M',
+          'S.AK': 'S.Ak',
+          
+          // Gelar Sosial & Sains
+          'S.SOS': 'S.Sos',
+          'M.SI': 'M.Si',
+          'S.SI': 'S.Si',
+          
+          // Gelar Teknik & Vokasi
+          'S.TR.T': 'S.Tr.T',
+          'S.T': 'S.T',
+          'M.T': 'M.T',
+          
+          // Gelar Akademik (Doktor, dll)
+          'DRS.': 'Drs.',
+          'DRA.': 'Dra.',
+          'DR.': 'Dr.',
+          'PROF.': 'Prof.',
+
+          // Gelar Keagamaan (Haji/Hajjah)
+          'HJ.': 'Hj.',
+          'H.': 'H.' // H. harus salah satu yang terakhir
+        };
+
+        // 3. Ambil daftar title UPPERCASE dan urutkan berdasarkan panjang (terpanjang dulu)
+        const sortedUpperTitles = Object.keys(corrections).sort((a, b) => b.length - a.length);
+
+        // 4. LOOP 1: Perbaiki separator (koma/titik/spasi) SEBELUM gelar
+        for (const upperTitle of sortedUpperTitles) {
+          // Escape titik-titik pada title untuk regex
+          const escapedTitle = upperTitle.replace(/\./g, '\\.');
+          
+          // Regex 1: Temukan titik
+          const regexDot = new RegExp(`\\.(${escapedTitle})`, 'g');
+          formattedName = formattedName.replace(regexDot, ', $1'); 
+          
+          // Regex 2: Temukan koma TANPA SPASI
+          const regexCommaNoSpace = new RegExp(`,(${escapedTitle})`, 'g');
+          formattedName = formattedName.replace(regexCommaNoSpace, ', $1');
+
+          // Regex 3: Temukan SPASI SAJA (pastikan BUKAN koma/titik/spasi lain)
+          const regexSpace = new RegExp(`([^,\\.\\s])\\s(${escapedTitle})`, 'g');
+          formattedName = formattedName.replace(regexSpace, '$1, $2');
+        }
+
+        // 5. LOOP 2: Koreksi kapitalisasi gelar
+        for (const [upper, correct] of Object.entries(corrections)) {
+          const regex = new RegExp(upper.replace(/\./g, '\\.'), 'g');
+          formattedName = formattedName.replace(regex, correct);
+        }
+
+        return formattedName;
+      }
+      // ===================================================================
+      // --- AKHIR TAMBAHAN ---
+      // ===================================================================
 
     </script>
   </body>
