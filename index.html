@@ -4167,32 +4167,24 @@
         if (pushState) {
           history.pushState(null, null, location.href);
         }
-
+        
+        // --- PERUBAHAN: ---
+        // Hapus SEMUA logika pengaturan tanggal dari sini.
+        // Kita tidak tahu pengaturan tanggal yang benar sampai
+        // forceUpdateSettings() selesai mengambil data baru dari server.
+        
+        // Kosongkan input bulan. Ini PENTING.
+        // Ini memberitahu forceUpdateSettings (via handleLkhMonthChange)
+        // bahwa kita perlu MENGHITUNG default baru, bukan memuat ulang
+        // bulan yang mungkin sudah kedaluwarsa.
         const lkhMonthInput = document.getElementById('lkh-month-input');
-        if (!lkhMonthInput.value) {
-          // --- (Logika set tanggal default Anda, tidak perlu diubah) ---
-          const today = new Date();
-          const targetDate = new Date(); 
-          if (today.getDate() < 6) {
-              targetDate.setMonth(targetDate.getMonth() - 1);
-          }
-          const year = targetDate.getFullYear();
-          const month = String(targetDate.getMonth() + 1).padStart(2, '0');
-          lkhMonthInput.value = `${year}-${month}`;
-          // --- (Akhir logika set tanggal default) ---
-        }
-        
-        // --- AWAL PERUBAHAN ---
-        // Kita panggil forceUpdateSettings.
-        // Fungsi ini akan membersihkan cache server (memastikan pengaturan tanggal terbaru)
-        // lalu secara internal memanggil handleLkhMonthChange() untuk memuat formulir.
-        
-        // Ganti baris ini:
-        // handleLkhMonthChange(); 
-        
-        // Menjadi baris ini:
-        forceUpdateSettings(null, 'update-settings-button');
+        lkhMonthInput.value = ""; 
         // --- AKHIR PERUBAHAN ---
+
+        // Panggil forceUpdateSettings. Ini akan mengambil pengaturan
+        // terbaru (cth: limit 0) DAN kemudian akan menangani
+        // pengaturan tanggal default di dalam success handler-nya.
+        forceUpdateSettings(null, 'update-settings-button');
       }
 
       function handleLkhMonthChange() {
@@ -4907,7 +4899,9 @@
           return d;
       }
 
-      // [MODIFIKASI] Fungsi ini sekarang memanggil getDashboardStatus
+      /**
+       * (MODIFIKASI) Fungsi ini sekarang memanggil getDashboardStatus
+       */
       function runDashboardGeoCheck() {
           if (!currentUser) return; 
 
@@ -4928,12 +4922,16 @@
                       return;
                   }
                   
+                  // --- AWAL PERUBAHAN: Simpan semua pengaturan ---
                   currentSchoolSettings = response.schoolSettings || {};
+                  dashboardTimestamp = response.updateTimestamp || '0';
                   
-                  // --- TAMBAHAN BARU: Simpan timestamp awal ---
-                  // Simpan "versi" data yang kita muat pertama kali
-                  dashboardTimestamp = response.updateTimestamp || '0'; 
-                  // --- AKHIR TAMBAHAN ---
+                  // Simpan batas hari global dari server ke appSettings
+                  // (Ini adalah perbaikan agar batas hari LKH/Ceklok tersedia sebelum halaman LKH/Ceklok dibuka)
+                  appSettings.lastMonthCeklokDayLimit = response.lastMonthCeklokDayLimit;
+                  appSettings.requestDayLimit = response.requestDayLimit;
+                  appSettings.lkhLastDayLimit = response.lkhLastDayLimit; 
+                  // --- AKHIR PERUBAHAN ---
 
                   runPrimaryGeoCheck(); 
               })
@@ -5317,15 +5315,10 @@
             event.stopPropagation();
         }
 
-        // --- AWAL PERUBAHAN ---
-        // Pindahkan pengecekan LKH ke paling atas
         const lkhContainer = document.getElementById('lkh-container');
-        // --- AKHIR PERUBAHAN ---
 
-        // --- AWAL TAMBAHAN: Nonaktifkan semua kontrol LKH ---
+        // Bagian UI Loading LKH (Tidak berubah, sudah benar)
         if (lkhContainer.style.display === 'block') {
-            
-            // 1. Nonaktifkan semua tombol utama dan input bulan
             const lkhMonthInput = document.getElementById('lkh-month-input');
             const applyWeeklyButton = document.getElementById('apply-weekly-data-button');
             const clearButton = document.getElementById('clear-lkh-data-button');
@@ -5336,7 +5329,6 @@
             if (clearButton) clearButton.disabled = true;
             if (saveButton) saveButton.disabled = true;
             
-            // 2. Tampilkan pesan loading di dalam tabel
             const tableContainer = document.getElementById('lkh-table-container');
             if (tableContainer) {
                 tableContainer.innerHTML = `
@@ -5346,16 +5338,13 @@
                   </div>`;
             }
             
-            // 3. Bersihkan pesan-pesan lama
-            displayMessage('lkh-action-message', ''); // Hapus pesan aksi
+            displayMessage('lkh-action-message', '');
             const lockMessageEl = document.getElementById('lkh-lock-message');
             if (lockMessageEl) {
               lockMessageEl.innerText = "";
               lockMessageEl.className = "message";
             }
         }
-        // --- AKHIR TAMBAHAN ---
-
 
         if (!currentUser || !selectedSchool) {
           displayMessage(null, "Gagal: Sesi pengguna tidak ditemukan.");
@@ -5373,15 +5362,11 @@
           buttonToDisable.disabled = true; 
         }
         
-        // --- AWAL PERUBAHAN (Logika Toast) ---
-        // Hanya tampilkan toast melayang jika KITA TIDAK SEDANG DI HALAMAN LKH
         if (lkhContainer.style.display !== 'block') {
-          // 2. Tampilkan Toast Loading
           displayMessage(null, "Memperbarui setelan & pengumuman...", { isProcessing: true });
         }
-        // --- AKHIR PERUBAHAN (Logika Toast) ---
         
-        // 3. Hapus Cache di Server
+        // Pemanggilan clear cache (Tidak berubah, sudah benar)
         google.script.run
           .withFailureHandler(err => console.error("Gagal hapus cache global:", err.message))
           .clearGlobalSettingsCache();
@@ -5390,10 +5375,9 @@
           .withFailureHandler(err => console.error("Gagal hapus cache lokasi:", err.message))
           .clearSchoolSettingsCacheManual(localStorage.getItem('ceklokAuthToken')); 
 
-        // (Sisa fungsi tidak berubah...)
         if (lkhContainer.style.display === 'block') {
           const lkhMonthInput = document.getElementById('lkh-month-input').value;
-          if (lkhMonthInput) {
+          if (lkhMonthInput) { // Hanya hapus cache jika bulan sudah terisi
             const [year, month] = lkhMonthInput.split('-').map(Number);
             google.script.run
               .withFailureHandler(err => console.error("Gagal hapus cache LKH:", err.message))
@@ -5401,7 +5385,7 @@
           }
         }
 
-        // 4. Ambil Data Baru (setelah cache dihapus)
+        // Ambil Data Baru (setelah cache dihapus)
         google.script.run
           .withSuccessHandler(response => {
             if (buttonToDisable) {
@@ -5420,26 +5404,55 @@
                   refreshGeoUI(); 
                 }
               }
+              
+              // Simpan SEMUA pengaturan global terbaru ke appSettings
               appSettings.lastMonthCeklokDayLimit = response.lastMonthCeklokDayLimit;
-              appSettings.lkhLastDayLimit = response.lkhLastDayLimit;
+              appSettings.lkhLastDayLimit = response.lkhLastDayLimit; // <-- PENTING: Nilai baru (cth: 0) disimpan di sini
               appSettings.requestDayLimit = response.requestDayLimit;
               
-              // --- AWAL PERUBAHAN (Logika Toast) ---
-              // Pindahkan fetchLatestAnnouncements ke sini
-              // (fungsi ini akan menangani toast sukses/gagalnya sendiri)
               fetchLatestAnnouncements(); 
-              // --- AKHIR PERUBAHAN ---
 
               if (document.getElementById('guru-dashboard-container').style.display === 'block') {
                  renderDynamicAnnouncements(appSettings, currentSummary);
               }
               
+              // --- AWAL PERUBAHAN UTAMA ---
               if (lkhContainer.style.display === 'block') {
                 const lkhMonthInput = document.getElementById('lkh-month-input');
                 if (lkhMonthInput) lkhMonthInput.disabled = false;
                 
+                // Cek jika input bulan KOSONG (karena kita kosongkan di showLkhPage)
+                if (lkhMonthInput && !lkhMonthInput.value) {
+                  
+                  // --- Logika Perhitungan Tanggal Default (Dipindah ke sini) ---
+                  const today = new Date();
+                  const currentDay = today.getDate(); // Cth: 2
+                  
+                  // Ambil batas hari LKH dari appSettings yang BARU SAJA DIPERBARUI
+                  const lkhLimit = parseInt(appSettings.lkhLastDayLimit, 10);
+                  const gracePeriodLimit = isNaN(lkhLimit) ? 5 : lkhLimit; // cth: 0
+                  
+                  const targetDate = new Date();
+                  
+                  // Cek: (limit=0 > 0) -> false. Blok ini di-skip.
+                  // Jika limit=5 dan tgl=2: (5 > 0 && 2 <= 5) -> true.
+                  if (gracePeriodLimit > 0 && currentDay <= gracePeriodLimit) {
+                      // Buka bulan lalu
+                      targetDate.setMonth(targetDate.getMonth() - 1);
+                  }
+                  
+                  // Jika limit=0, targetDate akan tetap bulan berjalan (November)
+                  const year = targetDate.getFullYear();
+                  const month = String(targetDate.getMonth() + 1).padStart(2, '0');
+                  lkhMonthInput.value = `${year}-${month}`; // Input diisi '2025-11'
+                  // --- Akhir Logika Perhitungan Tanggal ---
+                }
+
+                // Panggil handleLkhMonthChange. Sekarang inputnya
+                // sudah diisi dengan tanggal default yang benar ('2025-11').
                 handleLkhMonthChange(); 
               }
+              // --- AKHIR PERUBAHAN UTAMA ---
               
               dashboardTimestamp = response.updateTimestamp || '0'; 
               startSettingsPolling(); 
