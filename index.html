@@ -1167,7 +1167,10 @@
           ];
           fieldsToLoad.forEach(id => {
             const el = document.getElementById(id);
-            if(el) el.innerText = "Memuat...";
+            if(el) {
+              el.innerText = "Memuat...";
+              el.classList.remove('placeholder-missing'); // Hapus class merah saat memuat
+            }
           });
 
           displayMessage('sptjm-download-message', 'Memuat data pratinjau...', { isProcessing: true });
@@ -1181,39 +1184,65 @@
                   const settings = data.settings || {};
                   const user = data.user || {};
 
-                  document.getElementById('sptjm-view-name').innerText = user.name || '-';
-                  document.getElementById('sptjm-view-nip').innerText = settings.nip || '-';
-                  document.getElementById('sptjm-view-jabatan').innerText = settings.jabatan || '[Jabatan Guru]';
-                  document.getElementById('sptjm-view-satker').innerText = user.school || '-';
-                  document.getElementById('sptjm-view-month').innerText = settings.bulan || '[Bulan]';
-
-                  const signatureDate = settings.tanggal ? new Date(settings.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'Asia/Makassar' }) : '[Tanggal]';
-                  document.getElementById('sptjm-view-place-date').innerText = `${settings.tempat || '[Tempat]'}, ${signatureDate}`;
-
-                  document.getElementById('sptjm-view-signature-name').innerText = user.name || '-';
-                  document.getElementById('sptjm-view-signature-nip').innerText = settings.nip || '-';
+                  // ===================================================================
+                  // --- AWAL PERUBAHAN: Gunakan helper updatePreviewField_ ---
+                  // ===================================================================
+                  updatePreviewField_('sptjm-view-name', user.name, '[Nama Guru]');
+                  updatePreviewField_('sptjm-view-nip', settings.nip, '-');
+                  updatePreviewField_('sptjm-view-jabatan', settings.jabatan, '[Jabatan Guru]');
+                  updatePreviewField_('sptjm-view-satker', user.school, '[Nama Sekolah]');
                   
-                  // ===================================================================
-                  // --- AWAL PERUBAHAN: Panggil fungsi format JS ---
-                  // ===================================================================
-                  const formattedHeadmasterName = formatHeadmasterNameJS(settings.namaKepala || '[Nama Kepala Madrasah]');
-                  document.getElementById('sptjm-view-headmaster-name').innerText = formattedHeadmasterName;
+                  // settings.bulan harusnya selalu ada dari server
+                  updatePreviewField_('sptjm-view-month', settings.bulan, '[Bulan]'); 
+
+                  // === PERUBAHAN DI SINI: Penanganan khusus untuk Tempat & Tanggal TTD (SPTJM) ===
+                  const tempatEl = document.getElementById('sptjm-view-place-date');
+                  const tempatValue = String(settings.tempat || "").trim();
+                  const tanggalValue = String(settings.tanggal || "").trim();
+                  
+                  // Cek Tempat
+                  const tempatHtml = tempatValue 
+                    ? tempatValue 
+                    : `<span class="placeholder-missing">[Tempat]</span>`;
+
+                  // Cek Tanggal (karena tanggal wajib di SPTJM)
+                  const tanggalHtml = tanggalValue 
+                    ? new Date(tanggalValue).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'Asia/Makassar' }) 
+                    : `<span class="placeholder-missing">[Tanggal]</span>`;
+                    
+                  // Gabungkan
+                  tempatEl.innerHTML = `${tempatHtml}, ${tanggalHtml}`;
+                  tempatEl.classList.remove('placeholder-missing'); // Hapus class dari container
+                  // === AKHIR PERUBAHAN ===
+
+                  updatePreviewField_('sptjm-view-signature-name', user.name, '[Nama Guru]');
+                  updatePreviewField_('sptjm-view-signature-nip', settings.nip, '-');
+                  
+                  // Penanganan khusus untuk Nama Kepala Madrasah (karena ada formatting)
+                  const namaKepalaEl = document.getElementById('sptjm-view-headmaster-name');
+                  const namaKepalaValue = String(settings.namaKepala || "").trim();
+                  if (namaKepalaValue) {
+                    namaKepalaEl.innerText = formatHeadmasterNameJS(namaKepalaValue);
+                    namaKepalaEl.classList.remove('placeholder-missing');
+                  } else {
+                    namaKepalaEl.innerText = '[Nama Kepala Madrasah]';
+                    namaKepalaEl.classList.add('placeholder-missing');
+                  }
+                  
+                  updatePreviewField_('sptjm-view-headmaster-nip', settings.nipKepala, '-');
                   // ===================================================================
                   // --- AKHIR PERUBAHAN ---
                   // ===================================================================
-                  
-                  document.getElementById('sptjm-view-headmaster-nip').innerText = settings.nipKepala || '-';
 
-                  // --- AWAL PERUBAHAN LOGIKA VALIDASI ---
-                  const validation = areSptjmSettingsComplete(settings); // Memanggil validasi SPTJM
+                  // --- Logika validasi (tidak berubah) ---
+                  const validation = areSptjmSettingsComplete(settings); 
 
                   if (validation.complete) {
                       downloadButton.disabled = false;
-                      messageElement.innerHTML = ''; // Hapus pesan <p> lama
+                      messageElement.innerHTML = ''; 
                       displayMessage('sptjm-download-message', 'Pratinjau siap. Klik untuk mengunduh.', { isSuccess: true });
                   } else {
                       downloadButton.disabled = true;
-                      // --- PERUBAHAN DI SINI: Panggil formatMissingList ---
                       const missingList = formatMissingList(validation.missing);
                       
                       messageElement.innerHTML = `Tombol Unduh PDF akan aktif setelah Pengaturan Cetak dilengkapi.
@@ -1224,10 +1253,8 @@
                           <a href="#" onclick="event.preventDefault(); showSptjmSettingsPage(true);">Lengkapi Sekarang</a>
                         </div>`;
                       
-                      // Hapus toast loading
                       displayMessage('sptjm-download-message', 'Pratinjau dimuat, pengaturan belum lengkap.', { isSuccess: true });
                   }
-                  // --- AKHIR PERUBAHAN LOGIKA VALIDASI ---
               })
               .withFailureHandler(err => {
                   displayMessage('sptjm-download-message', `Error: ${err.message}`);
@@ -4481,6 +4508,22 @@
           const messageElement = document.getElementById('lkh-download-message');
           downloadButton.disabled = true;
           displayMessage('lkh-download-message', 'Memuat data pratinjau LKH...', { isProcessing: true });
+          
+          // --- AWAL TAMBAHAN: Hapus class merah saat memuat ---
+          const fieldsToClear = [
+            'lkh-view-name', 'lkh-view-nip', 'lkh-view-jabatan', 'lkh-view-period',
+            'lkh-view-place-date', 'lkh-view-signature-name', 'lkh-view-signature-nip',
+            'lkh-view-headmaster-name', 'lkh-view-headmaster-nip'
+          ];
+          fieldsToClear.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+              el.innerText = "Memuat...";
+              el.classList.remove('placeholder-missing');
+            }
+          });
+          document.getElementById('lkh-view-table-body').innerHTML = '';
+          // --- AKHIR TAMBAHAN ---
 
           const lkhMonthInput = document.getElementById('lkh-view-month-input');
           
@@ -4505,24 +4548,52 @@
                   if (response.success) {
                       const data = response.data;
 
-                      document.getElementById('lkh-view-name').innerText = data.user.name || '-';
-                      document.getElementById('lkh-view-nip').innerText = data.settings.nip || '-';
-                      document.getElementById('lkh-view-jabatan').innerText = data.settings.jabatan || '[Jabatan Guru]';
-                      document.getElementById('lkh-view-period').innerText = `${data.period.firstDay} - ${data.period.lastDay} (${data.lkhItems.length} Hari Kerja)`;
-                      document.getElementById('lkh-view-place-date').innerText = `${data.settings.tempat || '[Tempat]'}, ${data.signatureDate}`;
-                      document.getElementById('lkh-view-signature-name').innerText = data.user.name || '-';
-                      document.getElementById('lkh-view-signature-nip').innerText = data.settings.nip || '-';
+                      // ===================================================================
+                      // --- AWAL PERUBAHAN: Gunakan helper updatePreviewField_ ---
+                      // ===================================================================
+                      updatePreviewField_('lkh-view-name', data.user.name, '[Nama Guru]');
+                      updatePreviewField_('lkh-view-nip', data.settings.nip, '-');
+                      updatePreviewField_('lkh-view-jabatan', data.settings.jabatan, '[Jabatan Guru]');
                       
-                      // ===================================================================
-                      // --- AWAL PERUBAHAN: Panggil fungsi format JS ---
-                      // ===================================================================
-                      const formattedHeadmasterNameLkh = formatHeadmasterNameJS(data.settings.namaKepala || '[Nama Kepala Madrasah]');
-                      document.getElementById('lkh-view-headmaster-name').innerText = formattedHeadmasterNameLkh;
+                      // Ini data ter-generate, tidak perlu placeholder
+                      document.getElementById('lkh-view-period').innerText = `${data.period.firstDay} - ${data.period.lastDay} (${data.lkhItems.length} Hari Kerja)`;
+                      
+                      // === PERUBAHAN DI SINI: Penanganan khusus untuk Tempat TTD (LKH) ===
+                      const tempatEl = document.getElementById('lkh-view-place-date');
+                      const tempatValue = String(data.settings.tempat || "").trim();
+                      const tanggalValue = data.signatureDate; // Ini auto-filled
+                      
+                      let tempatHtml;
+                      if (tempatValue) {
+                        tempatHtml = tempatValue; // Data ada, teks normal
+                      } else {
+                        // Data kosong, bungkus placeholder dengan span merah
+                        tempatHtml = `<span class="placeholder-missing">[Tempat]</span>`; 
+                      }
+                      
+                      // Gabungkan HTML (Tanggal tidak akan pernah merah)
+                      tempatEl.innerHTML = `${tempatHtml}, ${tanggalValue}`;
+                      tempatEl.classList.remove('placeholder-missing'); // Hapus class dari container
+                      // === AKHIR PERUBAHAN ===
+
+                      updatePreviewField_('lkh-view-signature-name', data.user.name, '[Nama Guru]');
+                      updatePreviewField_('lkh-view-signature-nip', data.settings.nip, '-');
+                      
+                      // Penanganan khusus untuk Nama Kepala Madrasah (karena ada formatting)
+                      const namaKepalaEl = document.getElementById('lkh-view-headmaster-name');
+                      const namaKepalaValue = String(data.settings.namaKepala || "").trim();
+                      if (namaKepalaValue) {
+                        namaKepalaEl.innerText = formatHeadmasterNameJS(namaKepalaValue);
+                        namaKepalaEl.classList.remove('placeholder-missing');
+                      } else {
+                        namaKepalaEl.innerText = '[Nama Kepala Madrasah]';
+                        namaKepalaEl.classList.add('placeholder-missing');
+                      }
+
+                      updatePreviewField_('lkh-view-headmaster-nip', data.settings.nipKepala, '-');
                       // ===================================================================
                       // --- AKHIR PERUBAHAN ---
                       // ===================================================================
-
-                      document.getElementById('lkh-view-headmaster-nip').innerText = data.settings.nipKepala || '-';
 
                       const tableBody = document.getElementById('lkh-view-table-body');
                       tableBody.innerHTML = '';
@@ -4545,16 +4616,15 @@
                           tableBody.innerHTML = '<tr><td colspan="6" style="border: 1px solid black; padding: 8px; text-align: center;">Tidak ada data kegiatan untuk bulan ini.</td></tr>';
                       }
 
-                      // --- AWAL PERUBAHAN LOGIKA VALIDASI ---
+                      // --- Logika validasi (tidak berubah) ---
                       const validation = areLkhSettingsComplete(data.settings || {});
 
                       if (validation.complete) {
                           downloadButton.disabled = false;
-                          messageElement.innerHTML = ''; // Hapus pesan <p> lama
+                          messageElement.innerHTML = ''; 
                           displayMessage('lkh-download-message', 'Pratinjau siap. Klik untuk mengunduh.', { isSuccess: true });
                       } else {
                           downloadButton.disabled = true;
-                          // --- PERUBAHAN DI SINI: Panggil formatMissingList ---
                           const missingList = formatMissingList(validation.missing);
                           
                           messageElement.innerHTML = `Tombol Unduh PDF akan aktif setelah Pengaturan Cetak dilengkapi.
@@ -4565,10 +4635,8 @@
                               <a href="#" onclick="event.preventDefault(); showSptjmSettingsPage(true);">Lengkapi Sekarang</a>
                             </div>`;
                           
-                          // Hapus toast loading
                           displayMessage('lkh-download-message', 'Pratinjau dimuat, pengaturan belum lengkap.', { isSuccess: true });
                       }
-                      // --- AKHIR PERUBAHAN LOGIKA VALIDASI ---
 
                   } else {
                       displayMessage('lkh-download-message', `Error: ${response.error}`);
@@ -4616,11 +4684,13 @@
       }
 
       function handleLkhViewMonthChange() {
-        showLkhViewPage();
+        // Memanggil dengan push = false agar tidak menambah riwayat browser
+        showLkhViewPage(false); 
       }
 
       function handleSptjmViewMonthChange() {
-        showSptjmViewPage();
+        // Memanggil dengan push = false agar tidak menambah riwayat browser
+        showSptjmViewPage(false); 
       }
 
       function handleApplyWeeklyData() {
@@ -5741,9 +5811,37 @@
 
         return formattedName;
       }
-      // ===================================================================
-      // --- AKHIR TAMBAHAN ---
-      // ===================================================================
+
+      /**
+       * (BARU) Helper untuk mengisi field pratinjau dan menandai jika kosong.
+       * @param {string} elementId - ID elemen yang akan diisi.
+       * @param {*} value - Nilai dari data (misal: settings.jabatan).
+       * @param {string} placeholder - Teks yang ditampilkan jika nilai kosong.
+       */
+      function updatePreviewField_(elementId, value, placeholder) {
+        const el = document.getElementById(elementId);
+        if (!el) return;
+        
+        const valueStr = String(value || "").trim();
+        
+        if (valueStr) {
+          // Jika ada data
+          el.innerText = valueStr;
+          el.classList.remove('placeholder-missing'); // Hapus class merah
+        } else {
+          // Jika data kosong
+          el.innerText = placeholder; // Tampilkan placeholder
+          
+          // === PERUBAHAN DI SINI ===
+          // Hanya tambahkan class merah jika placeholder BUKAN strip (-)
+          if (placeholder.trim() !== '-') {
+            el.classList.add('placeholder-missing'); // Tambah class merah
+          } else {
+            el.classList.remove('placeholder-missing'); // Pastikan tidak merah
+          }
+          // === AKHIR PERUBAHAN ===
+        }
+      }
 
     </script>
   </body>
